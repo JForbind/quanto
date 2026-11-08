@@ -42,6 +42,8 @@ Pensada para ZimaOS, NAS o Raspberry Pi, y para usarse desde el móvil o el orde
 
 ## Arranque rápido
 
+### Docker Compose (recomendado)
+
 ```bash
 cd quanto
 cp .env.example .env      # pon APP_PASSWORD
@@ -50,9 +52,24 @@ docker compose up -d --build
 
 Abre `http://IP-DE-TU-SERVIDOR:8766` e introduce la contraseña.
 
+### Con la imagen publicada (sin compilar)
+
+```bash
+docker run -d --name quanto \
+  -p 8766:8765 \
+  -v "$PWD/data:/app/data" \
+  -e APP_PASSWORD=una-clave-larga \
+  -e TZ=Europe/Madrid \
+  --restart unless-stopped \
+  ghcr.io/jforbind/quanto:latest
+```
+
+Imagen multi-arquitectura (`linux/amd64` y `linux/arm64`), publicada automáticamente
+en cada etiqueta `v*`: `ghcr.io/jforbind/quanto:latest`.
+
 Guía completa para ZimaOS: **[INSTALAR-ZIMAOS.md](INSTALAR-ZIMAOS.md)**
 
-Sin Docker:
+### Sin Docker
 
 ```bash
 npm install
