@@ -34,11 +34,20 @@ Pensada para ZimaOS, NAS o Raspberry Pi, y para usarse desde el móvil o el orde
 
 ![Resumen](docs/capturas/resumen.jpg)
 
-| Fiscal | Miedo y codicia |
+| Monedas | Fiscal |
 |---|---|
-| ![Fiscal](docs/capturas/fiscal.jpg) | ![Índice](docs/capturas/miedo-y-codicia.jpg) |
+| ![Monedas](docs/capturas/monedas.jpg) | ![Fiscal](docs/capturas/fiscal.jpg) |
 
-<p align="center"><img src="docs/capturas/movil.jpg" width="300" alt="Vista móvil"></p>
+| Alertas por Telegram | Miedo y codicia |
+|---|---|
+| ![Alertas](docs/capturas/alertas.jpg) | ![Índice](docs/capturas/miedo-y-codicia.jpg) |
+
+<p align="center">
+  <img src="docs/capturas/movil.jpg" width="250" alt="Vista móvil">
+  <img src="docs/capturas/tema-claro.jpg" width="500" alt="Tema claro">
+</p>
+
+<p align="center"><sub>Capturas en modo DEMO con datos de ejemplo.</sub></p>
 
 ---
 
