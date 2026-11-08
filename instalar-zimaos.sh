@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================
-#  Instalador de Quanto 2.0 para ZimaOS / NAS Linux
+#  Instalador de Quanto para ZimaOS / NAS Linux
 #  No contiene ningún secreto: la contraseña se genera EN TU
 #  SERVIDOR con /dev/urandom y solo se muestra en tu terminal.
 # ============================================================

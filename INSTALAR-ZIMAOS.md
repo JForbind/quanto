@@ -1,4 +1,4 @@
-# Instalar Quanto 2.0 en ZimaOS
+# Instalar Quanto en ZimaOS
 
 Guía paso a paso para tu servidor ZimaOS. Al terminar tendrás la app en
 `http://IP-DE-TU-ZIMAOS:8766` y accesible desde el móvil.

@@ -1,7 +1,22 @@
-# Quanto 2.0
+<p align="center">
+  <img src="public/favicon.png" width="112" alt="Quanto">
+</p>
 
-Cartera de cripto para Bitvavo con informe fiscal español, pensada para autohospedarse
-(ZimaOS, NAS, Raspberry Pi) y usarse desde el móvil o el ordenador.
+<h1 align="center">Quanto</h1>
+
+<p align="center">
+  <b>Cartera cripto para Bitvavo con informe fiscal español</b><br>
+  Autohospedada, sin nube y sin salir de tu servidor.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-MIT-3DA639.svg" alt="MIT"></a>
+  <a href="https://github.com/JorgeHacs/quanto/actions/workflows/ci.yml"><img src="https://github.com/JorgeHacs/quanto/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white" alt="Docker Compose">
+  <img src="https://img.shields.io/badge/node-%E2%89%A518-339933?logo=node.js&logoColor=white" alt="Node 18+">
+</p>
+
+Pensada para ZimaOS, NAS o Raspberry Pi, y para usarse desde el móvil o el ordenador.
 
 - **Panel lateral de cristal** (glassmorphism), tema oscuro y claro, diseño responsive.
 - **Sincronización sin duplicados**: importas una vez el CSV del historial completo y después

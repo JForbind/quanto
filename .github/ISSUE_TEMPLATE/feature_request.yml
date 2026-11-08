@@ -1,0 +1,22 @@
+name: ✨ Propuesta
+description: Una idea o mejora para Quanto
+title: "[idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qué problema resuelve
+      description: ¿Qué echas en falta o qué te resulta incómodo?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Tu propuesta
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas que has considerado

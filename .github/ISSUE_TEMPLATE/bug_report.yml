@@ -1,0 +1,44 @@
+name: 🐛 Bug
+description: Algo no funciona como debería
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por tomarte el tiempo de reportarlo. Cuanta más información, más rápido se arregla.
+        ⚠️ No pegues claves de Bitvavo, tokens ni datos personales.
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Quanto
+      description: Aparece en Ajustes → Acerca de, o en `GET /api/status`.
+      placeholder: v2.0.0
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: Cómo lo ejecutas
+      options:
+        - Docker Compose (recomendado)
+        - Docker suelto
+        - Node directamente
+        - Otro
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Qué ocurre
+      description: Pasos para reproducirlo y qué ves.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Qué esperabas que ocurriera
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs relevantes
+      description: Salida de `docker compose logs --tail 100` (sin secretos).
+      render: shell

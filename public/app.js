@@ -1,6 +1,6 @@
 'use strict';
 /* ============================================================
-   Quanto 2.0 — interfaz
+   Quanto — interfaz
    ============================================================ */
 
 const $ = (sel) => document.querySelector(sel);

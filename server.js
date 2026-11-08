@@ -1,5 +1,5 @@
 'use strict';
-// Quanto 2.0 — servidor Express.
+// Quanto — servidor Express.
 // Modo live (claves de Bitvavo de solo lectura) o demo (datos de ejemplo).
 const express = require('express');
 const ExcelJS = require('exceljs');
