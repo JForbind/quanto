@@ -3,7 +3,7 @@
 ## Cómo reportar una vulnerabilidad
 
 Si encuentras un fallo de seguridad, **no abras un issue público**. Usa
-[Security Advisories](https://github.com/JorgeHacs/quanto/security/advisories/new)
+[Security Advisories](https://github.com/JForbind/quanto/security/advisories/new)
 o escribe a través de un issue privado al mantenedor.
 
 Incluye, si puedes:

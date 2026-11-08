@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-MIT-3DA639.svg" alt="MIT"></a>
-  <a href="https://github.com/JorgeHacs/quanto/actions/workflows/ci.yml"><img src="https://github.com/JorgeHacs/quanto/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/JForbind/quanto/actions/workflows/ci.yml"><img src="https://github.com/JForbind/quanto/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white" alt="Docker Compose">
   <img src="https://img.shields.io/badge/node-%E2%89%A518-339933?logo=node.js&logoColor=white" alt="Node 18+">
 </p>
