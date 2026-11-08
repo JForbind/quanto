@@ -290,7 +290,10 @@ test('los tokens de sesión caducan y no se pueden falsificar', () => {
   const secret = 'x'.repeat(64);
   const token = auth.createToken(secret, 1000 * 60);
   assert.ok(auth.verifyToken(secret, token));
-  assert.ok(!auth.verifyToken(secret, token.replace(/.$/, '0')));
+  // alterar el último carácter garantizando que el token cambia (si ya era '0', usar '1')
+  const tampered = token.slice(0, -1) + (token.endsWith('0') ? '1' : '0');
+  assert.notStrictEqual(tampered, token);
+  assert.ok(!auth.verifyToken(secret, tampered));
   assert.ok(!auth.verifyToken('otro', token));
   const expired = auth.createToken(secret, -1000);
   assert.ok(!auth.verifyToken(secret, expired));
