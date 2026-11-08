@@ -666,6 +666,22 @@ function renderFearGreedMini() {
   const label = $('#fg-label');
   label.textContent = fg.classification ? fg.classification.text : fg.label;
   label.className = 'fg-tag ' + fgClass(fg.classification && fg.classification.key);
+
+  const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  setTxt('fg-mini-week', fg.weekAgo === null || fg.weekAgo === undefined ? '—' : fg.weekAgo);
+  setTxt('fg-mini-month', fg.monthAgo === null || fg.monthAgo === undefined ? '—' : fg.monthAgo);
+  const last30 = fg.series.slice(-30);
+  const avg30 = last30.reduce((a, p) => a + p.value, 0) / (last30.length || 1);
+  setTxt('fg-mini-avg', num(avg30, 0));
+  const notes = {
+    'extreme-fear': 'Pánico vendedor: históricamente, zona de acumulación.',
+    fear: 'Predomina el miedo; precios por debajo de su media reciente.',
+    neutral: 'Mercado en equilibrio, sin excesos claros.',
+    greed: 'Optimismo y entradas de dinero: conviene vigilar.',
+    'extreme-greed': 'Euforia: zona de riesgo, correcciones bruscas.',
+  };
+  setTxt('fg-mini-note', notes[(fg.classification && fg.classification.key) || ''] || '');
+
   const points = fg.series.slice(-120);
   chart('chart-fg-mini', {
     animationDuration: 400,

@@ -337,6 +337,11 @@ html[data-theme="light"] .chips button.is-active { background: #fff; box-shadow:
 
 /* miedo y codicia */
 .fg-mini { display: flex; flex-direction: column; gap: 6px; }
+.fg-card { display: flex; flex-direction: column; }
+.fg-card .fg-mini { flex: 1; min-height: 0; }
+.fg-card #chart-fg-mini { flex: 1 1 auto; height: auto; min-height: 120px; }
+.fg-card .fg-stats { margin-top: 6px; }
+.fg-card #fg-mini-note { margin: 2px 0 0; line-height: 1.45; }
 .fg-mini-value { display: flex; align-items: baseline; gap: 10px; }
 .fg-mini-value strong { font-size: 40px; font-weight: 650; letter-spacing: -.04em; line-height: 1; }
 .fg-tag { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--glass-hi); }
