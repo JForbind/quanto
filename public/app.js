@@ -413,18 +413,30 @@ function rangeCut(range) {
 
 async function renderEvolutionChart() {
   const v = themeVars();
+  const hist = (state.history.points || []).slice();
+  const evo = await loadEvolution();
+
   let points = [];
   let source = '';
-  const evo = (state.history.points || []).length > 8 ? null : await loadEvolution();
-  if (evo && evo.points && evo.points.length > 4) {
-    points = evo.points;
+  if (evo && Array.isArray(evo.points) && evo.points.length > 4) {
+    // Serie reconstruida desde el historial importado (cubre desde la primera compra).
+    points = evo.points.map(p => ({ t: p.t, value: p.value, invested: p.invested }));
     source = 'reconstruida desde tu historial';
-  } else if (state.history.points && state.history.points.length > 1) {
-    points = state.history.points;
+    // Enlazamos con las capturas de hoy posteriores al último punto de la serie.
+    if (hist.length) {
+      const lastT = points.length ? points[points.length - 1].t : 0;
+      const extra = hist.filter(p => p.t > lastT).map(p => ({ t: p.t, value: p.value, invested: p.invested }));
+      if (extra.length) points = points.concat(extra);
+    }
+  } else if (hist.length > 1) {
+    points = hist;
     source = 'guardada cada ' + (state.history.intervalMin || 5) + ' min';
   }
+
   const cut = rangeCut(state.range);
-  const filtered = points.filter(p => p.t >= cut);
+  let filtered = points.filter(p => p.t >= cut);
+  // Si el rango elegido deja menos de 2 puntos, mostramos toda la serie en vez de un vacío.
+  if (filtered.length < 2 && points.length >= 2) filtered = points;
   const el = $('#chart-evolution');
   if (!filtered.length) {
     clearChart('chart-evolution', '<div class="empty">Aún no hay histórico. Importa tu CSV y se reconstruirá la evolución.</div>');
@@ -433,7 +445,10 @@ async function renderEvolutionChart() {
   if (el && el.querySelector('.empty')) el.innerHTML = '';
 
   const sub = $('#evo-sub');
-  if (sub) sub.textContent = `${filtered.length} puntos · ${source}`;
+  if (sub) {
+    const desde = new Date(filtered[0].t).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+    sub.textContent = `${filtered.length} puntos · desde ${desde} · ${source}`;
+  }
 
   const values = filtered.map(p => p.value);
   const invested = filtered.map(p => p.invested);

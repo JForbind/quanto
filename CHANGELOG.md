@@ -29,3 +29,11 @@ Primera versión pública de Quanto.
 
 - Contraseña con scrypt, sesión firmada (HMAC) y límite de intentos por IP.
 - Contenedor ejecutado como usuario `node`.
+
+### Corregido
+
+- La gráfica de **Evolución de la cartera** usaba solo las capturas cada 5 minutos
+  (unas horas) en lugar de la serie reconstruida desde el historial, así que los rangos
+  1M/3M/6M/1A/Todo mostraban lo mismo y la línea salía plana. Ahora usa la serie
+  reconstruida (desde la primera compra) y le enlaza las capturas del día.
+- Test de tokens de sesión: era **flaky** si el token terminaba en `0`.
