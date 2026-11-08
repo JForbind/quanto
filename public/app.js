@@ -675,7 +675,7 @@ function renderFearGreedMini() {
     tooltip: { ...baseTooltip(v), formatter: (i) => `${new Date(i[0].value[0]).toLocaleDateString('es-ES')}<br/><b>${i[0].value[1]}</b>` },
     series: [{
       type: 'line', showSymbol: false, smooth: 0.3, data: points.map(p => [p.t, p.value]),
-      lineStyle: { width: 2, color: v.accent2 },
+      lineStyle: { width: 2 },
       areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: hexA(v.accent2, .35) }, { offset: 1, color: hexA(v.accent2, 0) }]) },
       markLine: {
         silent: true, symbol: 'none',
@@ -684,6 +684,16 @@ function renderFearGreedMini() {
         label: { show: false },
       },
     }],
+    visualMap: {
+      show: false, dimension: 1, seriesIndex: 0,
+      pieces: [
+        { lt: 25, color: '#ff6b6b' },
+        { gte: 25, lt: 45, color: '#ffab5e' },
+        { gte: 45, lt: 56, color: '#9aa7bd' },
+        { gte: 56, lt: 76, color: '#5fd99a' },
+        { gte: 76, color: '#22c98a' },
+      ],
+    },
   });
 }
 
@@ -762,8 +772,8 @@ function renderFearGreed() {
     series: [{
       type: 'line', showSymbol: false, smooth: 0.25,
       data: points.map(p => [p.t, p.value]),
-      lineStyle: { width: 1.8, color: v.text2 },
-      areaStyle: { color: hexA(v.accent, .12) },
+      lineStyle: { width: 2 },
+      areaStyle: { color: hexA(v.accent, .10) },
       markArea: {
         silent: true,
         data: bands.map(b => [{ yAxis: b[0], itemStyle: { color: hexA(b[2], .10) } }, { yAxis: b[1] }]),
@@ -771,6 +781,19 @@ function renderFearGreed() {
       },
       markLine: { silent: true, symbol: 'none', lineStyle: { color: v.muted, type: [3, 3], opacity: .6 }, label: { show: false }, data: [{ yAxis: 50 }] },
     }],
+    // La línea se colorea según el tramo de miedo/codicia en el que esté cada punto.
+    visualMap: {
+      show: false,
+      dimension: 1,
+      seriesIndex: 0,
+      pieces: [
+        { lt: 25, color: '#ff6b6b' },
+        { gte: 25, lt: 45, color: '#ffab5e' },
+        { gte: 45, lt: 56, color: '#9aa7bd' },
+        { gte: 56, lt: 76, color: '#5fd99a' },
+        { gte: 76, color: '#22c98a' },
+      ],
+    },
   });
 
   const note = $('#fg-note');
