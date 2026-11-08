@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="0.5" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#eab308"/>
+    </linearGradient>
+    <radialGradient id="coin" cx="0.35" cy="0.3" r="1">
+      <stop offset="0" stop-color="#fde68a"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </radialGradient>
+  </defs>
+
+  <!-- fondo -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2"/>
+
+  <!-- rejilla sutil -->
+  <g stroke="rgba(255,255,255,.12)" stroke-width="1">
+    <line x1="24" y1="40" x2="104" y2="40"/>
+    <line x1="24" y1="62" x2="104" y2="62"/>
+    <line x1="24" y1="84" x2="104" y2="84"/>
+    <line x1="24" y1="106" x2="104" y2="106"/>
+  </g>
+
+  <!-- grafico ascendente -->
+  <polyline points="24,98 40,84 52,90 66,66 78,72 92,50 104,40"
+            fill="none" stroke="url(#line)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- area bajo la linea -->
+  <polygon points="24,98 40,84 52,90 66,66 78,72 92,50 104,40 104,104 24,104"
+           fill="rgba(34,197,94,.18)"/>
+
+  <!-- moneda con € -->
+  <circle cx="86" cy="34" r="14" fill="url(#coin)" stroke="#fff" stroke-width="3"/>
+  <text x="86" y="41" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#78350f" text-anchor="middle">€</text>
+</svg>

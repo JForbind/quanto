@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quanto · Cartera cripto</title>
+<meta name="description" content="Cartera cripto de Bitvavo: valor, P/L, fiscal FIFO y wallet fría">
+<meta name="theme-color" content="#070b12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="1024x1024" href="/favicon.png">
+<link rel="apple-touch-icon" href="/favicon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/style.css">
+<script src="/echarts.min.js" defer></script>
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="ambient" aria-hidden="true">
+  <span class="orb orb-a"></span>
+  <span class="orb orb-b"></span>
+  <span class="orb orb-c"></span>
+  <span class="grain"></span>
+</div>
+
+<!-- ------------------------------------------------ acceso -->
+<div id="login" class="login">
+  <form id="login-form" class="login-card glass" autocomplete="on">
+    <div class="login-logo">
+      <span class="qmark" title="Quanto"><span class="qq">Q</span>UANTO</span>
+    </div>
+    <p class="login-sub">Tu cartera de Bitvavo, con la fiscalidad resuelta.</p>
+    <label class="field">
+      <span>Contraseña</span>
+      <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
+    </label>
+    <button id="login-btn" class="btn btn-primary btn-lg" type="submit">Entrar</button>
+    <p id="login-error" class="login-error" role="alert"></p>
+    <p class="login-foot">Los datos no salen de tu servidor.</p>
+  </form>
+</div>
+
+<!-- ------------------------------------------------ app -->
+<div id="app" class="app hidden">
+  <aside class="sidebar glass">
+    <div class="brand">
+      <span class="qmark" title="Quanto"><span class="qq">Q</span>UANTO</span>
+    </div>
+
+    <nav class="nav" aria-label="Secciones">
+      <button class="nav-item is-active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6v7H4zM14 4h6v16h-6zM4 4h6v5H4z"/></svg>
+        <span>Resumen</span>
+      </button>
+      <button class="nav-item" data-view="coins">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M7 8h7a3 3 0 0 1 0 6H7"/></svg>
+        <span>Monedas</span>
+      </button>
+      <button class="nav-item" data-view="market">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-6 4 3 7-9"/><circle cx="19" cy="6" r="2"/></svg>
+        <span>Miedo y codicia</span>
+      </button>
+      <button class="nav-item" data-view="operations">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>
+        <span>Operaciones</span>
+      </button>
+      <button class="nav-item" data-view="tax">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2Z"/><path d="M9 8h6M9 12h6"/></svg>
+        <span>Fiscal</span>
+      </button>
+      <button class="nav-item" data-view="alerts">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span>Alertas</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"/></svg>
+        <span>Ajustes</span>
+      </button>
+    </nav>
+
+    <div class="side-summary" id="side-summary">
+      <span class="tiny muted">Valor total</span>
+      <strong id="side-value">—</strong>
+      <span id="side-change" class="side-change">—</span>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="status-line">
+        <span id="mode-chip" class="chip chip-mode">DEMO</span>
+        <span id="sync-info" class="tiny muted">—</span>
+      </div>
+      <div class="side-actions">
+        <button id="theme-toggle" class="icon-btn" title="Cambiar tema" aria-label="Cambiar tema">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        </button>
+        <button id="logout-btn" class="icon-btn" title="Salir" aria-label="Salir">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-text">
+        <h1 id="page-title">Resumen</h1>
+        <p id="page-sub" class="muted">Cargando…</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="refresh-btn" class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+          <span>Actualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <div id="banner" class="banner hidden" role="status"></div>
+
+    <!-- ============================ RESUMEN -->
+    <section id="view-dashboard" class="view">
+      <div class="kpis">
+        <article class="card glass kpi">
+          <span class="kpi-label">Valor total</span>
+          <strong class="kpi-value" id="kpi-value">—</strong>
+          <span class="kpi-sub" id="kpi-value-sub">&nbsp;</span>
+        </article>
+        <article class="card glass kpi">
+          <span class="kpi-label">Invertido</span>
+          <strong class="kpi-value" id="kpi-invested">—</strong>
+          <span class="kpi-sub" id="kpi-invested-sub">&nbsp;</span>
+        </article>
+        <article class="card glass kpi">
+          <span class="kpi-label">P/L no realizado</span>
+          <strong class="kpi-value" id="kpi-pnl">—</strong>
+          <span class="kpi-sub" id="kpi-pnl-sub">&nbsp;</span>
+        </article>
+        <article class="card glass kpi">
+          <span class="kpi-label">Hoy</span>
+          <strong class="kpi-value" id="kpi-today">—</strong>
+          <span class="kpi-sub" id="kpi-today-sub">&nbsp;</span>
+        </article>
+      </div>
+
+      <div class="grid">
+        <article class="card glass span-8">
+          <header class="card-head">
+            <div>
+              <h2>Evolución de la cartera</h2>
+              <p class="card-sub" id="evo-sub">—</p>
+            </div>
+            <div class="chips" id="range-chips">
+              <button data-range="1M">1M</button>
+              <button data-range="3M">3M</button>
+              <button data-range="6M" class="is-active">6M</button>
+              <button data-range="1A">1A</button>
+              <button data-range="ALL">Todo</button>
+            </div>
+          </header>
+          <div id="chart-evolution" class="chart chart-lg"></div>
+        </article>
+
+        <article class="card glass span-4">
+          <header class="card-head"><h2>Reparto</h2><span class="card-sub" id="alloc-sub">—</span></header>
+          <div id="chart-allocation" class="chart chart-md"></div>
+          <ul id="alloc-legend" class="legend"></ul>
+        </article>
+
+        <article class="card glass span-8">
+          <header class="card-head">
+            <div><h2>Posiciones</h2><p class="card-sub" id="top-sub">—</p></div>
+            <button class="link" data-goto="coins">Ver todas</button>
+          </header>
+          <div class="table-wrap">
+            <table class="table" id="top-coins"></table>
+          </div>
+        </article>
+
+        <article class="card glass span-4">
+          <header class="card-head">
+            <h2>Miedo y codicia</h2>
+            <button class="link" data-goto="market">Detalle</button>
+          </header>
+          <div class="fg-mini">
+            <div class="fg-mini-value">
+              <strong id="fg-value">—</strong>
+              <span id="fg-label" class="fg-tag">—</span>
+            </div>
+            <div id="chart-fg-mini" class="chart chart-sm"></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============================ MONEDAS -->
+    <section id="view-coins" class="view hidden">
+      <div class="card glass">
+        <div class="toolbar">
+          <label class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="coins-search" type="search" placeholder="Buscar moneda…" autocomplete="off">
+          </label>
+          <div class="toolbar-right">
+            <span id="coins-count" class="tiny muted"></span>
+            <select id="coins-sort" class="select" aria-label="Ordenar">
+              <option value="value">Mayor valor</option>
+              <option value="pnl">Mayor P/L</option>
+              <option value="pnlpct">Mayor %</option>
+              <option value="day">Mayor cambio hoy</option>
+              <option value="name">Nombre A–Z</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table table-coins" id="coins-table">
+            <thead>
+              <tr>
+                <th>Moneda</th>
+                <th class="num">Cantidad</th>
+                <th class="num">Precio</th>
+                <th class="num">Valor</th>
+                <th class="num">Precio medio</th>
+                <th class="num">P/L</th>
+                <th class="num">Hoy</th>
+                <th class="num">Peso</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="coins-tbody"></tbody>
+          </table>
+        </div>
+        <div id="coins-empty" class="empty hidden">No hay monedas todavía.</div>
+      </div>
+    </section>
+
+    <!-- ============================ MIEDO Y CODICIA -->
+    <section id="view-market" class="view hidden">
+      <div class="grid">
+        <article class="card glass span-4">
+          <header class="card-head"><h2>Ahora mismo</h2><span class="card-sub" id="fg-updated">—</span></header>
+          <div id="fg-gauge" class="chart chart-gauge"></div>
+          <div class="fg-stats">
+            <div><span class="tiny muted">Hace 7 días</span><strong id="fg-week">—</strong></div>
+            <div><span class="tiny muted">Hace 30 días</span><strong id="fg-month">—</strong></div>
+            <div><span class="tiny muted">Media 30 días</span><strong id="fg-avg">—</strong></div>
+          </div>
+          <p class="fg-note" id="fg-note"></p>
+        </article>
+        <article class="card glass span-8">
+          <header class="card-head">
+            <div><h2>Histórico del índice</h2><p class="card-sub" id="fg-sub">—</p></div>
+            <div class="chips" id="fg-ranges">
+              <button data-range="3M">3M</button>
+              <button data-range="1A" class="is-active">1A</button>
+              <button data-range="2A">2A</button>
+              <button data-range="ALL">Todo</button>
+            </div>
+          </header>
+          <div id="fg-chart" class="chart chart-xl"></div>
+        </article>
+        <article class="card glass span-12">
+          <header class="card-head"><h2>Qué significa</h2></header>
+          <div class="explain" id="fg-explainer"></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============================ OPERACIONES -->
+    <section id="view-operations" class="view hidden">
+      <div class="card glass">
+        <div class="toolbar">
+          <div class="chips" id="ops-filters">
+            <button data-type="all" class="is-active">Todas</button>
+            <button data-type="buy">Compras</button>
+            <button data-type="sell">Ventas</button>
+            <button data-type="deposit">Depósitos</button>
+            <button data-type="withdrawal">Retiros</button>
+          </div>
+          <div class="toolbar-right">
+            <label class="search compact">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input id="ops-search" type="search" placeholder="Moneda o tipo…" autocomplete="off">
+            </label>
+            <button class="btn btn-ghost" id="ops-export-csv">CSV</button>
+            <button class="btn btn-ghost" id="ops-export-xlsx">Excel</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="ops-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Moneda</th>
+                <th class="num">Cantidad</th>
+                <th class="num">Precio</th>
+                <th class="num">Importe</th>
+                <th class="num">Comisión</th>
+              </tr>
+            </thead>
+            <tbody id="ops-tbody"></tbody>
+          </table>
+        </div>
+        <div id="ops-empty" class="empty hidden">Sin operaciones. Importa tu historial en Ajustes.</div>
+        <div class="table-foot">
+          <span id="ops-count" class="tiny muted"></span>
+          <button id="ops-more" class="btn btn-ghost hidden">Ver más</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ FISCAL -->
+    <section id="view-tax" class="view hidden">
+      <div id="tax-empty" class="card glass empty-card hidden">
+        <h2>Informe fiscal</h2>
+        <p>Necesitas importar el historial completo de Bitvavo para calcular las transmisiones, el FIFO y la cuota estimada.</p>
+        <button class="btn btn-primary" data-goto="settings">Importar historial</button>
+      </div>
+
+      <div id="tax-content" class="hidden">
+        <div id="tax-warning" class="banner hidden"></div>
+        <div class="kpis">
+          <article class="card glass kpi">
+            <span class="kpi-label">Resultado</span>
+            <strong class="kpi-value" id="tax-gain">—</strong>
+            <span class="kpi-sub" id="tax-gain-sub">&nbsp;</span>
+          </article>
+          <article class="card glass kpi">
+            <span class="kpi-label">Cuota estimada</span>
+            <strong class="kpi-value" id="tax-quota">—</strong>
+            <span class="kpi-sub" id="tax-quota-sub">&nbsp;</span>
+          </article>
+          <article class="card glass kpi">
+            <span class="kpi-label">Transmisiones</span>
+            <strong class="kpi-value" id="tax-count">—</strong>
+            <span class="kpi-sub" id="tax-count-sub">&nbsp;</span>
+          </article>
+          <article class="card glass kpi">
+            <span class="kpi-label">Pérdidas compensables</span>
+            <strong class="kpi-value" id="tax-loss">—</strong>
+            <span class="kpi-sub" id="tax-loss-sub">&nbsp;</span>
+          </article>
+        </div>
+
+        <div class="card glass">
+          <header class="card-head">
+            <div><h2>Transmisiones (FIFO)</h2><p class="card-sub" id="tax-table-sub">—</p></div>
+            <div class="toolbar-right">
+              <div class="chips" id="tax-years"></div>
+              <button class="btn btn-ghost" id="tax-export">Excel para la renta</button>
+            </div>
+          </header>
+          <div class="table-wrap">
+            <table class="table" id="tax-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Moneda</th>
+                  <th class="num">Cantidad</th>
+                  <th class="num">Precio</th>
+                  <th class="num">Transmisión</th>
+                  <th class="num">Adquisición</th>
+                  <th class="num">Ganancia</th>
+                </tr>
+              </thead>
+              <tbody id="tax-tbody"></tbody>
+            </table>
+          </div>
+          <div class="table-foot"><span id="tax-foot" class="tiny muted"></span></div>
+        </div>
+
+        <div class="grid">
+          <article class="card glass span-6">
+            <header class="card-head"><h2>Resumen por ejercicio</h2></header>
+            <div class="table-wrap">
+              <table class="table" id="tax-summary-table">
+                <thead><tr><th>Ejercicio</th><th class="num">Transmisiones</th><th class="num">Resultado</th><th class="num">Cuota</th></tr></thead>
+                <tbody id="tax-summary-body"></tbody>
+              </table>
+            </div>
+            <div id="tax-brackets" class="brackets"></div>
+          </article>
+          <article class="card glass span-6">
+            <header class="card-head"><h2>Inventario FIFO</h2><span class="card-sub" id="tax-inv-sub">—</span></header>
+            <div class="table-wrap">
+              <table class="table" id="tax-inventory-table">
+                <thead><tr><th>Moneda</th><th class="num">Cantidad</th><th class="num">Coste</th><th class="num">Valor</th><th class="num">P/L</th></tr></thead>
+                <tbody id="tax-inventory-body"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+
+        <div class="card glass">
+          <header class="card-head">
+            <div><h2>Simulador de venta</h2><p class="card-sub">Cuánto pagarías por vender ahora, con FIFO y con coste medio.</p></div>
+          </header>
+          <div class="sim">
+            <label class="field inline">
+              <span>Moneda</span>
+              <select id="tax-sim-symbol" class="select"></select>
+            </label>
+            <label class="field inline">
+              <span>Cantidad</span>
+              <input id="tax-sim-amount" type="number" step="any" min="0" placeholder="0,0">
+            </label>
+            <div class="chips" id="tax-sim-quick">
+              <button data-pct="25">25 %</button>
+              <button data-pct="50">50 %</button>
+              <button data-pct="100">Todo</button>
+            </div>
+          </div>
+          <div id="tax-sim-result" class="sim-result muted">Elige una moneda y una cantidad.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ ALERTAS -->
+    <section id="view-alerts" class="view hidden">
+      <article class="card glass">
+        <header class="card-head">
+          <div><h2>Telegram</h2><p class="card-sub">Aquí llegan los avisos. El token se guarda solo en tu servidor.</p></div>
+          <span id="tg-status" class="chip">—</span>
+        </header>
+        <form id="tg-form" class="form">
+          <div class="form-row">
+            <label class="field"><span>Bot token</span><input id="tg-token" placeholder="123456789:AAE..." autocomplete="off" spellcheck="false"></label>
+            <label class="field"><span>Chat ID</span><input id="tg-chat" placeholder="123456789" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <p class="hint">Crea el bot con <b>@BotFather</b> (<code>/newbot</code>) y copia el token. El <b>chat ID</b> te lo da <b>@userinfobot</b>; si es un grupo, añade el bot y usa el ID del grupo (empieza por <code>-</code>).</p>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Guardar</button>
+            <button class="btn btn-ghost" type="button" id="tg-test">Enviar prueba</button>
+          </div>
+          <div id="tg-result" class="result"></div>
+        </form>
+      </article>
+
+      <article class="card glass">
+        <header class="card-head">
+          <div><h2>Nueva alerta</h2><p class="card-sub">Te aviso cuando una moneda suba o baje del precio que fijes.</p></div>
+        </header>
+        <form id="alert-form" class="form">
+          <div class="form-row">
+            <label class="field"><span>Moneda</span><select id="alert-symbol" class="select"></select></label>
+            <label class="field"><span>Condición</span>
+              <select id="alert-op" class="select">
+                <option value="below">Por debajo de</option>
+                <option value="above">Por encima de</option>
+              </select>
+            </label>
+            <label class="field"><span>Precio objetivo (€)</span><input id="alert-price" type="number" step="any" min="0" placeholder="0,00"></label>
+            <button class="btn btn-primary" type="submit">Añadir alerta</button>
+            <button class="btn btn-ghost" type="button" id="alert-preview">Ver mensaje</button>
+          </div>
+          <p class="hint" id="alert-hint">—</p>
+          <div id="alert-result" class="result"></div>
+        </form>
+      </article>
+
+      <article class="card glass">
+        <header class="card-head">
+          <div><h2>Tus alertas</h2><p class="card-sub">Se comprueban cada minuto con el precio de Bitvavo.</p></div>
+          <button class="btn btn-ghost" type="button" id="alerts-check">Comprobar ahora</button>
+        </header>
+        <div id="alerts-list" class="alerts-list"></div>
+      </article>
+    </section>
+
+    <!-- ============================ AJUSTES -->
+    <section id="view-settings" class="view hidden">
+      <div class="grid">
+        <article class="card glass span-6">
+          <header class="card-head">
+            <div><h2>Bitvavo</h2><p class="card-sub">Clave de solo lectura. Se guarda en tu servidor.</p></div>
+            <span id="keys-status" class="chip">—</span>
+          </header>
+          <form id="keys-form" class="form">
+            <label class="field">
+              <span>API Key</span>
+              <input id="set-apikey" placeholder="Pega la API Key" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>API Secret</span>
+              <input id="set-apisecret" type="password" placeholder="Pega el API Secret" autocomplete="new-password">
+            </label>
+            <p class="hint">En Bitvavo: Ajustes → Claves API → permisos de <strong>solo lectura</strong> («Ver saldos y transacciones»). Nunca actives operar ni retirar.</p>
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Guardar claves</button>
+              <button class="btn btn-ghost" type="button" id="keys-sync">Sincronizar ahora</button>
+              <button class="btn btn-danger-ghost" type="button" id="keys-clear">Borrar claves</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card glass span-6">
+          <header class="card-head">
+            <div><h2>Historial completo</h2><p class="card-sub">La API no devuelve el histórico antiguo: se importa una vez desde el CSV.</p></div>
+            <span id="import-status" class="chip">—</span>
+          </header>
+          <div class="form">
+            <p class="hint">En Bitvavo: <strong>Historial completo</strong> → descargar CSV. Arrástralo aquí o pega su contenido.</p>
+            <label class="drop" id="drop-zone">
+              <input type="file" id="history-file" accept=".csv,text/csv">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              <span>Arrastra el CSV o haz clic para elegirlo</span>
+              <small id="drop-name">Sin archivo</small>
+            </label>
+            <details class="paste">
+              <summary>O pega el texto</summary>
+              <textarea id="history-text" rows="4" placeholder="Pega aquí el contenido del CSV…"></textarea>
+              <button class="btn btn-ghost" type="button" id="history-paste-btn">Importar texto</button>
+            </details>
+            <div class="form-actions">
+              <button class="btn btn-primary" type="button" id="history-import">Importar historial</button>
+            </div>
+            <div id="import-result" class="result"></div>
+          </div>
+        </article>
+
+        <article class="card glass span-6">
+          <header class="card-head"><h2>Seguridad</h2><span class="chip" id="pass-status">—</span></header>
+          <form id="password-form" class="form">
+            <label class="field"><span>Contraseña actual</span><input id="pass-current" type="password" autocomplete="current-password"></label>
+            <div class="form-row">
+              <label class="field"><span>Nueva contraseña</span><input id="pass-new" type="password" autocomplete="new-password" minlength="8"></label>
+              <label class="field"><span>Repite la nueva</span><input id="pass-repeat" type="password" autocomplete="new-password" minlength="8"></label>
+            </div>
+            <p class="hint">Mínimo 8 caracteres. Se guarda con hash scrypt, nunca en claro.</p>
+            <div class="form-actions"><button class="btn btn-primary" type="submit">Cambiar contraseña</button></div>
+            <div id="pass-result" class="result"></div>
+          </form>
+        </article>
+
+        <article class="card glass span-6">
+          <header class="card-head"><h2>Apariencia</h2></header>
+          <div class="theme-picker">
+            <button class="theme-option" data-theme="dark">
+              <span class="theme-preview theme-dark"></span>
+              <strong>Oscuro</strong>
+            </button>
+            <button class="theme-option" data-theme="light">
+              <span class="theme-preview theme-light"></span>
+              <strong>Claro</strong>
+            </button>
+          </div>
+          <p class="hint">El tema se guarda en este dispositivo y en tu servidor.</p>
+          <hr class="sep">
+          <h3 class="h3">Wallet fría</h3>
+          <p class="hint">Solo hace falta si tienes monedas que no están en tu historial de Bitvavo. Las que retiras se calculan solas.</p>
+          <form id="cold-form" class="form-row">
+            <label class="field"><span>Moneda</span><input id="cold-symbol" placeholder="BTC" maxlength="12"></label>
+            <label class="field"><span>Cantidad</span><input id="cold-amount" type="number" step="any" min="0" placeholder="0,0"></label>
+            <label class="field"><span>Invertido € (opcional)</span><input id="cold-invested" type="number" step="any" min="0" placeholder="—"></label>
+            <button class="btn btn-ghost" type="submit" style="align-self:flex-end">Añadir</button>
+          </form>
+          <ul id="cold-list" class="list"></ul>
+        </article>
+
+        <article class="card glass span-6">
+          <header class="card-head"><h2>Datos</h2><p class="card-sub">Copia, restaura o borra lo que guarda Quanto.</p></header>
+          <div class="form">
+            <div class="form-actions wrap">
+              <a class="btn btn-ghost" href="/api/backup">Descargar copia</a>
+              <label class="btn btn-ghost file-btn">
+                Restaurar copia
+                <input type="file" id="restore-file" accept=".json,application/json">
+              </label>
+              <button class="btn btn-ghost" id="export-tax-shortcut" type="button">Informe fiscal Excel</button>
+            </div>
+            <div id="data-result" class="result"></div>
+            <hr class="sep">
+            <h3 class="h3 danger">Zona peligrosa</h3>
+            <p class="hint">Borra el historial, la wallet fría y el histórico de valor. Antes guarda una copia: se renombra a <code>.bak</code>.</p>
+            <div class="form-actions">
+              <button class="btn btn-danger" id="wipe-btn" type="button">Borrar todos los datos</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="card glass span-12">
+          <header class="card-head"><h2>Acerca de</h2></header>
+          <dl class="about" id="about"></dl>
+          <div class="form-actions" style="margin-top:16px">
+            <button class="btn btn-ghost" id="logout-btn-2" type="button">Cerrar sesión</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- modal -->
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-backdrop" data-close="1"></div>
+  <div class="modal-card glass">
+    <header class="modal-head">
+      <h2 id="modal-title">—</h2>
+      <button class="icon-btn" id="modal-close" aria-label="Cerrar" data-close="1">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+    <div class="modal-body" id="modal-body"></div>
+    <footer class="modal-foot" id="modal-foot"></footer>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<nav class="mobile-nav glass" aria-label="Secciones">
+  <button class="nav-item is-active" data-view="dashboard"><svg viewBox="0 0 24 24"><path d="M4 13h6v7H4zM14 4h6v16h-6zM4 4h6v5H4z"/></svg><span>Resumen</span></button>
+  <button class="nav-item" data-view="coins"><svg viewBox="0 0 24 24"><path d="M12 3v18M7 8h7a3 3 0 0 1 0 6H7"/></svg><span>Monedas</span></button>
+  <button class="nav-item" data-view="market"><svg viewBox="0 0 24 24"><path d="M4 18l5-6 4 3 7-9"/></svg><span>Índice</span></button>
+  <button class="nav-item" data-view="operations"><svg viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg><span>Ops</span></button>
+  <button class="nav-item" data-view="tax"><svg viewBox="0 0 24 24"><path d="M7 3h10a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2Z"/></svg><span>Fiscal</span></button>
+  <button class="nav-item" data-view="alerts"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span>Alertas</span></button>
+  <button class="nav-item" data-view="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"/></svg><span>Ajustes</span></button>
+</nav>
+</body>
+</html>

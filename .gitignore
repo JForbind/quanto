@@ -1,0 +1,22 @@
+# Dependencias
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Datos y secretos (nunca subir)
+data/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Copias y temporales
+*.bak
+*.bak-*
+*.zip
+*.log
+.tmp/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,14 @@
+# No copiar al contenedor
+.env
+.env.*
+!.env.example
+node_modules
+npm-debug.log*
+data/
+*.bak-*
+*.zip
+.git
+.gitignore
+tests/
+docs/
+README.md

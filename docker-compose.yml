@@ -1,0 +1,29 @@
+name: quanto
+
+services:
+  quanto:
+    image: quanto:2.0.0
+    build: .
+    container_name: quanto
+    restart: unless-stopped
+    ports:
+      - "${QUANTO_PORT:-8766}:8765"
+    environment:
+      - TZ=${TZ:-Europe/Madrid}
+      - PORT=8765
+      - APP_PASSWORD=${APP_PASSWORD:-}
+      - SNAP_INTERVAL_MIN=${SNAP_INTERVAL_MIN:-5}
+      - SESSION_DAYS=${SESSION_DAYS:-30}
+      # Opcional: si prefieres no pegar las claves en la interfaz
+      - BITVAVO_API_KEY=${BITVAVO_API_KEY:-}
+      - BITVAVO_API_SECRET=${BITVAVO_API_SECRET:-}
+      # Opcional: fija el secreto de sesión (si no, se genera y se guarda en data/)
+      - COOKIE_SECRET=${COOKIE_SECRET:-}
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8765/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
