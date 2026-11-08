@@ -28,6 +28,8 @@ Pensada para ZimaOS, NAS o Raspberry Pi, y para usarse desde el móvil o el orde
 - **Alertas de precio por Telegram**: te avisa cuando una moneda sube o baja del precio que
   fijes, con tu precio medio, el P/L de la venta y los impuestos que pagarías.
 - **Iconos reales de monedas** (487 iconos servidos en local) y precio medio de compra en el resumen.
+- **Columna «Invertido»** por moneda, en Monedas y en Posiciones.
+- **Modo privacidad**: un clic difumina todos los importes para enseñar la app o hacer capturas.
 - Todo se guarda en `data/`: nada sale de tu servidor.
 
 ![Resumen](docs/capturas/resumen.jpg)

@@ -614,3 +614,22 @@ html[data-theme="light"] .select option { background: #fff; color: #0d1524; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* ---------------------------------------------- modo privacidad */
+[data-privacy="1"] td.num,
+[data-privacy="1"] .kpi-value,
+[data-privacy="1"] .kpi-sub,
+[data-privacy="1"] #side-value,
+[data-privacy="1"] #side-change,
+[data-privacy="1"] .alert-price,
+[data-privacy="1"] .stat,
+[data-privacy="1"] .chart,
+[data-privacy="1"] .sim-result,
+[data-privacy="1"] .legend li,
+[data-privacy="1"] .coin-name small,
+[data-privacy="1"] .table-foot {
+  filter: blur(6px);
+  user-select: none;
+  transition: filter .18s ease;
+}
+#privacy-btn.is-on { color: var(--accent); border-color: var(--accent); }

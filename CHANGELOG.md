@@ -3,6 +3,15 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Añadido
+
+- Columna **«Invertido»** por moneda en las tablas de Monedas y de Posiciones.
+- **Modo privacidad**: botón en la barra superior que difumina todos los importes
+  (tablas, KPIs, gráficos y leyendas) para enseñar la app o hacer capturas. Se recuerda
+  entre sesiones.
+
 ## [2.0.0] — 2026-11-08
 
 Primera versión pública de Quanto.

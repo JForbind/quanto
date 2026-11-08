@@ -266,6 +266,29 @@ $('#theme-toggle').addEventListener('click', () => {
 });
 document.querySelectorAll('.theme-option').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme, true)));
 
+/* ------------------------------------------------ modo privacidad */
+const EYE_ON = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>';
+const EYE_OFF = '<path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.4 5.2A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1"/><path d="M6.3 6.5A17 17 0 0 0 2 12s3.5 7 10 7a10.6 10.6 0 0 0 4.2-.9"/>';
+
+function applyPrivacy(on, persist = true) {
+  if (on) document.documentElement.dataset.privacy = '1';
+  else delete document.documentElement.dataset.privacy;
+  const btn = $('#privacy-btn');
+  if (btn) {
+    btn.classList.toggle('is-on', on);
+    const svg = btn.querySelector('svg');
+    if (svg) svg.innerHTML = on ? EYE_OFF : EYE_ON;
+    const span = btn.querySelector('span');
+    if (span) span.textContent = on ? 'Privacidad ON' : 'Privacidad';
+    btn.title = on ? 'Mostrar importes' : 'Ocultar importes';
+  }
+  if (persist) { try { localStorage.setItem('quanto-privacy', on ? '1' : '0'); } catch {} }
+}
+
+$('#privacy-btn')?.addEventListener('click', () => {
+  applyPrivacy(document.documentElement.dataset.privacy !== '1');
+});
+
 /* ============================================================
    CARGA DE DATOS
    ============================================================ */
@@ -593,6 +616,7 @@ function coinRow(c, index) {
     <td class="num">${num(c.amount, 8)}</td>
     <td class="num">${priceFmt(c.price)}</td>
     <td class="num"><b>${eur(c.value)}</b></td>
+    <td class="num">${c.costKnown ? eur(c.invested) : '<span class="muted">n/d</span>'}</td>
     <td class="num">${c.costKnown ? priceFmt(c.avgPrice) : '<span class="muted">n/d</span>'}</td>
     <td class="num ${c.pnl === null ? '' : signed(c.pnl)}">${c.pnl === null ? '<span class="muted">n/d</span>' : `<b>${c.pnl >= 0 ? '+' : ''}${eur(c.pnl)}</b><br><small>${pct(c.pnlPct)}</small>`}</td>
     <td class="num ${signed(change || 0)}">${change === null || change === undefined ? '—' : pct(change)}</td>
@@ -613,13 +637,14 @@ function renderTopCoins() {
     return;
   }
   table.innerHTML = `
-    <thead><tr><th>Moneda</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">P. medio</th><th class="num">Valor</th><th class="num">P/L</th><th class="num">Hoy</th></tr></thead>
+    <thead><tr><th>Moneda</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">P. medio</th><th class="num">Valor</th><th class="num">Invertido</th><th class="num">P/L</th><th class="num">Hoy</th></tr></thead>
     <tbody>${rows.map(c => `<tr data-symbol="${esc(c.symbol)}" class="clickable">
       <td><div class="coin">${coinBadge(c.symbol)}<div class="coin-name"><b>${esc(c.symbol)}</b><small>${num(c.share, 1)} %</small></div></div></td>
       <td class="num">${num(c.amount, 6)}</td>
       <td class="num">${priceFmt(c.price)}</td>
       <td class="num">${c.costKnown ? priceFmt(c.avgPrice) : '<span class="muted">n/d</span>'}</td>
       <td class="num"><b>${eur(c.value)}</b></td>
+      <td class="num">${c.costKnown ? eur(c.invested) : '<span class="muted">n/d</span>'}</td>
       <td class="num ${c.pnl === null ? '' : signed(c.pnl)}">${c.pnl === null ? '<span class="muted">n/d</span>' : (c.pnl >= 0 ? '+' : '') + eur(c.pnl)}</td>
       <td class="num ${signed(c.dayChangePct || 0)}">${c.dayChangePct === null || c.dayChangePct === undefined ? '—' : pct(c.dayChangePct)}</td>
     </tr>`).join('')}</tbody>`;
@@ -1557,6 +1582,7 @@ function renderChartsForCurrentView() {
 
 (async function start() {
   try { const saved = localStorage.getItem('quanto-theme'); if (saved) document.documentElement.dataset.theme = saved; } catch {}
+  try { if (localStorage.getItem('quanto-privacy') === '1') applyPrivacy(true, false); } catch {}
   try {
     const status = await (await fetch('/api/status')).json();
     if (!status.hasPassword) { $('#login-error').textContent = 'Sin contraseña configurada: revisa el log del contenedor.'; }
