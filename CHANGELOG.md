@@ -3,6 +3,15 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.1.1] — 2026-11-09
+
+### Cambiado
+
+- **Barra lateral**: *Ajustes* pasa a la fila de iconos del pie y el resumen rápido
+  (valor total, invertido, P/L y hoy) se convierte en un **panel vertical único** que se
+  muestra en Monedas, Miedo y codicia, Operaciones, Fiscal y Alertas, y se oculta en
+  Resumen y Ajustes.
+
 ## [2.1.0] — 2026-11-09
 
 ### Añadido

@@ -185,6 +185,11 @@ function navigate(view) {
   const target = $('#view-' + view);
   if (target) target.classList.remove('hidden');
   $$('.nav-item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
+  // El resumen lateral solo en las pestañas de contenido (no en Resumen ni Ajustes)
+  const sideSummary = $('#side-summary');
+  if (sideSummary) sideSummary.classList.toggle('hidden', !['coins', 'market', 'operations', 'tax', 'alerts'].includes(view));
+  const settingsBtn = $('#settings-btn');
+  if (settingsBtn) settingsBtn.classList.toggle('is-active', view === 'settings');
   const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
@@ -410,13 +415,20 @@ function renderDashboard() {
   set('kpi-today', (p.dayChangeValue >= 0 ? '+' : '') + eur(p.dayChangeValue), 'kpi-value ' + signed(p.dayChangeValue || 0));
   set('kpi-today-sub', `<span class="${signed(p.dayChangeValue || 0)}">${arrow(p.dayChangeValue || 0)} ${pct(p.dayChangePct)}</span><span>últimas 24 h</span>`);
 
-  const sideValue = $('#side-value');
-  if (sideValue) sideValue.textContent = eur(p.totalValue);
-  const sideChange = $('#side-change');
-  if (sideChange) {
-    sideChange.textContent = `${arrow(p.dayChangeValue || 0)} ${pct(p.dayChangePct)} hoy`;
-    sideChange.className = 'side-change ' + signed(p.dayChangeValue || 0);
-  }
+  const sideText = (id, text, cls) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (cls !== undefined) el.className = cls;
+  };
+  sideText('side-value', eur(p.totalValue), 'ss-value');
+  sideText('side-value-sub', `${eur(p.cryptoValue)} en cripto`, 'ss-sub');
+  sideText('side-invested', eur(p.invested), 'ss-value');
+  sideText('side-invested-sub', `${p.coinCount} ${p.coinCount === 1 ? 'moneda' : 'monedas'}`, 'ss-sub');
+  sideText('side-pnl', (p.pnl >= 0 ? '+' : '') + eur(p.pnl), 'ss-value ' + signed(p.pnl));
+  sideText('side-pnl-sub', `${pct(p.pnlPct)} sobre lo invertido`, 'ss-sub ' + signed(p.pnl));
+  sideText('side-today', (p.dayChangeValue >= 0 ? '+' : '') + eur(p.dayChangeValue), 'ss-value ' + signed(p.dayChangeValue || 0));
+  sideText('side-today-sub', `${pct(p.dayChangePct)} últimas 24 h`, 'ss-sub ' + signed(p.dayChangeValue || 0));
 
   renderEvolutionChart();
   renderAllocation();
