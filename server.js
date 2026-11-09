@@ -849,6 +849,21 @@ app.post('/api/alerts/:id/toggle', (req, res) => {
   res.json({ ok: true, rule });
 });
 
+app.post('/api/alerts/:id/test', async (req, res) => {
+  const store = getAlertStore();
+  const rule = store.rules.find(r => r.id === req.params.id);
+  if (!rule) return res.status(404).json({ error: 'No existe esa alerta' });
+  try {
+    const portfolio = await refreshPortfolio(false);
+    const coin = portfolio && Array.isArray(portfolio.coins) ? portfolio.coins.find(c => c.symbol === rule.symbol) : null;
+    if (!coin) return res.status(404).json({ error: 'Esa moneda no está en la cartera' });
+    await telegramSend(alertMessage(rule, coin));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.post('/api/alerts/check', async (req, res) => {
   try {
     const out = await runAlertCheck();

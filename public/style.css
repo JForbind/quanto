@@ -638,3 +638,5 @@ html[data-theme="light"] .select option { background: #fff; color: #0d1524; }
   transition: filter .18s ease;
 }
 #privacy-btn.is-on { color: var(--accent); border-color: var(--accent); }
+.btn-xs { padding: 5px 10px; font-size: 12px; border-radius: 9px; }
+.alert-actions { display: flex; gap: 6px; flex-wrap: wrap; }

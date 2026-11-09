@@ -1497,9 +1497,10 @@ function renderAlertsList(rules) {
       </div>
       <span class="chip${chipCls}">${estado}</span>
       <div class="alert-actions">
-        <button class="link" data-alert-edit="${esc(r.id)}">Editar</button>
-        <button class="link" data-alert-toggle="${esc(r.id)}">${r.enabled === false ? 'Activar' : 'Pausar'}</button>
-        <button class="link" data-alert-del="${esc(r.id)}">Borrar</button>
+        <button class="btn btn-ghost btn-xs" data-alert-edit="${esc(r.id)}" title="Editar esta alerta">✏️ Editar</button>
+        <button class="btn btn-ghost btn-xs" data-alert-test="${esc(r.id)}" title="Enviar este aviso ahora a Telegram">🔔 Probar</button>
+        <button class="btn btn-ghost btn-xs" data-alert-toggle="${esc(r.id)}">${r.enabled === false ? '▶️ Activar' : '⏸️ Pausar'}</button>
+        <button class="btn btn-ghost btn-xs btn-danger-ghost" data-alert-del="${esc(r.id)}" title="Borrar esta alerta">🗑️</button>
       </div>
     </div>`;
   }).join('');
@@ -1621,7 +1622,11 @@ $('#alert-preview')?.addEventListener('click', async () => {
     if (price > 0) qs.set('price', String(price));
     const r = await api('/api/alerts/preview?' + qs.toString());
     out.className = 'result ok';
-    out.innerHTML = `<div class="alert-preview">${esc(r.text)}</div>`;
+    // Mostramos el mensaje tal y como lo verá Telegram (negritas y cursivas), sin el HTML crudo.
+    const safe = esc(r.text)
+      .replace(/&lt;b&gt;/g, '<b>').replace(/&lt;\/b&gt;/g, '</b>')
+      .replace(/&lt;i&gt;/g, '<i>').replace(/&lt;\/i&gt;/g, '</i>');
+    out.innerHTML = `<div class="alert-preview">${safe}</div>`;
   } catch (err) {
     out.className = 'result err';
     out.textContent = err.message;
@@ -1645,10 +1650,20 @@ $('#alerts-list')?.addEventListener('click', async (e) => {
   const del = e.target.closest('[data-alert-del]');
   const toggle = e.target.closest('[data-alert-toggle]');
   const edit = e.target.closest('[data-alert-edit]');
+  const test = e.target.closest('[data-alert-test]');
   try {
     if (edit) {
       const rule = ((state.alerts && state.alerts.rules) || []).find(r => r.id === edit.dataset.alertEdit);
       if (rule) fillAlertForm(rule);
+      return;
+    }
+    if (test) {
+      const btn = test;
+      btn.disabled = true;
+      try {
+        await api('/api/alerts/' + test.dataset.alertTest + '/test', { method: 'POST', body: '{}' });
+        toast('Aviso enviado a Telegram');
+      } finally { btn.disabled = false; }
       return;
     }
     if (del) {

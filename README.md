@@ -129,6 +129,8 @@ si llegaban incompletas (por ejemplo sin comisión).
 4. En *Nueva alerta* eliges moneda, condición (**por debajo de** / **por encima de**) y precio.
    Puedes crear **todas las alertas que quieras por moneda** (varios precios de compra, de venta…)
    y **editarlas** cuando quieras desde la lista: `Editar`, `Pausar`, `Borrar`.
+   Con **Probar** te envías ese aviso concreto a Telegram en ese momento, sin esperar a que
+   se cumpla la condición.
 
 Las alertas se revisan cada minuto. El aviso es corto e incluye el precio actual, la variación
 del día, **tu precio medio de compra** y cuánto estás por encima o por debajo de él:

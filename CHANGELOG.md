@@ -12,7 +12,7 @@ El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   (tablas, KPIs, gráficos y leyendas) para enseñar la app o hacer capturas. Se recuerda
   entre sesiones.
 - **Alertas múltiples por moneda**: sin límite práctico (hasta 200), con **editor** en la lista
-  (`Editar`, `Pausar`, `Borrar`).
+  (`Editar`, `Pausar`, `Borrar`) y botón **Probar** para enviar ese aviso concreto a Telegram.
 
 ### Cambiado
 
