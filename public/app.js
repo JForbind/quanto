@@ -1474,20 +1474,30 @@ function renderAlertsList(rules) {
   box.innerHTML = rules.map(r => {
     const coin = coins.find(c => c.symbol === r.symbol);
     const price = coin ? coin.price : null;
+    const avg = coin && coin.costKnown ? coin.avgPrice : null;
     const gapPct = price ? ((r.price - price) / price) * 100 : null;
+    let gapTxt = '';
+    if (gapPct !== null) {
+      const yaCumple = r.op === 'above' ? gapPct <= 0 : gapPct >= 0;
+      gapTxt = yaCumple
+        ? (r.op === 'above' ? 'ya está por encima' : 'ya está por debajo')
+        : `faltan ${num(Math.abs(gapPct), 1)} %`;
+    }
     const estado = r.lastError ? 'error' : (r.armed === false ? 'disparada' : 'armada');
     const chipCls = r.lastError ? ' chip-err' : (r.armed === false ? ' chip-warn' : ' chip-ok');
+    const icon = r.op === 'above' ? '📈' : '📉';
     return `<div class="alert-row ${r.enabled === false ? 'is-off' : ''}">
       <div class="alert-main">
-        <b>${esc(r.symbol)}</b>
-        <small>${r.op === 'above' ? 'por encima de' : 'por debajo de'} ${priceFmt(r.price)}</small>
+        <b>${icon} ${esc(r.symbol)}</b>
+        <small>${r.op === 'above' ? 'máximo' : 'mínimo'} ${priceFmt(r.price)}${avg ? ` · tu media ${priceFmt(avg)}` : ''}</small>
       </div>
       <div class="alert-price">
         <span>${price === null ? '—' : priceFmt(price)}</span>
-        <small>${gapPct === null ? '' : (gapPct >= 0 ? 'faltan ' : 'pasado por ') + num(Math.abs(gapPct), 1) + ' %'}</small>
+        <small>${gapTxt}</small>
       </div>
       <span class="chip${chipCls}">${estado}</span>
       <div class="alert-actions">
+        <button class="link" data-alert-edit="${esc(r.id)}">Editar</button>
         <button class="link" data-alert-toggle="${esc(r.id)}">${r.enabled === false ? 'Activar' : 'Pausar'}</button>
         <button class="link" data-alert-del="${esc(r.id)}">Borrar</button>
       </div>
@@ -1503,6 +1513,41 @@ async function refreshAlertsList() {
     renderAlertsList(data.rules || []);
   } catch (e) { toast(e.message, true); }
 }
+
+/* --- edición de alertas --- */
+let editingAlertId = null;
+
+function fillAlertForm(rule) {
+  editingAlertId = rule.id;
+  $('#alert-symbol').value = rule.symbol;
+  $('#alert-op').value = rule.op === 'above' ? 'above' : 'below';
+  $('#alert-price').value = rule.price;
+  const btn = $('#alert-submit');
+  if (btn) btn.textContent = 'Guardar cambios';
+  const cancel = $('#alert-cancel');
+  if (cancel) cancel.classList.remove('hidden');
+  const title = $('#alert-form-title');
+  if (title) title.textContent = 'Editar alerta';
+  updateAlertHint();
+  const form = $('#alert-form');
+  if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function resetAlertForm() {
+  editingAlertId = null;
+  const price = $('#alert-price');
+  if (price) price.value = '';
+  const btn = $('#alert-submit');
+  if (btn) btn.textContent = 'Añadir alerta';
+  const cancel = $('#alert-cancel');
+  if (cancel) cancel.classList.add('hidden');
+  const title = $('#alert-form-title');
+  if (title) title.textContent = 'Nueva alerta';
+  const out = $('#alert-result');
+  if (out) { out.textContent = ''; out.className = 'result'; }
+}
+
+$('#alert-cancel')?.addEventListener('click', () => resetAlertForm());
 
 $('#alert-symbol')?.addEventListener('change', updateAlertHint);
 $('#alert-op')?.addEventListener('change', updateAlertHint);
@@ -1546,17 +1591,20 @@ $('#alert-form')?.addEventListener('submit', async (e) => {
     const symbol = $('#alert-symbol').value;
     const op = ($('#alert-op') || {}).value === 'above' ? 'above' : 'below';
     const price = Number(String($('#alert-price').value).replace(',', '.'));
-    await api('/api/alerts', { method: 'POST', body: JSON.stringify({ symbol, price, op }) });
+    const body = { symbol, price, op };
+    if (editingAlertId) body.id = editingAlertId;
+    const wasEditing = !!editingAlertId;
+    await api('/api/alerts', { method: 'POST', body: JSON.stringify(body) });
     if (out) {
       out.className = 'result ok';
       const coin = ((state.portfolio && state.portfolio.coins) || []).find(c => c.symbol === symbol);
       const already = coin && (op === 'below' ? coin.price <= price : coin.price >= price);
-      out.textContent = `Alerta creada: ${symbol} ${op === 'above' ? 'por encima' : 'por debajo'} de ${priceFmt(price)}.`
+      out.textContent = `${wasEditing ? 'Alerta actualizada' : 'Alerta creada'}: ${symbol} ${op === 'above' ? 'por encima' : 'por debajo'} de ${priceFmt(price)}.`
         + (already ? ' Ojo: ya cumple la condición ahora mismo, se disparará en la próxima comprobación.' : '');
     }
-    $('#alert-price').value = '';
+    resetAlertForm();
     await refreshAlertsList();
-    toast('Alerta creada');
+    toast(wasEditing ? 'Alerta actualizada' : 'Alerta creada');
   } catch (err) {
     if (out) { out.className = 'result err'; out.textContent = err.message; }
     toast(err.message, true);
@@ -1596,9 +1644,16 @@ $('#alerts-check')?.addEventListener('click', async () => {
 $('#alerts-list')?.addEventListener('click', async (e) => {
   const del = e.target.closest('[data-alert-del]');
   const toggle = e.target.closest('[data-alert-toggle]');
+  const edit = e.target.closest('[data-alert-edit]');
   try {
+    if (edit) {
+      const rule = ((state.alerts && state.alerts.rules) || []).find(r => r.id === edit.dataset.alertEdit);
+      if (rule) fillAlertForm(rule);
+      return;
+    }
     if (del) {
       await api('/api/alerts/' + del.dataset.alertDel, { method: 'DELETE' });
+      if (editingAlertId === del.dataset.alertDel) resetAlertForm();
       await refreshAlertsList();
       toast('Alerta borrada');
     } else if (toggle) {

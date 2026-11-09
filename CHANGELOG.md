@@ -11,6 +11,15 @@ El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - **Modo privacidad**: botón en la barra superior que difumina todos los importes
   (tablas, KPIs, gráficos y leyendas) para enseñar la app o hacer capturas. Se recuerda
   entre sesiones.
+- **Alertas múltiples por moneda**: sin límite práctico (hasta 200), con **editor** en la lista
+  (`Editar`, `Pausar`, `Borrar`).
+
+### Cambiado
+
+- Mensaje de Telegram de las alertas, ahora corto y con emojis: incluye el precio fijado,
+  el precio actual y **tu precio medio de compra** con la diferencia porcentual.
+- Corregido el texto de la lista de alertas: en las de bajada decía «pasado por» cuando
+  todavía **faltan** X % para llegar.
 
 ## [2.0.0] — 2026-11-08
 

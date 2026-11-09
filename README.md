@@ -127,9 +127,21 @@ si llegaban incompletas (por ejemplo sin comisión).
 2. Abre el chat del bot y pulsa **Start**; tu *chat ID* te lo da **@userinfobot**.
 3. En la app: *Alertas → Telegram* → pega token y chat ID → **Guardar** → **Enviar prueba**.
 4. En *Nueva alerta* eliges moneda, condición (**por debajo de** / **por encima de**) y precio.
+   Puedes crear **todas las alertas que quieras por moneda** (varios precios de compra, de venta…)
+   y **editarlas** cuando quieras desde la lista: `Editar`, `Pausar`, `Borrar`.
 
-Las alertas se revisan cada minuto. Cada aviso incluye precio actual, variación del día,
-cantidad, valor, tu precio medio, P/L, coste FIFO, ganancia FIFO e impuestos estimados.
+Las alertas se revisan cada minuto. El aviso es corto e incluye el precio actual, la variación
+del día, **tu precio medio de compra** y cuánto estás por encima o por debajo de él:
+
+```
+📉 XRP ha llegado a tu precio mínimo establecido
+Precio fijado: 0,7000 €
+
+Precio ahora: 0,9778 € (-5,91 % hoy)
+Tu precio medio: 2,069 €
+Estás un 52,74 % por debajo de tu media 🔴
+```
+
 Se dispara una vez y se re-arma cuando el precio se aleja un 1 % del umbral.
 
 ---

@@ -702,39 +702,25 @@ function moneySmart(v) {
 const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 function alertMessage(rule, coin) {
-  const ops = opsForView();
-  const amount = Number(coin.amount) || 0;
-  let fifoCost = null;
-  let gain = null;
-  try {
-    if (ops.length && amount > 0) {
-      const sim = simulateSale(ops, coin.symbol, amount);
-      if (sim.matchedAmount > 0) {
-        fifoCost = sim.fifoCost;
-        gain = round(amount * (Number(coin.price) || 0) - sim.fifoCost, 2);
-      }
-    }
-  } catch (e) { console.log('[alertas] fiscal:', e.message); }
-  const tax = gain === null ? null : (gain > 0 ? estimateTax(gain) : 0);
-  const dir = rule.op === 'above' ? 'por encima de' : 'por debajo de';
+  const price = Number(coin.price) || 0;
+  const above = rule.op === 'above';
+  const emoji = above ? '📈' : '📉';
+  const titulo = above ? 'ha llegado a tu precio máximo establecido' : 'ha llegado a tu precio mínimo establecido';
+  const avg = coin.costKnown && coin.avgPrice ? Number(coin.avgPrice) : null;
+  const diff = avg && avg > 0 ? ((price - avg) / avg) * 100 : null;
+
   const lines = [];
-  lines.push(`🔔 <b>${escHtml(coin.symbol)}</b> ${dir} <b>${moneySmart(rule.price)}</b>`);
-  lines.push(`Precio ahora: <b>${moneySmart(coin.price)}</b>${coin.dayChangePct === null || coin.dayChangePct === undefined ? '' : ` (${pctFmt(coin.dayChangePct)} hoy)`}`);
+  lines.push(`${emoji} <b>${escHtml(coin.symbol)}</b> ${titulo}`);
+  lines.push(`Precio fijado: ${moneySmart(rule.price)}`);
   lines.push('');
-  lines.push(`Cantidad: ${qty(amount)} ${escHtml(coin.symbol)}`);
-  lines.push(`Valor actual: ${money(coin.value)}`);
-  lines.push(`Tu precio medio: ${coin.costKnown && coin.avgPrice ? moneySmart(coin.avgPrice) : 'n/d'}`);
-  if (coin.costKnown) {
-    lines.push(`P/L si vendes: <b>${coin.pnl >= 0 ? '+' : ''}${money(coin.pnl)}</b> (${pctFmt(coin.pnlPct)})`);
-  }
-  if (gain !== null) {
-    lines.push(`Coste FIFO: ${money(fifoCost)}`);
-    lines.push(`Ganancia FIFO: ${gain >= 0 ? '+' : ''}${money(gain)}`);
-    lines.push(gain > 0
-      ? `Impuestos estimados: <b>${money(tax)}</b>`
-      : 'Impuestos: 0 € (pérdida compensable 4 ejercicios)');
+  lines.push(`Precio ahora: <b>${moneySmart(price)}</b>${coin.dayChangePct === null || coin.dayChangePct === undefined ? '' : ` (${pctFmt(coin.dayChangePct)} hoy)`}`);
+  if (diff !== null) {
+    lines.push(`Tu precio medio: ${moneySmart(avg)}`);
+    lines.push(diff >= 0
+      ? `Estás un <b>${nfPct.format(diff)} %</b> por encima de tu media 🟢`
+      : `Estás un <b>${nfPct.format(Math.abs(diff))} %</b> por debajo de tu media 🔴`);
   } else {
-    lines.push('Fiscal: sin historial suficiente para calcular');
+    lines.push('Tu precio medio: no disponible');
   }
   lines.push('');
   lines.push(`<i>Quanto · ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</i>`);
@@ -831,9 +817,7 @@ app.post('/api/alerts', (req, res) => {
     Object.assign(rule, { symbol, price, op, enabled: b.enabled !== false, armed: true, updatedAt: Date.now() });
     delete rule.lastError;
   } else {
-    const dup = store.rules.find(r => r.symbol === symbol && r.op === op);
-    if (dup) return res.status(400).json({ error: `Ya tienes una alerta para ${symbol} (${op === 'above' ? 'por encima' : 'por debajo'})` });
-    if (store.rules.length >= 50) return res.status(400).json({ error: 'Máximo 50 alertas' });
+    if (store.rules.length >= 200) return res.status(400).json({ error: 'Máximo 200 alertas' });
     rule = {
       id: crypto.randomBytes(4).toString('hex'),
       symbol, price, op,

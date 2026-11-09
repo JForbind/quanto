@@ -448,7 +448,7 @@
 
       <article class="card glass">
         <header class="card-head">
-          <div><h2>Nueva alerta</h2><p class="card-sub">Te aviso cuando una moneda suba o baje del precio que fijes.</p></div>
+          <div><h2 id="alert-form-title">Nueva alerta</h2><p class="card-sub">Todas las que quieras por moneda: varios precios de compra, de venta…</p></div>
         </header>
         <form id="alert-form" class="form">
           <div class="form-row">
@@ -460,8 +460,9 @@
               </select>
             </label>
             <label class="field"><span>Precio objetivo (€)</span><input id="alert-price" type="number" step="any" min="0" placeholder="0,00"></label>
-            <button class="btn btn-primary" type="submit">Añadir alerta</button>
+            <button class="btn btn-primary" type="submit" id="alert-submit">Añadir alerta</button>
             <button class="btn btn-ghost" type="button" id="alert-preview">Ver mensaje</button>
+            <button class="btn btn-ghost hidden" type="button" id="alert-cancel">Cancelar</button>
           </div>
           <p class="hint" id="alert-hint">—</p>
           <div id="alert-result" class="result"></div>
