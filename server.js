@@ -747,7 +747,7 @@ async function runAlertCheck() {
       if (!coin || !isFinite(price) || price <= 0) continue;
       const hit = rule.op === 'above' ? price >= rule.price : price <= rule.price;
       const armed = rule.armed !== false;
-      const coolMs = Math.max(5, Number(rule.cooldownMin) || 60) * 60e3;
+      const coolMs = Math.max(5, Number(rule.cooldownMin) || 15) * 60e3;
       const cooled = !rule.lastSentAt || Date.now() - rule.lastSentAt > coolMs;
       if (hit && armed && cooled) {
         try {

@@ -143,6 +143,8 @@ Estás un 52,74 % por debajo de tu media 🔴
 ```
 
 Se dispara una vez y se re-arma cuando el precio se aleja un 1 % del umbral.
+Entre aviso y aviso de la misma alerta hay un **cooldown de 15 minutos**
+(configurable por alerta con el campo `cooldownMin` en `data/alerts.json`).
 
 ---
 

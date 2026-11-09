@@ -16,6 +16,8 @@ El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
 ### Cambiado
 
+- **Cooldown de las alertas: de 60 a 15 minutos** entre avisos de la misma alerta
+  (configurable por alerta con `cooldownMin`).
 - Mensaje de Telegram de las alertas, ahora corto y con emojis: incluye el precio fijado,
   el precio actual y **tu precio medio de compra** con la diferencia porcentual.
 - Corregido el texto de la lista de alertas: en las de bajada decía «pasado por» cuando
