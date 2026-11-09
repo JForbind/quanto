@@ -26,6 +26,9 @@
 <!-- ------------------------------------------------ acceso -->
 <div id="login" class="login">
   <form id="login-form" class="login-card glass" autocomplete="on">
+    <div class="login-avatar hidden" id="login-avatar-wrap">
+      <img id="login-avatar" alt="Foto de perfil">
+    </div>
     <div class="login-logo">
       <span class="qmark" title="Quanto"><span class="qq">Q</span>UANTO</span>
     </div>
@@ -114,6 +117,9 @@
         <button id="refresh-btn" class="btn btn-ghost">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
           <span>Actualizar</span>
+        </button>
+        <button id="avatar-btn" class="avatar-btn hidden" title="Foto de perfil (Ajustes)" aria-label="Perfil" data-goto="settings">
+          <img id="user-avatar" alt="">
         </button>
       </div>
     </header>
@@ -556,6 +562,34 @@
             </button>
           </div>
           <p class="hint">El tema se guarda en este dispositivo y en tu servidor.</p>
+
+          <hr class="sep">
+          <h3 class="h3">Fondo de pantalla</h3>
+          <div class="appearance-row">
+            <div id="wallpaper-preview" class="appearance-thumb wallpaper" aria-hidden="true"></div>
+            <div class="appearance-actions">
+              <label class="btn btn-ghost btn-sm">
+                Elegir imagen
+                <input type="file" id="wallpaper-file" accept="image/*" hidden>
+              </label>
+              <button class="btn btn-ghost btn-sm" type="button" id="wallpaper-reset">Restablecer fondo</button>
+            </div>
+          </div>
+          <p class="hint">Se guarda en tu servidor y se aplica en todos tus dispositivos. Lleva un velo oscuro para que el texto siga leyéndose.</p>
+
+          <hr class="sep">
+          <h3 class="h3">Foto de perfil</h3>
+          <div class="appearance-row">
+            <div id="avatar-preview" class="appearance-thumb avatar" aria-hidden="true"></div>
+            <div class="appearance-actions">
+              <label class="btn btn-ghost btn-sm">
+                Elegir foto
+                <input type="file" id="avatar-file" accept="image/*" hidden>
+              </label>
+              <button class="btn btn-ghost btn-sm" type="button" id="avatar-reset">Restablecer foto</button>
+            </div>
+          </div>
+          <p class="hint">Se muestra arriba a la derecha. Solo se sirve con la sesión iniciada: no aparece en la pantalla de acceso.</p>
           <hr class="sep">
           <h3 class="h3">Wallet fría</h3>
           <p class="hint">Solo hace falta si tienes monedas que no están en tu historial de Bitvavo. Las que retiras se calculan solas.</p>
@@ -629,3 +663,4 @@
 </nav>
 </body>
 </html>
+

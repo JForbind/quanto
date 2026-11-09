@@ -3,7 +3,7 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Sin publicar]
+## [2.1.0] — 2026-11-09
 
 ### Añadido
 
@@ -13,6 +13,11 @@ El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   entre sesiones.
 - **Alertas múltiples por moneda**: sin límite práctico (hasta 200), con **editor** en la lista
   (`Editar`, `Pausar`, `Borrar`) y botón **Probar** para enviar ese aviso concreto a Telegram.
+- **Apariencia**: fondo de pantalla personalizado (con velo para mantener la legibilidad) y
+  **foto de perfil**, que se muestra en la barra superior y en la **pantalla de acceso**.
+  Botones para restablecer ambas.
+- Aviso de **venta con beneficio** en las alertas de máximo: importe bruto, impuestos
+  estimados y neto.
 
 ### Cambiado
 
@@ -20,8 +25,17 @@ El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   (configurable por alerta con `cooldownMin`).
 - Mensaje de Telegram de las alertas, ahora corto y con emojis: incluye el precio fijado,
   el precio actual y **tu precio medio de compra** con la diferencia porcentual.
-- Corregido el texto de la lista de alertas: en las de bajada decía «pasado por» cuando
-  todavía **faltan** X % para llegar.
+- La línea del índice **Miedo y Codicia** se colorea por tramos.
+- La tarjeta del resumen aprovecha el alto disponible: gráfico ampliado, cifras de 7/30 días
+  y media de 30 días.
+
+### Corregido
+
+- La **evolución de la cartera** usaba solo las capturas de las últimas horas en lugar de la
+  serie reconstruida, así que los rangos mostraban lo mismo.
+- Subida de imágenes bloqueada por la CSP (`blob:` → `data:`).
+- Texto de la lista de alertas: en las de bajada decía «pasado por» cuando **faltan** X %.
+- Test de tokens de sesión que fallaba de forma aleatoria.
 
 ## [2.0.0] — 2026-11-08
 

@@ -295,7 +295,7 @@ $('#privacy-btn')?.addEventListener('click', () => {
 async function boot() {
   showApp();
   await loadCoinIcons();
-  await Promise.all([loadOverview(true), loadFearGreed(), loadHistory(), loadSettings(), loadTransactions()]);
+  await Promise.all([loadOverview(true), loadFearGreed(), loadHistory(), loadSettings(), loadTransactions(), loadAppearance()]);
   navigate(location.hash.startsWith('#/') ? location.hash.slice(2) : 'dashboard');
 }
 
@@ -1677,6 +1677,145 @@ $('#alerts-list')?.addEventListener('click', async (e) => {
     }
   } catch (err) { toast(err.message, true); }
 });
+
+/* ------------------------------------------------ apariencia (fondo y avatar) */
+function appearanceUrl(kind, ts) {
+  return '/api/' + kind + '?v=' + (ts || Date.now());
+}
+
+function applyWallpaper(on, ts) {
+  if (on) {
+    document.body.style.setProperty('--wallpaper', `url("${appearanceUrl('wallpaper', ts)}")`);
+    document.body.classList.add('has-wallpaper');
+  } else {
+    document.body.classList.remove('has-wallpaper');
+    document.body.style.removeProperty('--wallpaper');
+  }
+}
+
+function applyAvatar(on, ts) {
+  const btn = $('#avatar-btn');
+  const img = $('#user-avatar');
+  if (!btn || !img) return;
+  if (on) {
+    img.src = appearanceUrl('avatar', ts);
+    btn.classList.remove('hidden');
+  } else {
+    btn.classList.add('hidden');
+    img.removeAttribute('src');
+  }
+}
+
+function renderAppearancePreviews(a) {
+  const set = (sel, kind, has) => {
+    const el = $(sel);
+    if (!el) return;
+    if (has) {
+      el.style.backgroundImage = `url("${appearanceUrl(kind, a && a.ts && a.ts[kind])}")`;
+      el.classList.add('has-img');
+    } else {
+      el.style.backgroundImage = '';
+      el.classList.remove('has-img');
+    }
+  };
+  set('#wallpaper-preview', 'wallpaper', !!(a && a.wallpaper));
+  set('#avatar-preview', 'avatar', !!(a && a.avatar));
+}
+
+async function loadAppearance() {
+  try {
+    const a = await api('/api/appearance');
+    applyWallpaper(a.wallpaper, a.ts && a.ts.wallpaper);
+    applyAvatar(a.avatar, a.ts && a.ts.avatar);
+    renderAppearancePreviews(a);
+  } catch { /* sin apariencia personalizada */ }
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => reject(new Error('No se pudo leer la imagen'));
+    fr.readAsDataURL(file);
+  });
+}
+
+async function fileToResizedDataUrl(file, maxSide, quality) {
+  // Leemos el archivo como data: URL (la CSP bloquea blob:)
+  const src = await fileToDataUrl(file);
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('Formato de imagen no compatible (usa JPG, PNG o WebP)'));
+    im.src = src;
+  });
+  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', quality || 0.86);
+}
+
+async function uploadAppearance(kind, file, maxSide) {
+  const data = await fileToResizedDataUrl(file, maxSide, 0.86);
+  const r = await api('/api/appearance/' + kind, { method: 'POST', body: JSON.stringify({ data }) });
+  if (kind === 'avatar') applyAvatar(true, r.ts); else applyWallpaper(true, r.ts);
+  renderAppearancePreviews(await api('/api/appearance'));
+  toast(kind === 'avatar' ? 'Foto de perfil actualizada' : 'Fondo actualizado');
+}
+
+$('#wallpaper-file')?.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try { await uploadAppearance('wallpaper', file, 1920); }
+  catch (err) { toast(err.message, true); }
+  finally { e.target.value = ''; }
+});
+
+$('#avatar-file')?.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try { await uploadAppearance('avatar', file, 512); }
+  catch (err) { toast(err.message, true); }
+  finally { e.target.value = ''; }
+});
+
+$('#wallpaper-reset')?.addEventListener('click', async () => {
+  try {
+    await api('/api/appearance/wallpaper', { method: 'DELETE' });
+    applyWallpaper(false);
+    renderAppearancePreviews(await api('/api/appearance'));
+    toast('Fondo original restaurado');
+  } catch (err) { toast(err.message, true); }
+});
+
+$('#avatar-reset')?.addEventListener('click', async () => {
+  try {
+    await api('/api/appearance/avatar', { method: 'DELETE' });
+    applyAvatar(false);
+    renderAppearancePreviews(await api('/api/appearance'));
+    toast('Foto de perfil quitada');
+  } catch (err) { toast(err.message, true); }
+});
+
+/* Foto de perfil en la pantalla de acceso (endpoint público, sin sesión) */
+(async function loadLoginAvatar() {
+  try {
+    const res = await fetch('/appearance-public', { cache: 'no-store' });
+    if (!res.ok) return;
+    const a = await res.json();
+    if (!a || !a.avatar) return;
+    const img = document.getElementById('login-avatar');
+    const wrap = document.getElementById('login-avatar-wrap');
+    if (!img || !wrap) return;
+    img.onload = () => wrap.classList.remove('hidden');
+    img.onerror = () => wrap.classList.add('hidden');
+    img.src = '/avatar?v=' + (a.ts || Date.now());
+  } catch { /* sin foto */ }
+})();
 
 /* ------------------------------------------------ arranque */
 function renderChartsForCurrentView() {

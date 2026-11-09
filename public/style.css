@@ -1,7 +1,7 @@
 /* ============================================================
-   Quanto 2.0 — hoja de estilo
-   Estética: cristal (glassmorphism) sobre fondo con orbes,
-   panel lateral, tipografía del sistema, mucho aire.
+   Quanto 2.0 â€” hoja de estilo
+   EstÃ©tica: cristal (glassmorphism) sobre fondo con orbes,
+   panel lateral, tipografÃ­a del sistema, mucho aire.
    ============================================================ */
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -170,7 +170,7 @@ html[data-theme="light"] .orb-c { background: radial-gradient(circle at 40% 60%,
   animation: rise .5s cubic-bezier(.22,.9,.3,1) both;
 }
 .login-logo .qmark { font-size: 40px; }
-.login-logo { padding: 6px 0 2px; }
+.login-logo { display: flex; justify-content: center; padding: 6px 0 2px; }
 .login-card h1 { font-size: 30px; font-weight: 650; letter-spacing: -.03em; margin-top: 4px; }
 .login-sub { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
 .login-error { color: var(--neg); font-size: 13px; min-height: 18px; }
@@ -261,6 +261,7 @@ html[data-theme="light"] .nav-item.is-active { background: #fff; box-shadow: 0 1
 .main { flex: 1 1 auto; min-width: 0; padding-right: 6px; }
 
 .topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 14px 6px 22px; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
 .topbar h1 { font-size: 27px; font-weight: 640; letter-spacing: -.03em; }
 .topbar p { font-size: 13.5px; margin-top: 3px; }
 
@@ -314,7 +315,7 @@ html[data-theme="dark"] .btn-primary { color: #060b14; }
 .kpi-value.neg { color: var(--neg); }
 .kpi-sub { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
-/* ---------------------------------------------- gráficos */
+/* ---------------------------------------------- grÃ¡ficos */
 .chart { width: 100%; height: 280px; }
 .chart-sm { height: 92px; }
 .chart-md { height: 230px; }
@@ -560,7 +561,7 @@ html[data-theme="light"] .select option { background: #fff; color: #0d1524; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.err { border-color: rgba(255,115,135,.4); }
 
-/* ---------------------------------------------- nav móvil */
+/* ---------------------------------------------- nav mÃ³vil */
 .mobile-nav { display: none; }
 
 /* ---------------------------------------------- responsive */
@@ -640,3 +641,33 @@ html[data-theme="light"] .select option { background: #fff; color: #0d1524; }
 #privacy-btn.is-on { color: var(--accent); border-color: var(--accent); }
 .btn-xs { padding: 5px 10px; font-size: 12px; border-radius: 9px; }
 .alert-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ---------------------------------------------- avatar de perfil */
+.login-avatar { display: flex; justify-content: center; margin-bottom: 4px; }
+.login-avatar img { width: 78px; height: 78px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,.18); box-shadow: 0 10px 26px -12px rgba(0,0,0,.8); }
+.avatar-btn { width: 40px; height: 40px; border-radius: 50%; padding: 0; overflow: hidden; border: 1px solid rgba(255,255,255,.18); background: var(--glass-hi); cursor: pointer; flex: 0 0 40px; transition: border-color .16s ease, transform .16s ease; }
+.avatar-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.avatar-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.appearance-row { display: flex; align-items: center; gap: 14px; margin: 8px 0 4px; }
+.appearance-thumb { width: 96px; height: 60px; border-radius: 12px; background: var(--glass-hi) center/cover no-repeat; border: 1px solid var(--line); flex: 0 0 auto; }
+.appearance-thumb.avatar { width: 60px; height: 60px; border-radius: 50%; }
+.appearance-thumb:not(.has-img) { background-image: linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,.02)) !important; }
+.appearance-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-sm { padding: 7px 12px; font-size: 12.5px; border-radius: 10px; }
+
+/* fondo personalizado */
+body.has-wallpaper {
+  background-image: linear-gradient(rgba(5,8,14,.62), rgba(5,8,14,.88)), var(--wallpaper);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+/* la capa .ambient pinta un degradado opaco: con fondo propio la dejamos transparente */
+body.has-wallpaper .ambient { background: none; }
+body.has-wallpaper .orb { opacity: .22; }
+body.has-wallpaper .grain { opacity: .015; }
+html[data-theme="light"] body.has-wallpaper {
+  background-image: linear-gradient(rgba(245,248,252,.82), rgba(245,248,252,.94)), var(--wallpaper);
+}
+html[data-theme="light"] body.has-wallpaper .orb { opacity: .16; }
+

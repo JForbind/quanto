@@ -18,7 +18,7 @@ const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createLimiter } = require('./lib/auth');
 const { round } = require('./lib/util');
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -722,6 +722,27 @@ function alertMessage(rule, coin) {
   } else {
     lines.push('Tu precio medio: no disponible');
   }
+
+  // En los avisos de máximo, si vender ahora deja beneficio, lo decimos (FIFO, igual que el informe).
+  if (above) {
+    try {
+      const ops = opsForView();
+      const amount = Number(coin.amount) || 0;
+      if (ops.length && amount > 0) {
+        const sim = simulateSale(ops, coin.symbol, amount);
+        if (sim.matchedAmount > 0) {
+          const gain = round(amount * price - sim.fifoCost, 2);
+          if (gain > 0) {
+            const tax = estimateTax(gain);
+            const net = round(gain - tax, 2);
+            lines.push('');
+            lines.push(`💰 Si vendes ahora: <b>+${money(gain)}</b> de beneficio`);
+            lines.push(`🧾 Impuestos estimados: ${money(tax)} → te quedarían <b>+${money(net)}</b>`);
+          }
+        }
+      }
+    } catch (e) { console.log('[alertas] beneficio:', e.message); }
+  }
   lines.push('');
   lines.push(`<i>Quanto · ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</i>`);
   return lines.join('\n');
@@ -891,6 +912,98 @@ app.post('/api/telegram/test', async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+
+// ---------------- apariencia: fondo de pantalla y foto de perfil ----------------
+const APPEARANCE_KINDS = ['wallpaper', 'avatar'];
+
+function appearancePaths(kind) {
+  const base = path.join(DATA_DIR, kind === 'avatar' ? 'avatar' : 'wallpaper');
+  return ['.jpg', '.png', '.webp'].map(ext => base + ext);
+}
+
+function findAppearance(kind) {
+  for (const p of appearancePaths(kind)) {
+    try { if (fs.existsSync(p)) return p; } catch {}
+  }
+  return null;
+}
+
+function saveAppearance(kind, dataUrl) {
+  const m = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(dataUrl || ''));
+  if (!m) throw new Error('Formato no válido: usa JPG, PNG o WebP');
+  const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+  const buf = Buffer.from(m[2].replace(/\s/g, ''), 'base64');
+  if (!buf.length) throw new Error('La imagen está vacía');
+  const max = kind === 'avatar' ? 2 * 1024 * 1024 : 8 * 1024 * 1024;
+  if (buf.length > max) throw new Error('Imagen demasiado grande (máx. ' + Math.round(max / 1024 / 1024) + ' MB)');
+  for (const p of appearancePaths(kind)) { try { fs.unlinkSync(p); } catch {} }
+  fs.writeFileSync(path.join(DATA_DIR, kind + '.' + ext), buf);
+}
+
+app.get('/api/appearance', (req, res) => {
+  const s = getSettings();
+  const a = (s && s.appearance) || {};
+  res.json({
+    ok: true,
+    wallpaper: !!findAppearance('wallpaper'),
+    avatar: !!findAppearance('avatar'),
+    ts: {
+      wallpaper: (a.wallpaper && a.wallpaper.ts) || 0,
+      avatar: (a.avatar && a.avatar.ts) || 0,
+    },
+  });
+});
+
+app.post('/api/appearance/:kind', (req, res) => {
+  const kind = req.params.kind === 'avatar' ? 'avatar' : 'wallpaper';
+  try {
+    saveAppearance(kind, req.body && req.body.data);
+    const s = getSettings();
+    s.appearance = s.appearance || {};
+    s.appearance[kind] = { ts: Date.now() };
+    saveSettings(s);
+    res.json({ ok: true, kind, ts: s.appearance[kind].ts });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/appearance/:kind', (req, res) => {
+  const kind = req.params.kind === 'avatar' ? 'avatar' : 'wallpaper';
+  for (const p of appearancePaths(kind)) { try { fs.unlinkSync(p); } catch {} }
+  const s = getSettings();
+  if (s.appearance) delete s.appearance[kind];
+  saveSettings(s);
+  res.json({ ok: true });
+});
+
+for (const kind of APPEARANCE_KINDS) {
+  app.get('/api/' + kind, (req, res) => {
+    const file = findAppearance(kind);
+    if (!file) return res.status(404).end();
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(file);
+  });
+}
+
+// Público (sin sesión): solo la foto de perfil, para mostrarla en la pantalla de acceso.
+app.get('/avatar', (req, res) => {
+  const file = findAppearance('avatar');
+  if (!file) return res.status(404).end();
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(file);
+});
+
+app.get('/appearance-public', (req, res) => {
+  const s = getSettings();
+  const a = (s && s.appearance) || {};
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({
+    avatar: !!findAppearance('avatar'),
+    ts: (a.avatar && a.avatar.ts) || 0,
+  });
+});
+
 
 // ---------------- ajustes ----------------
 app.get('/api/settings', (req, res) => {
