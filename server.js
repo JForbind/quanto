@@ -18,7 +18,7 @@ const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createLimiter } = require('./lib/auth');
 const { round } = require('./lib/util');
 
-const VERSION = '2.2.3';
+const VERSION = '2.2.4';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -427,6 +427,50 @@ app.get('/api/candles', async (req, res) => {
   }
 });
 
+// Crea (o reutiliza) el aviso de Telegram de un tramo del plan.
+function ensurePlanAlert(plan, tranche) {
+  const store = getAlertStore();
+  const existing = store.rules.find(r => r.planId === plan.id && r.trancheId === tranche.id);
+  if (existing) return existing;
+  const dup = store.rules.find(r => r.symbol === plan.symbol && r.op === 'below' && Math.abs(Number(r.price) - tranche.price) < 1e-9 && !r.planId);
+  if (dup) {
+    dup.planId = plan.id;
+    dup.trancheId = tranche.id;
+    saveAlertStore(store);
+    return dup;
+  }
+  if (store.rules.length >= 200) return null;
+  const rule = {
+    id: crypto.randomBytes(4).toString('hex'),
+    symbol: plan.symbol,
+    price: tranche.price,
+    op: 'below',
+    enabled: true,
+    armed: true,
+    createdAt: Date.now(),
+    lastSentAt: null,
+    planId: plan.id,
+    trancheId: tranche.id,
+  };
+  store.rules.push(rule);
+  saveAlertStore(store);
+  return rule;
+}
+
+function removePlanAlert(planId, trancheId) {
+  const store = getAlertStore();
+  const before = store.rules.length;
+  store.rules = store.rules.filter(r => !(r.planId === planId && r.trancheId === trancheId));
+  if (store.rules.length !== before) saveAlertStore(store);
+}
+
+function removePlanAlerts(planId) {
+  const store = getAlertStore();
+  const before = store.rules.length;
+  store.rules = store.rules.filter(r => r.planId !== planId);
+  if (store.rules.length !== before) saveAlertStore(store);
+}
+
 // ---------------- planes de inversión ----------------
 const PLANS_FILE = path.join(DATA_DIR, 'plans.json');
 
@@ -491,6 +535,7 @@ function autoMatchPlanBuys(store) {
       tr.donePrice = opPrice(op);
       tr.opId = op.id;
       plan.usedOps.push(op.id);
+      removePlanAlert(plan.id, tr.id);
       changed = true;
       console.log(`[planes] ${plan.symbol}: tramo ${tr.price} marcado por compra a ${tr.donePrice}`);
     }
@@ -502,6 +547,11 @@ function autoMatchPlanBuys(store) {
 app.get('/api/plans', (req, res) => {
   const store = getPlanStore();
   autoMatchPlanBuys(store);
+  for (const plan of store.plans) {
+    for (const tr of plan.tranches) {
+      if (tr.status === 'pending') ensurePlanAlert(plan, tr);
+    }
+  }
   res.json({ ok: true, plans: store.plans, prices: state.prices || {} });
 });
 
@@ -526,6 +576,7 @@ app.post('/api/plans', (req, res) => {
   };
   store.plans.push(plan);
   savePlanStore(store);
+  for (const tr of plan.tranches) ensurePlanAlert(plan, tr);
   res.json({ ok: true, plan });
 });
 
@@ -543,6 +594,8 @@ app.post('/api/plans/:id/tranche/:tid', (req, res) => {
     ? (Number((req.body || {}).price) || Number((state.prices || {})[plan.symbol]) || tr.price)
     : null;
   savePlanStore(store);
+  if (status === 'pending') ensurePlanAlert(plan, tr);
+  else removePlanAlert(plan.id, tr.id);
   res.json({ ok: true, plan });
 });
 
@@ -550,8 +603,9 @@ app.delete('/api/plans/:id', (req, res) => {
   const store = getPlanStore();
   const i = store.plans.findIndex(p => p.id === req.params.id);
   if (i < 0) return res.status(404).json({ error: 'No existe ese plan' });
-  store.plans.splice(i, 1);
+  const removed = store.plans.splice(i, 1)[0];
   savePlanStore(store);
+  removePlanAlerts(removed.id);
   res.json({ ok: true });
 });
 

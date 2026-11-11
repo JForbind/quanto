@@ -1736,7 +1736,7 @@ function planCard(plan) {
   return `<article class="card glass plan-card">
     <header class="card-head">
       <div><h2>${esc(plan.symbol)}${plan.title ? ' · ' + esc(plan.title) : ''}</h2>
-        <p class="card-sub">Presupuesto ${eur(plan.budget)} · gastado ${eur(spent)} (${pct} %)</p></div>
+        <p class="card-sub">Presupuesto ${eur(plan.budget)} · gastado ${eur(spent)} (${pct} %) · avisos de Telegram por tramo pendiente</p></div>
       <button class="icon-btn" data-plan-del="${plan.id}" title="Borrar plan" aria-label="Borrar plan">×</button>
     </header>
     <div class="plan-progress"><span style="width:${Math.min(100, pct)}%"></span></div>
@@ -2131,7 +2131,10 @@ function renderAlertsList(rules) {
       <div class="alert-cell"><span>Precio fijado</span><b>${priceFmt(r.price)}</b></div>
       <div class="alert-cell opt"><span>Tu media</span><b>${avg ? priceFmt(avg) : '—'}</b></div>
       <div class="alert-cell right"><span>Ahora</span><b>${price === null ? '—' : priceFmt(price)}</b><small>${gapTxt}</small></div>
-      <span class="chip${chipCls}">${estado}</span>
+      <span class="chips-alert">
+        <span class="chip${chipCls}">${estado}</span>
+        ${r.planId ? '<span class="chip chip-plan" title="Creada automáticamente por un plan de inversión">plan</span>' : ''}
+      </span>
       <div class="alert-actions">
         <button class="btn btn-ghost btn-xs" data-alert-edit="${esc(r.id)}" title="Editar esta alerta">✏️ Editar</button>
         <button class="btn btn-ghost btn-xs" data-alert-test="${esc(r.id)}" title="Enviar este aviso ahora a Telegram">🔔 Probar</button>

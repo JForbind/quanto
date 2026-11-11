@@ -814,3 +814,7 @@ html[data-theme="light"] body.has-wallpaper .orb { opacity: .16; }
   .pr-amount { display: none; }
   .plan-tranche-row { grid-template-columns: 1fr 1fr auto; }
 }
+
+/* avisos generados por un plan */
+.chips-alert { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.chip-plan { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; }

@@ -3,6 +3,15 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.2.4] — 2026-11-11
+
+### Añadido
+
+- Crear un plan **genera solo los avisos de Telegram** de cada tramo pendiente.
+- Al marcar un tramo como ejecutado o cancelado, su aviso **se retira**; si se reabre, vuelve.
+- Borrar un plan borra sus avisos.
+- Las alertas muestran un chip **«plan»** para distinguirlas de las creadas a mano.
+
 ## [2.2.3] — 2026-11-11
 
 ### Añadido
