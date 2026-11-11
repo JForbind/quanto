@@ -3,6 +3,27 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.2.0] — 2026-11-11
+
+### Añadido
+
+- **Panel de Trading**: velas de Bitvavo (15m, 1h, 4h, 1D) con volumen, zoom y tooltip.
+- Indicadores calculados en el navegador: **MA20/50**, **Bollinger**, **RSI** y **MACD**.
+- **Fibonacci automático** que se recalcula con el tramo visible del gráfico.
+- **Ondas de Wolfe**: detección automática por pivotes y modo **manual** (5 clics) con línea EPA.
+- **Radar del mercado** en Resumen: mayores subidas y bajadas del día en Bitvavo.
+- **Minigráfico de 7 días** en la tabla de Monedas.
+- **Iconos de moneda** en las alertas y filas en columnas.
+- **KPIs** de resumen arriba en Monedas, Miedo y codicia y Operaciones.
+- Efecto **tragaperras** en los KPIs al abrir la app.
+- Transiciones animadas entre paneles (fundido + cascada de tarjetas + título).
+
+### Cambiado
+
+- El **tooltip del rosco** lleva el color de la porción.
+- Fuera la **tarjeta lateral** de resumen (sustituida por los KPIs de cada pestaña).
+- Fuera las columnas **Tend.** y **Detalle** de Monedas (la fila ya abre el detalle).
+
 ## [2.1.1] — 2026-11-09
 
 ### Cambiado

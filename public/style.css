@@ -234,19 +234,29 @@ html[data-theme="light"] .nav-item.is-active { background: #fff; box-shadow: 0 1
   scrollbar-width: none;
 }
 .side-summary::-webkit-scrollbar { display: none; }
+@keyframes sideIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes blockIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.side-summary:not(.hidden) { animation: sideIn .45s cubic-bezier(.16,.84,.3,1) both; }
+.side-summary:not(.hidden) .ss-block { animation: blockIn .55s cubic-bezier(.16,.84,.3,1) both; }
+.side-summary:not(.hidden) .ss-block:nth-child(1) { animation-delay: .1s; }
+.side-summary:not(.hidden) .ss-block:nth-child(2) { animation-delay: .24s; }
+.side-summary:not(.hidden) .ss-block:nth-child(3) { animation-delay: .38s; }
+.side-summary:not(.hidden) .ss-block:nth-child(4) { animation-delay: .52s; }
 .ss-block {
   flex: 1 1 0;
-  min-height: 84px;
+  min-height: 72px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
-  padding: 10px 0;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+  padding: 8px 0;
 }
 .ss-block + .ss-block { border-top: 1px solid var(--line); }
-.ss-label { text-transform: uppercase; letter-spacing: .09em; font-size: 9.5px; color: var(--muted); }
-.ss-value { font-size: 23px; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.15; }
-.ss-sub { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ss-label { text-transform: uppercase; letter-spacing: .1em; font-size: 8.8px; color: var(--muted); }
+.ss-value { font-size: 20.5px; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.12; }
+.ss-sub { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ss-value.pos, .ss-sub.pos { color: var(--pos); }
 .ss-value.neg, .ss-sub.neg { color: var(--neg); }
 .side-change { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -308,7 +318,26 @@ html[data-theme="dark"] .btn-primary { color: #060b14; }
 .link:hover { text-decoration: underline; }
 
 /* ---------------------------------------------- tarjetas */
-.view { display: flex; flex-direction: column; gap: var(--gap); animation: fade .35s ease both; }
+.view { display: flex; flex-direction: column; gap: var(--gap); }
+
+/* Transición elegante entre paneles: fundido + tarjetas escalonadas */
+@keyframes viewFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes titleIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.view:not(.hidden) { animation: viewFade .3s ease both; }
+.view:not(.hidden) .card,
+.view:not(.hidden) .kpi { animation: riseIn .6s cubic-bezier(.16,.84,.3,1) both; will-change: transform, opacity; }
+.topbar-text.is-entering { animation: titleIn .42s cubic-bezier(.16,.84,.3,1) both; }
+.view:not(.hidden) .kpis > *:nth-child(1),
+.view:not(.hidden) .grid > *:nth-child(1) { animation-delay: .04s; }
+.view:not(.hidden) .kpis > *:nth-child(2),
+.view:not(.hidden) .grid > *:nth-child(2) { animation-delay: .12s; }
+.view:not(.hidden) .kpis > *:nth-child(3),
+.view:not(.hidden) .grid > *:nth-child(3) { animation-delay: .2s; }
+.view:not(.hidden) .kpis > *:nth-child(4),
+.view:not(.hidden) .grid > *:nth-child(4) { animation-delay: .28s; }
+.view:not(.hidden) .grid > *:nth-child(5) { animation-delay: .36s; }
+.view:not(.hidden) .grid > *:nth-child(6) { animation-delay: .44s; }
 
 /* Fiscal: el contenido va dentro de un envoltorio, necesita su propio ritmo
    vertical para que las secciones no queden pegadas. */
@@ -637,7 +666,8 @@ html[data-theme="light"] .select option { background: #fff; color: #0d1524; }
 *::-webkit-scrollbar-track { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  /* Solo frenamos los adornos de fondo; las transiciones de panel se mantienen. */
+  .orb { animation: none !important; }
 }
 
 /* ---------------------------------------------- modo privacidad */
@@ -693,3 +723,73 @@ html[data-theme="light"] body.has-wallpaper .orb { opacity: .16; }
 
 /* icono de ajustes activo en el pie */
 .icon-btn.is-active { color: var(--accent); border-color: var(--accent); }
+
+/* minigráfico de 7 días en la tabla de monedas */
+.spark { display: block; margin-left: auto; overflow: visible; }
+
+/* sentimiento (% de votos alcistas) */
+.sent-wrap { display: inline-flex; align-items: center; gap: 7px; justify-content: flex-end; }
+.sent-wrap b { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sent { display: inline-block; width: 46px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+.sent > span { display: block; height: 100%; border-radius: 999px; background: var(--pos); }
+.sent.mid > span { background: #f0b429; }
+.sent.low > span { background: var(--neg); }
+
+/* icono de la moneda en las alertas */
+.alert-coin { display: flex; align-items: center; gap: 9px; }
+.alert-coin b { font-size: 14px; }
+.alert-coin .coin-badge { width: 26px; height: 26px; font-size: 9.5px; flex: 0 0 26px; }
+
+/* radar del mercado (resumen) */
+.radar { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.radar-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; margin: 0 0 6px; color: var(--muted); }
+.radar-title.up { color: var(--pos); }
+.radar-title.down { color: var(--neg); }
+.radar-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.radar-row:first-child { border-top: 0; }
+.radar-row .coin-badge { width: 24px; height: 24px; font-size: 9px; flex: 0 0 24px; }
+.radar-row b { font-size: 13px; font-weight: 600; }
+.radar-price { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.radar-pct { font-size: 12.5px; font-weight: 620; font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; }
+.radar-pct.pos { color: var(--pos); }
+.radar-pct.neg { color: var(--neg); }
+@media (max-width: 900px) { .radar { grid-template-columns: 1fr; gap: 14px; } }
+
+/* el radar se estira al alto de su vecina, repartiendo las filas */
+.radar-card { display: flex; flex-direction: column; }
+.radar-card .radar { flex: 1 1 auto; }
+.radar-col { display: flex; flex-direction: column; min-height: 0; }
+.radar-list { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-between; }
+.radar-row { padding: 5px 0; }
+.radar-row b { font-size: 12.5px; }
+.radar-price, .radar-pct { font-size: 12px; }
+
+/* radar aún más compacto */
+.radar-card { padding: 16px 18px 14px; }
+.radar-row { padding: 4px 0; }
+.radar-title { margin-bottom: 4px; }
+.radar-card .card-head { margin-bottom: 10px; }
+
+/* fila de alerta en columnas: aprovecha el ancho */
+.alert-row {
+  grid-template-columns: minmax(104px, 1fr) 74px 104px 104px minmax(124px, 1fr) auto auto;
+  gap: 16px;
+}
+.alert-cell { display: flex; flex-direction: column; gap: 2px; line-height: 1.2; }
+.alert-cell > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.alert-cell > b { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.alert-cell > small { font-size: 11px; color: var(--muted); }
+.alert-cell.right { align-items: flex-end; text-align: right; padding-left: 12px; }
+.alert-main.alert-coin { display: flex; flex-direction: row; align-items: center; gap: 9px; line-height: 1.2; }
+@media (max-width: 1180px) {
+  .alert-row { grid-template-columns: minmax(110px, 1fr) 110px minmax(120px, 1fr) auto auto; }
+  .alert-cell.opt { display: none; }
+}
+
+
+/* las acciones de la alerta no se parten en dos líneas */
+.alert-actions { flex-wrap: nowrap; }
+.alert-actions .btn { white-space: nowrap; }
+
+/* separador entre marcos e indicadores en Trading */
+.chips-ind { margin-left: 6px; padding-left: 10px; border-left: 1px solid var(--line); }

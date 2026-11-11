@@ -18,7 +18,7 @@ const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createLimiter } = require('./lib/auth');
 const { round } = require('./lib/util');
 
-const VERSION = '2.1.1';
+const VERSION = '2.2.0';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -353,6 +353,78 @@ app.get('/api/status', (req, res) => {
     hasPassword: !!(getSettings().password && getSettings().password.hash) || !!(process.env.APP_PASSWORD || '').trim(),
     imported: !!state.meta.importedAt,
   });
+});
+
+// Mini-gráfico de los últimos días (velas diarias de Bitvavo)
+app.get('/api/sparklines', async (req, res) => {
+  try {
+    const p = state.portfolio || (await refreshPortfolio(false));
+    const coins = (p && Array.isArray(p.coins)) ? p.coins : [];
+    const sparklines = {};
+    await Promise.all(coins.map(async (c) => {
+      try {
+        const candles = await client.candles(`${c.symbol}-EUR`, '1d', 30);
+        if (!Array.isArray(candles) || candles.length < 3) return;
+        // Bitvavo devuelve las velas de la más reciente a la más antigua:
+        // las pasamos a orden cronológico antes de calcular nada.
+        const closes = candles
+          .map(k => Number(k && k[4]))
+          .filter(n => isFinite(n) && n > 0)
+          .reverse();
+        if (closes.length < 3) return;
+        sparklines[c.symbol] = closes.slice(-8);
+      } catch { /* sin par en EUR o sin velas */ }
+    }));
+    res.json({ ok: true, sparklines });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Radar del mercado: mayores subidas y bajadas de las últimas 24 h (Bitvavo, pares EUR)
+app.get('/api/radar', async (req, res) => {
+  try {
+    const tickers = await client.ticker24h();
+    const list = Array.isArray(tickers) ? tickers : [];
+    const stable = new Set(['USDT', 'USDC', 'DAI', 'EURC', 'EURT', 'PYUSD', 'FDUSD', 'TUSD', 'USDP', 'EURS', 'USDD']);
+    const rows = list
+      .filter(t => t && typeof t.market === 'string' && t.market.endsWith('-EUR'))
+      .map(t => {
+        const symbol = t.market.slice(0, -4);
+        const open = Number(t.open);
+        const last = Number(t.last);
+        if (!isFinite(open) || !isFinite(last) || open <= 0) return null;
+        const change = ((last - open) / open) * 100;
+        if (!isFinite(change)) return null;
+        return { symbol, price: last, change };
+      })
+      .filter(r => r && !stable.has(r.symbol) && Math.abs(r.change) <= 150);
+    const up = [...rows].sort((a, b) => b.change - a.change).slice(0, 5);
+    const down = [...rows].sort((a, b) => a.change - b.change).slice(0, 5);
+    res.json({ ok: true, up, down });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Velas para el panel de trading
+app.get('/api/candles', async (req, res) => {
+  const symbol = String(req.query.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
+  const interval = String(req.query.interval || '1h');
+  const allowed = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '1d'];
+  if (!allowed.includes(interval)) return res.status(400).json({ error: 'Intervalo no válido' });
+  const limit = Math.min(500, Math.max(50, Number(req.query.limit) || 300));
+  try {
+    const raw = await client.candles(`${symbol}-EUR`, interval, limit);
+    const candles = (Array.isArray(raw) ? raw : [])
+      .map(k => [Number(k[0]), Number(k[1]), Number(k[2]), Number(k[3]), Number(k[4]), Number(k[5])])
+      .filter(r => r.every(n => isFinite(n)))
+      .reverse();
+    res.json({ ok: true, symbol, interval, candles });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.post('/api/login', (req, res) => {
