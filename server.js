@@ -18,7 +18,7 @@ const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createLimiter } = require('./lib/auth');
 const { round } = require('./lib/util');
 
-const VERSION = '2.2.2';
+const VERSION = '2.2.3';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -439,8 +439,69 @@ function getPlanStore() {
 function savePlanStore(s) { writeJson(PLANS_FILE, s); }
 function planId() { return Math.random().toString(36).slice(2, 10); }
 
+// Marca automáticamente los tramos cuando aparece una compra de esa moneda
+// cuyo precio encaja con el del tramo (margen del 3 %) y aún no se había usado.
+function autoMatchPlanBuys(store) {
+  const ops = opsForView();
+  if (!ops.length) return store;
+  const TOL = 0.03;
+  const opPrice = (o) => {
+    const p1 = Number(o.quotePrice);
+    if (p1 > 0) return p1;
+    const p2 = Number(o.price);
+    if (p2 > 0) return p2;
+    const value = Number(o.paidEur) || Number(o.value) || 0;
+    const amount = Number(o.amount) || 0;
+    return value > 0 && amount > 0 ? value / amount : 0;
+  };
+  let changed = false;
+  for (const plan of store.plans) {
+    plan.usedOps = Array.isArray(plan.usedOps) ? plan.usedOps : [];
+    const since = (plan.createdAt || 0) - 30 * 60e3;
+    const buys = ops
+      .filter(o => o.type === 'buy'
+        && String(o.currency || o.symbol || '').toUpperCase() === plan.symbol
+        && (o.ts || 0) > since
+        && !plan.usedOps.includes(o.id))
+      .sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    if (!buys.length) continue;
+    // 1) consumir las compras que ya justifican tramos ejecutados a mano
+    for (const tr of plan.tranches.filter(x => x.status === 'done' && !x.opId)) {
+      const op = buys.find(o => {
+        const p = opPrice(o);
+        return p > 0 && Math.abs(p - tr.price) / tr.price <= TOL;
+      });
+      if (!op) continue;
+      tr.opId = op.id;
+      if (!tr.donePrice) tr.donePrice = opPrice(op);
+      plan.usedOps.push(op.id);
+      changed = true;
+    }
+    // 2) marcar tramos pendientes con las compras restantes
+    const pending = plan.tranches.filter(x => x.status === 'pending').sort((a, b) => a.price - b.price);
+    for (const tr of pending) {
+      const op = buys.find(o => {
+        if (plan.usedOps.includes(o.id)) return false;
+        const p = opPrice(o);
+        return p > 0 && Math.abs(p - tr.price) / tr.price <= TOL;
+      });
+      if (!op) continue;
+      tr.status = 'done';
+      tr.doneAt = op.ts;
+      tr.donePrice = opPrice(op);
+      tr.opId = op.id;
+      plan.usedOps.push(op.id);
+      changed = true;
+      console.log(`[planes] ${plan.symbol}: tramo ${tr.price} marcado por compra a ${tr.donePrice}`);
+    }
+  }
+  if (changed) savePlanStore(store);
+  return store;
+}
+
 app.get('/api/plans', (req, res) => {
   const store = getPlanStore();
+  autoMatchPlanBuys(store);
   res.json({ ok: true, plans: store.plans, prices: state.prices || {} });
 });
 

@@ -3,6 +3,14 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.2.3] — 2026-11-11
+
+### Añadido
+
+- Los **tramos de un plan se marcan solos** cuando Quanto detecta una compra de esa moneda
+  cuyo precio encaja con el del tramo (margen del 3 %). Cada compra se usa una sola vez.
+- Si un tramo se marcó a mano, la compra que lo justifica queda registrada para no reutilizarla.
+
 ## [2.2.2] — 2026-11-11
 
 ### Añadido
