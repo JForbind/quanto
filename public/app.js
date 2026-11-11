@@ -1614,7 +1614,8 @@ function renderTax() {
     <td class="num">${eur(i.cost)}</td>
     <td class="num">${i.hasPrice === false ? '<span class="muted">sin precio</span>' : eur(i.value)}</td>
     <td class="num ${i.pnl === null ? '' : signed(i.pnl)}">${i.pnl === null ? '<span class="muted">—</span>' : (i.pnl >= 0 ? '+' : '') + eur(i.pnl)}</td>
-  </tr>`).join('') || '<tr><td colspan="5" class="empty">Sin inventario</td></tr>';
+    <td class="num ${i.sellTax === null || i.sellTax === undefined ? '' : (i.sellGain < 0 ? 'pos' : '')}">${i.sellTax === null || i.sellTax === undefined ? '<span class="muted">—</span>' : eur(i.sellTax)}</td>
+  </tr>`).join('') || '<tr><td colspan="6" class="empty">Sin inventario</td></tr>';
 
   const sel2 = $('#tax-sim-symbol');
   sel2.innerHTML = (t.inventory || []).map(i => `<option value="${esc(i.symbol)}">${esc(i.symbol)} · ${num(i.amount, 4)}</option>`).join('');
@@ -1651,7 +1652,9 @@ async function runSimulation() {
       <div class="row"><span>Ganancia con coste medio</span><b class="${signed(r.average.gain)}">${(r.average.gain >= 0 ? '+' : '') + eur(r.average.gain)}</b></div>
       <div class="row"><span>Cuota estimada (FIFO)</span><b>${eur(r.fifo.tax)}</b></div>
       <div class="row"><span>Te quedarían</span><b>${eur(r.netAfterTax)}</b></div>
-      ${r.unmatched > 0 ? `<div class="row"><span class="warn">Sin compra registrada</span><b class="warn">${num(r.unmatched, 8)} ${esc(symbol)}</b></div>` : ''}`;
+      ${r.unmatched > 0 ? `<div class="row"><span class="warn">Sin compra registrada</span><b class="warn">${num(r.unmatched, 8)} ${esc(symbol)}</b></div>` : ''}
+      <div class="row"><span>Queda en cartera</span><b>${num(r.remaining, 8)} ${esc(symbol)} · ${eur(r.remainingValue)}</b></div>
+      ${r.weightBefore !== null && r.weightAfter !== null ? `<div class="row"><span>Peso en cartera</span><b>${num(r.weightBefore, 1)} % → ${num(r.weightAfter, 1)} %</b></div>` : ''}`;
   } catch (e) {
     out.textContent = 'Error: ' + e.message;
   }

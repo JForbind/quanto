@@ -18,7 +18,7 @@ const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createLimiter } = require('./lib/auth');
 const { round } = require('./lib/util');
 
-const VERSION = '2.2.0';
+const VERSION = '2.2.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -614,14 +614,28 @@ app.get('/api/tax', async (req, res) => {
     }
     const inventory = Object.values(report.inventory).map(item => {
       const price = Number(prices[item.symbol]) || 0;
+      const value = price > 0 ? round(item.amount * price, 2) : null;
+      let sellGain = null;
+      let sellTax = null;
+      if (value !== null) {
+        try {
+          const sim = simulateSale(ops, item.symbol, item.amount);
+          sellGain = round(value - sim.fifoCost, 2);
+          sellTax = sellGain > 0 ? round(estimateTax(sellGain), 2) : 0;
+        } catch { /* sin datos suficientes */ }
+      }
       return {
         ...item,
         price,
         hasPrice: price > 0,
-        value: price > 0 ? round(item.amount * price, 2) : null,
-        pnl: price > 0 ? round(item.amount * price - item.cost, 2) : null,
+        value,
+        pnl: value === null ? null : round(value - item.cost, 2),
+        sellGain,
+        sellTax,
       };
     }).sort((a, b) => (b.value || 0) - (a.value || 0));
+    const invTotal = inventory.reduce((a, i) => a + (i.value || 0), 0);
+    for (const i of inventory) i.weight = invTotal > 0 && i.value !== null ? round((i.value / invTotal) * 100, 1) : null;
     const totals = {
       ...report.totals,
       inventoryValue: round(inventory.reduce((a, i) => a + (i.value || 0), 0), 2),
@@ -664,6 +678,19 @@ app.get('/api/tax/simulate', async (req, res) => {
       fifo: { cost: sim.fifoCost, gain: fifoGain, tax: estimateTax(fifoGain), lots: sim.fifoLots },
       average: { cost: sim.avgCostUsed, gain: avgGain, tax: estimateTax(avgGain), unitCost: sim.avgCost },
       netAfterTax: round(proceeds - estimateTax(fifoGain), 2),
+      remaining: round(Math.max(0, sim.available - amount), 8),
+      remainingValue: round(Math.max(0, sim.available - amount) * price, 2),
+      weightBefore: (() => {
+        const total = Number(state.portfolio && state.portfolio.totalValue) || 0;
+        return total > 0 ? round((sim.available * price / total) * 100, 1) : null;
+      })(),
+      weightAfter: (() => {
+        const total = Number(state.portfolio && state.portfolio.totalValue) || 0;
+        if (!(total > 0)) return null;
+        const tax = estimateTax(fifoGain);
+        const newTotal = Math.max(0.01, total - tax);
+        return round((Math.max(0, sim.available - amount) * price / newTotal) * 100, 1);
+      })(),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

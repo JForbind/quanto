@@ -3,6 +3,15 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.2.1] — 2026-11-11
+
+### Añadido
+
+- **Simulador de venta** en Fiscal: elige moneda y cantidad (25 %, 50 % o todo) y ves
+  el precio, el ingreso, la ganancia con FIFO y con coste medio, la cuota estimada y el neto.
+- Ahora indica **qué queda en cartera** y el **peso de esa moneda antes y después** de la venta.
+- Columna **«Si vendes todo»** en el Inventario FIFO: cuota estimada por moneda.
+
 ## [2.2.0] — 2026-11-11
 
 ### Añadido
