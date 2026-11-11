@@ -793,3 +793,24 @@ html[data-theme="light"] body.has-wallpaper .orb { opacity: .16; }
 
 /* separador entre marcos e indicadores en Trading */
 .chips-ind { margin-left: 6px; padding-left: 10px; border-left: 1px solid var(--line); }
+
+/* ---------------------------------------------- planes de inversión */
+.plan-tranches { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 12px; }
+.plan-tranche-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+.plans-list { display: flex; flex-direction: column; gap: var(--gap); }
+.plan-progress { height: 6px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; margin: 4px 0 14px; }
+.plan-progress > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.plan-rows { display: flex; flex-direction: column; gap: 8px; }
+.plan-row { display: grid; grid-template-columns: 140px 120px 1fr auto; gap: 14px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--glass-hi); border: 1px solid var(--line); }
+.plan-row.done { border-color: rgba(52,224,161,.35); }
+.plan-row.cancelled { opacity: .55; }
+.pr-price { font-weight: 650; font-variant-numeric: tabular-nums; }
+.pr-amount { color: var(--muted); font-variant-numeric: tabular-nums; }
+.pr-state { font-size: 12.5px; }
+.pr-state .pos { color: var(--pos); }
+.pr-actions { display: flex; gap: 8px; justify-content: flex-end; }
+@media (max-width: 780px) {
+  .plan-row { grid-template-columns: 1fr auto; }
+  .pr-amount { display: none; }
+  .plan-tranche-row { grid-template-columns: 1fr 1fr auto; }
+}

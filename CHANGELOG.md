@@ -3,6 +3,16 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.2.2] — 2026-11-11
+
+### Añadido
+
+- **Tablero de Planes**: crea planes de compra por moneda con varios tramos
+  (precio + importe), objetivos escritos y seguimiento del presupuesto gastado.
+- Cada tramo muestra **cuánto falta** para su precio (o «ya está en precio») y se puede
+  marcar como **ejecutado**, **cancelar** o **reabrir**.
+- El plan guarda el precio al que se ejecutó cada tramo.
+
 ## [2.2.1] — 2026-11-11
 
 ### Añadido

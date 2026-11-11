@@ -18,7 +18,7 @@ const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createLimiter } = require('./lib/auth');
 const { round } = require('./lib/util');
 
-const VERSION = '2.2.1';
+const VERSION = '2.2.2';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -425,6 +425,73 @@ app.get('/api/candles', async (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+// ---------------- planes de inversión ----------------
+const PLANS_FILE = path.join(DATA_DIR, 'plans.json');
+
+function getPlanStore() {
+  const s = readJson(PLANS_FILE, null);
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return { plans: [] };
+  if (!Array.isArray(s.plans)) s.plans = [];
+  return s;
+}
+function savePlanStore(s) { writeJson(PLANS_FILE, s); }
+function planId() { return Math.random().toString(36).slice(2, 10); }
+
+app.get('/api/plans', (req, res) => {
+  const store = getPlanStore();
+  res.json({ ok: true, plans: store.plans, prices: state.prices || {} });
+});
+
+app.post('/api/plans', (req, res) => {
+  const b = req.body || {};
+  const symbol = String(b.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
+  const tranches = (Array.isArray(b.tranches) ? b.tranches : [])
+    .map(x => ({ price: Number(x && x.price), amount: Number(x && x.amount) }))
+    .filter(x => x.price > 0 && x.amount > 0)
+    .map(x => ({ id: planId(), price: x.price, amount: x.amount, status: 'pending', doneAt: null, donePrice: null }));
+  if (!tranches.length) return res.status(400).json({ error: 'Añade al menos un tramo con precio e importe' });
+  const store = getPlanStore();
+  const plan = {
+    id: planId(),
+    symbol,
+    title: String(b.title || '').slice(0, 90),
+    note: String(b.note || '').slice(0, 500),
+    budget: round(tranches.reduce((a, x) => a + x.amount, 0), 2),
+    createdAt: Date.now(),
+    tranches,
+  };
+  store.plans.push(plan);
+  savePlanStore(store);
+  res.json({ ok: true, plan });
+});
+
+app.post('/api/plans/:id/tranche/:tid', (req, res) => {
+  const store = getPlanStore();
+  const plan = store.plans.find(p => p.id === req.params.id);
+  if (!plan) return res.status(404).json({ error: 'No existe ese plan' });
+  const tr = plan.tranches.find(x => x.id === req.params.tid);
+  if (!tr) return res.status(404).json({ error: 'No existe ese tramo' });
+  const status = String((req.body || {}).status || 'done');
+  if (!['pending', 'done', 'cancelled'].includes(status)) return res.status(400).json({ error: 'Estado no válido' });
+  tr.status = status;
+  tr.doneAt = status === 'done' ? Date.now() : null;
+  tr.donePrice = status === 'done'
+    ? (Number((req.body || {}).price) || Number((state.prices || {})[plan.symbol]) || tr.price)
+    : null;
+  savePlanStore(store);
+  res.json({ ok: true, plan });
+});
+
+app.delete('/api/plans/:id', (req, res) => {
+  const store = getPlanStore();
+  const i = store.plans.findIndex(p => p.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: 'No existe ese plan' });
+  store.plans.splice(i, 1);
+  savePlanStore(store);
+  res.json({ ok: true });
 });
 
 app.post('/api/login', (req, res) => {
