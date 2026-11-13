@@ -3,6 +3,17 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.2.5] — 2026-11-13
+
+### Cambiado
+
+- **Alertas en escritorio**: la primera columna pasa a ancho fijo, así la condición, el precio
+  fijado y tu precio medio quedan pegados al logo en lugar de flotar en el centro.
+- **Alertas en móvil**: cada alerta se muestra como tarjeta apilada (logo, rejilla 2×2, estado
+  y botones), sin salirse de la pantalla.
+- **Menú inferior del móvil**: de 9 pestañas a **5** (Resumen, Monedas, Índice, Alertas, Más) y
+  una hoja **«Más»** con Operaciones, Fiscal, Planes, Trading y Ajustes.
+
 ## [2.2.4] — 2026-11-11
 
 ### Añadido

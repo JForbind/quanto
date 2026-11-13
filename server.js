@@ -18,7 +18,7 @@ const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createLimiter } = require('./lib/auth');
 const { round } = require('./lib/util');
 
-const VERSION = '2.2.4';
+const VERSION = '2.2.5';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);

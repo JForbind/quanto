@@ -772,7 +772,7 @@ html[data-theme="light"] body.has-wallpaper .orb { opacity: .16; }
 
 /* fila de alerta en columnas: aprovecha el ancho */
 .alert-row {
-  grid-template-columns: minmax(104px, 1fr) 74px 104px 104px minmax(124px, 1fr) auto auto;
+  grid-template-columns: 150px 78px 108px 108px 1fr auto auto;
   gap: 16px;
 }
 .alert-cell { display: flex; flex-direction: column; gap: 2px; line-height: 1.2; }
@@ -782,9 +782,39 @@ html[data-theme="light"] body.has-wallpaper .orb { opacity: .16; }
 .alert-cell.right { align-items: flex-end; text-align: right; padding-left: 12px; }
 .alert-main.alert-coin { display: flex; flex-direction: row; align-items: center; gap: 9px; line-height: 1.2; }
 @media (max-width: 1180px) {
-  .alert-row { grid-template-columns: minmax(110px, 1fr) 110px minmax(120px, 1fr) auto auto; }
+  .alert-row { grid-template-columns: 140px 110px minmax(120px, 1fr) auto auto; }
   .alert-cell.opt { display: none; }
 }
+/* móvil: la alerta se apila en tarjeta, nada se sale de pantalla */
+@media (max-width: 760px) {
+  .alert-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 14px;
+    align-items: flex-start;
+  }
+  .alert-main.alert-coin { flex: 1 1 100%; margin-bottom: 2px; }
+  .alert-cell { flex: 1 1 calc(50% - 8px); min-width: 0; }
+  .alert-cell.opt { display: flex; }
+  .alert-cell.right { align-items: flex-start; text-align: left; padding-left: 0; }
+  .alert-row .chips-alert { flex: 1 1 100%; justify-content: flex-start; }
+  .alert-actions { flex: 1 1 100%; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
+}
+
+/* hoja "Más" del menú móvil */
+.more-backdrop { position: fixed; inset: 0; background: rgba(3,6,12,.55); z-index: 70; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+.more-sheet {
+  position: fixed; left: 12px; right: 12px; bottom: 84px; z-index: 71;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px;
+  border-radius: 20px; background: var(--bg-2); border: 1px solid var(--line);
+  box-shadow: 0 20px 50px -20px rgba(0,0,0,.85);
+}
+.more-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass-hi); color: var(--text); font: inherit; font-size: 13.5px; cursor: pointer; }
+.more-item svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.more-item:hover { border-color: var(--accent); }
+.more-item:last-child { grid-column: span 2; }
+
 
 
 /* las acciones de la alerta no se parten en dos líneas */

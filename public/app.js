@@ -193,6 +193,8 @@ function navigate(view) {
   if (target) target.classList.remove('hidden');
   $$('.nav-item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   renderSharedKpis(state.portfolio);
+  const moreBtn = document.getElementById('more-btn');
+  if (moreBtn) moreBtn.classList.toggle('is-active', ['operations', 'tax', 'plans', 'trade', 'settings'].includes(view));
   const settingsBtn = $('#settings-btn');
   if (settingsBtn) settingsBtn.classList.toggle('is-active', view === 'settings');
   const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
@@ -217,7 +219,25 @@ function navigate(view) {
   if (location.hash !== '#/' + view) history.replaceState(null, '', '#/' + view);
 }
 
-$$('.nav-item').forEach(btn => btn.addEventListener('click', () => navigate(btn.dataset.view)));
+/* Hoja "Más" del menú móvil */
+function toggleMoreSheet(force) {
+  const sheet = document.getElementById('more-sheet');
+  const back = document.getElementById('more-backdrop');
+  const btn = document.getElementById('more-btn');
+  if (!sheet || !back) return;
+  const open = force !== undefined ? force : sheet.classList.contains('hidden');
+  sheet.classList.toggle('hidden', !open);
+  back.classList.toggle('hidden', !open);
+  if (btn) btn.classList.toggle('is-active', open);
+}
+document.getElementById('more-btn')?.addEventListener('click', () => toggleMoreSheet());
+document.getElementById('more-backdrop')?.addEventListener('click', () => toggleMoreSheet(false));
+document.querySelectorAll('.more-item').forEach(b => b.addEventListener('click', () => {
+  toggleMoreSheet(false);
+  navigate(b.dataset.view);
+}));
+
+$$('.nav-item').forEach(btn => btn.addEventListener('click', () => { if (btn.dataset.view) navigate(btn.dataset.view); }));
 document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', () => navigate(btn.dataset.goto)));
 
 /* ------------------------------------------------ login */
