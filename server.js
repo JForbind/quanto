@@ -1668,7 +1668,9 @@ app.post('/api/alerts/check', async (req, res) => {
 app.post('/api/telegram', (req, res) => {
   const b = req.body || {};
   const s = getSettings();
-  const token = String(b.token !== undefined ? b.token : (s.telegram && s.telegram.token) || '').trim();
+  // Un campo vacío no borra el token guardado (solo se borra con clear: true).
+  let token = String(b.token !== undefined ? b.token : '').trim();
+  if (!token && !b.clear) token = (s.telegram && s.telegram.token) || '';
   const chatId = String(b.chatId !== undefined ? b.chatId : (s.telegram && s.telegram.chatId) || '').trim();
   s.telegram = { token, chatId };
   saveSettings(s);
