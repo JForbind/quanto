@@ -2342,6 +2342,7 @@ app.get('/api/analyze', async (req, res) => {
       symbol,
       portfolio: state.portfolio,
       plans: (getPlanStore().plans || []),
+      indicators: String(req.query.ind || ''),
     });
     res.json({ ok: true, ...out, interval, at: Date.now() });
   } catch (e) {

@@ -1501,10 +1501,22 @@ async function runAnalyst() {
   state.analystKey = sym + '|' + iv;
   if (btn) { btn.disabled = true; btn.textContent = 'Analizando…'; }
   try {
-    const d = await api(`/api/analyze?symbol=${encodeURIComponent(sym)}&interval=${iv}`);
+    const ind = Object.keys(state.tradeInd || {}).filter(k => state.tradeInd[k]).join(',');
+    const wolfeOn = state.wolfe && state.wolfe.mode && state.wolfe.mode !== 'off';
+    const d = await api(`/api/analyze?symbol=${encodeURIComponent(sym)}&interval=${iv}&ind=${encodeURIComponent(ind)}`);
     if (!d.ok) throw new Error(d.error || 'Sin datos');
     if (sub) sub.textContent = `${sym} · ${iv} · ${new Date(d.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
-    out.innerHTML = (d.sections || []).map(s => `
+    const extra = [];
+    if (wolfeOn) {
+      const pts = (typeof detectWolfe === 'function' && state.tradeRows) ? detectWolfe(state.tradeRows) : null;
+      extra.push({
+        title: 'Wolfe',
+        text: pts && pts.length >= 5
+          ? `Patrón detectado con ${pts.length} puntos; el quinto en ${priceFmt(pts[4].price)}. Objetivo estimado (línea EPA) hacia ${priceFmt(pts[2].price)}.`
+          : 'Sin patrón Wolfe claro con las velas actuales. Si lo ves a mano, activa «Wolfe → Lápiz» y márcalo.',
+      });
+    }
+    out.innerHTML = (d.sections || []).concat(extra).map(s => `
       <div class="analyst-block">
         <span class="analyst-title">${esc(s.title)}</span>
         <p>${esc(s.text)}</p>
@@ -1522,6 +1534,7 @@ async function runAnalyst() {
 $('#analyst-btn')?.addEventListener('click', runAnalyst);
 
 function renderCandles(symbol, interval, rows) {
+  state.tradeRows = rows;
   const prevInst = echarts.getInstanceByDom(document.getElementById('chart-trade'));
   if (prevInst) prevInst.__manualY = false;
   const stats = $('#trade-stats');
