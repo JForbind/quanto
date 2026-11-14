@@ -851,6 +851,80 @@ app.post('/api/users/:id/invite', requireAdmin, (req, res) => {
   res.json({ ok: true, inviteToken: invite.token, expiresAt: invite.expiresAt });
 });
 
+// ---------------- canales de aviso por usuario ----------------
+function notifyConfig() {
+  const s = getSettings();
+  const n = s.notify || {};
+  return {
+    email: String(n.email || '').trim(),
+    emailEnabled: !!n.emailEnabled,
+    telegramEnabled: n.telegramEnabled !== false,
+  };
+}
+
+function validEmail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || ''));
+}
+
+async function sendByEmail(to, subject, text) {
+  if (!mailer.ready()) throw new Error('El envío de correo no está configurado por el administrador');
+  return mailer.send({ to, subject, text });
+}
+
+/** Envía un aviso por los canales que el usuario tenga activos. */
+async function notifyUser(text, subject = 'Aviso de Quanto') {
+  const cfg = notifyConfig();
+  const results = { telegram: null, email: null };
+  const tg = telegramConfig();
+  if (cfg.telegramEnabled && tg.token && tg.chatId) {
+    try { await telegramSend(text); results.telegram = 'ok'; } catch (e) { results.telegram = e.message; }
+  }
+  if (cfg.emailEnabled && cfg.email) {
+    try {
+      await sendByEmail(cfg.email, subject, text.replace(/<[^>]+>/g, ''));
+      results.email = 'ok';
+    } catch (e) { results.email = e.message; }
+  }
+  return results;
+}
+
+app.get('/api/notify', (req, res) => {
+  res.json({ ok: true, notify: notifyConfig(), mailReady: mailer.ready() });
+});
+
+app.post('/api/notify', (req, res) => {
+  const b = req.body || {};
+  const email = String(b.email || '').trim();
+  if (b.emailEnabled && !validEmail(email)) {
+    return res.status(400).json({ error: 'Escribe un email válido para recibir avisos' });
+  }
+  const s = getSettings();
+  s.notify = {
+    email,
+    emailEnabled: !!b.emailEnabled,
+    telegramEnabled: b.telegramEnabled !== false,
+  };
+  saveSettings(s);
+  res.json({ ok: true, notify: notifyConfig() });
+});
+
+app.post('/api/notify/test', async (req, res) => {
+  const cfg = notifyConfig();
+  const out = [];
+  const tg = telegramConfig();
+  if (cfg.telegramEnabled && tg.token && tg.chatId) {
+    try { await telegramSend('🧪 <b>Quanto</b> · prueba de avisos por Telegram'); out.push('telegram'); } catch (e) { out.push('telegram: ' + e.message); }
+  }
+  if (cfg.emailEnabled && cfg.email) {
+    try {
+      await sendByEmail(cfg.email, 'Quanto · prueba de avisos', 'Si lees esto, los avisos por correo funcionan.');
+      out.push('email');
+    } catch (e) { out.push('email: ' + e.message); }
+  }
+  if (!out.length) return res.status(400).json({ error: 'Activa al menos un canal' });
+  res.json({ ok: true, sent: out });
+});
+
 // ---------------- informe semanal ----------------
 function weekKey(d = new Date()) {
   const t = new Date(d.getTime());
@@ -903,15 +977,14 @@ function buildWeeklyReport() {
 }
 
 async function sendWeeklyReport() {
-  const cfg = telegramConfig();
-  if (!cfg.token || !cfg.chatId) return { ok: false, reason: 'sin-telegram' };
-  try {
-    await telegramSend(buildWeeklyReport());
-    return { ok: true };
-  } catch (e) {
-    console.log('[semanal]', e.message);
-    return { ok: false, reason: e.message };
-  }
+  const n = notifyConfig();
+  const tg = telegramConfig();
+  const canTelegram = n.telegramEnabled && tg.token && tg.chatId;
+  const canEmail = n.emailEnabled && n.email && mailer.ready();
+  if (!canTelegram && !canEmail) return { ok: false, reason: 'sin-canal' };
+  const res = await notifyUser(buildWeeklyReport(), 'Quanto · resumen semanal');
+  const sent = res.telegram === 'ok' || res.email === 'ok';
+  return sent ? { ok: true, channels: res } : { ok: false, reason: JSON.stringify(res) };
 }
 
 setInterval(() => {
@@ -945,7 +1018,7 @@ app.post('/api/weekly', (req, res) => {
 
 app.post('/api/weekly/send', async (req, res) => {
   const r = await sendWeeklyReport();
-  if (!r.ok) return res.status(400).json({ error: r.reason === 'sin-telegram' ? 'Configura Telegram primero' : r.reason });
+  if (!r.ok) return res.status(400).json({ error: r.reason === 'sin-canal' ? 'Activa Telegram o email en Alertas' : r.reason });
   const s = getSettings();
   s.weeklySent = weekKey(new Date());
   saveSettings(s);
@@ -1470,7 +1543,7 @@ async function runAlertCheck() {
       const cooled = !rule.lastSentAt || Date.now() - rule.lastSentAt > coolMs;
       if (hit && armed && cooled) {
         try {
-          await telegramSend(alertMessage(rule, coin));
+          await notifyUser(alertMessage(rule, coin), 'Quanto · alerta ' + rule.symbol);
           rule.lastSentAt = Date.now();
           rule.armed = false;
           delete rule.lastError;
@@ -1576,7 +1649,7 @@ app.post('/api/alerts/:id/test', async (req, res) => {
     const portfolio = await refreshPortfolio(false);
     const coin = portfolio && Array.isArray(portfolio.coins) ? portfolio.coins.find(c => c.symbol === rule.symbol) : null;
     if (!coin) return res.status(404).json({ error: 'Esa moneda no está en la cartera' });
-    await telegramSend(alertMessage(rule, coin));
+    await notifyUser(alertMessage(rule, coin), 'Quanto · alerta ' + rule.symbol);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -1707,6 +1780,7 @@ app.get('/api/settings', (req, res) => {
     version: VERSION,
     weekly: (s.weekly && { enabled: !!s.weekly.enabled }) || { enabled: false },
     fredKeySet: !!(s.fredKey && s.fredKey.length === 32),
+    mailReady: mailer.ready(),
     telegramReady: !!telegramConfig().token,
   });
 });

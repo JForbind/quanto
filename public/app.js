@@ -175,6 +175,63 @@ function toast(message, isError) {
 }
 
 /* ------------------------------------------------ navegación */
+/* canales de aviso (telegram / email) */
+async function loadNotify() {
+  try {
+    const r = await api('/api/notify');
+    const n = r.notify || {};
+    const tg = $('#ch-telegram');
+    if (tg) tg.checked = n.telegramEnabled !== false;
+    const em = $('#ch-email');
+    if (em) em.checked = !!n.emailEnabled;
+    const addr = $('#notify-email');
+    if (addr && n.email) addr.value = n.email;
+    const note = $('#notify-sender');
+    if (note) {
+      note.textContent = r.mailReady
+        ? 'El correo lo envía la cuenta configurada por el administrador.'
+        : 'El administrador todavía no ha configurado el envío de correo.';
+      const em2 = $('#ch-email');
+      if (em2 && !r.mailReady) em2.disabled = true;
+    }
+  } catch {}
+}
+
+async function saveNotify() {
+  const note = $('#notify-note');
+  try {
+    const r = await api('/api/notify', {
+      method: 'POST',
+      body: JSON.stringify({
+        telegramEnabled: $('#ch-telegram')?.checked !== false,
+        emailEnabled: !!$('#ch-email')?.checked,
+        email: $('#notify-email')?.value.trim() || '',
+      }),
+    });
+    if (note) note.textContent = 'Canales guardados.';
+    return r;
+  } catch (e) {
+    if (note) note.textContent = e.message;
+    throw e;
+  }
+}
+
+$('#notify-test')?.addEventListener('click', async () => {
+  const note = $('#notify-note');
+  try {
+    await saveNotify();
+    const r = await api('/api/notify/test', { method: 'POST', body: '{}' });
+    if (note) note.textContent = 'Prueba enviada: ' + (r.sent || []).join(', ');
+    toast('Prueba de canales enviada');
+  } catch (e) {
+    if (note) note.textContent = e.message;
+  }
+});
+
+$('#ch-email')?.addEventListener('change', () => { if ($('#ch-email').checked) $('#notify-email')?.focus(); });
+$('#notify-email')?.addEventListener('change', () => { saveNotify().catch(() => {}); });
+$('#ch-telegram')?.addEventListener('change', () => { saveNotify().catch(() => {}); });
+
 /* informe semanal */
 $('#tg-weekly')?.addEventListener('change', async (e) => {
   try {
@@ -884,6 +941,7 @@ async function loadSettings() {
     state.overrides = await api('/api/overrides');
     const wk = $('#tg-weekly');
     if (wk && state.settings && state.settings.weekly) wk.checked = !!state.settings.weekly.enabled;
+    await loadNotify();
   } catch {}
 }
 

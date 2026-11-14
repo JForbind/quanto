@@ -576,6 +576,22 @@
             <label class="field"><span>Chat ID</span><input id="tg-chat" placeholder="123456789" autocomplete="off" spellcheck="false"></label>
           </div>
           <p class="hint">Crea el bot con <b>@BotFather</b> (<code>/newbot</code>) y copia el token. El <b>chat ID</b> te lo da <b>@userinfobot</b>; si es un grupo, añade el bot y usa el ID del grupo (empieza por <code>-</code>).</p>
+          <div class="notify-box">
+            <h3 class="h3" style="margin:0 0 8px">Dónde quieres recibir los avisos</h3>
+            <label class="hint" style="display:flex;gap:8px;align-items:center">
+              <input id="ch-telegram" type="checkbox"> <b>Telegram</b> (el bot de arriba)
+            </label>
+            <label class="hint" style="display:flex;gap:8px;align-items:center">
+              <input id="ch-email" type="checkbox"> <b>Email</b> en esta dirección:
+            </label>
+            <div class="form-row">
+              <label class="field"><span>Tu email de avisos</span>
+                <input id="notify-email" type="email" placeholder="tu@correo.com" autocomplete="off">
+              </label>
+            </div>
+            <p class="tiny muted" id="notify-sender">El correo lo envía la cuenta configurada por el administrador.</p>
+            <p class="tiny muted" id="notify-note"></p>
+          </div>
           <label class="hint" style="display:flex;gap:8px;align-items:center">
             <input id="tg-weekly" type="checkbox"> Recibir un <b>informe semanal</b> los domingos a las 9:00
           </label>
@@ -583,6 +599,7 @@
             <button class="btn btn-primary" type="submit">Guardar</button>
             <button class="btn btn-ghost" type="button" id="tg-test">Enviar prueba</button>
             <button class="btn btn-ghost" type="button" id="tg-weekly-now">Enviar informe ahora</button>
+            <button class="btn btn-ghost" type="button" id="notify-test">Probar canales</button>
           </div>
           <div id="tg-result" class="result"></div>
         </form>
