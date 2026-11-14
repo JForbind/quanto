@@ -270,3 +270,51 @@ quanto/
 ├── Dockerfile
 └── docker-compose.yml
 ```
+
+## Correo de avisos (invitaciones)
+
+Quanto puede enviar las invitaciones por correo y avisar al administrador cuando alguien
+olvida su contraseña. Se configura en **Ajustes → Correo de avisos** (solo administrador).
+
+### Gmail
+
+1. Activa la **verificación en 2 pasos** en la cuenta de Google.
+2. Cuenta → Seguridad → **Contraseñas de aplicaciones** → crea una llamada «Quanto».
+3. Copia los **16 caracteres** (sin espacios) en el campo *Contraseña de aplicación*.
+
+| Campo | Valor |
+|---|---|
+| Servidor SMTP | `smtp.gmail.com` |
+| Puerto | `465` (SSL) o `587` (STARTTLS) |
+| Usuario | `tu-cuenta@gmail.com` |
+| Remitente | el mismo correo |
+
+Pulsa **Probar envío**: si el SMTP falla, verás el error exacto.
+
+### Otros proveedores
+
+Sirve cualquier SMTP (Brevo, Mailgun, Outlook, el de tu hosting). Solo cambian servidor,
+puerto y credenciales.
+
+### Variables de entorno (docker-compose)
+
+Si prefieres no guardar la contraseña en la interfaz:
+
+```yaml
+environment:
+  - SMTP_HOST=smtp.gmail.com
+  - SMTP_PORT=465
+  - SMTP_SECURE=true
+  - SMTP_USER=tu-cuenta@gmail.com
+  - SMTP_PASS=xxxx xxxx xxxx xxxx
+  - SMTP_FROM=tu-cuenta@gmail.com
+  - PUBLIC_URL=https://quanto.tudominio.com   # para que los enlaces salgan bien
+```
+
+Las variables de entorno mandan sobre lo guardado en la interfaz.
+
+## Primera puesta en marcha
+
+En una instalación nueva, la primera vez que se abre Quanto pide **crear la cuenta de
+administrador** (usuario, email y contraseña de 12+ caracteres). Desde esa cuenta se crean
+el resto de usuarios, cada uno con su propia cartera, sus claves de Bitvavo y su Telegram.

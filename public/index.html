@@ -11,9 +11,9 @@
 <link rel="icon" type="image/png" sizes="1024x1024" href="/favicon.png">
 <link rel="apple-touch-icon" href="/favicon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=224">
+<link rel="stylesheet" href="/style.css?v=225">
 <script src="/echarts.min.js" defer></script>
-<script src="/app.js?v=224" defer></script>
+<script src="/app.js?v=225" defer></script>
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -24,6 +24,35 @@
 </div>
 
 <!-- ------------------------------------------------ acceso -->
+<div id="setup" class="login hidden">
+  <form id="setup-form" class="login-card glass">
+    <div class="login-logo"><span class="qmark">QUANTO</span></div>
+    <p class="login-sub">Primera puesta en marcha</p>
+    <p class="hint">Crea la cuenta de <b>administrador</b>: desde ella gestionarás los usuarios.</p>
+    <label class="field"><span>Usuario</span><input id="setup-user" placeholder="admin" autocomplete="username"></label>
+    <label class="field"><span>Email (para avisos)</span><input id="setup-email" type="email" placeholder="tu@correo.com" autocomplete="off"></label>
+    <label class="field"><span>Contraseña</span><input id="setup-pass" type="password" autocomplete="new-password"></label>
+    <label class="field"><span>Repite la contraseña</span><input id="setup-pass2" type="password" autocomplete="new-password"></label>
+    <label class="hint" style="display:flex;gap:8px;align-items:center"><input id="setup-data" type="checkbox"> Usar también esta cuenta para mi cartera</label>
+    <p class="hint">Mínimo 12 caracteres con mayúscula, minúscula, número y símbolo.</p>
+    <p id="setup-error" class="login-error"></p>
+    <button class="btn btn-primary" type="submit" id="setup-btn">Crear administrador</button>
+  </form>
+</div>
+
+<div id="invite" class="login hidden">
+  <form id="invite-form" class="login-card glass">
+    <div class="login-logo"><span class="qmark">QUANTO</span></div>
+    <p class="login-sub">Te han invitado a Quanto</p>
+    <p class="hint" id="invite-user">Comprobando enlace…</p>
+    <label class="field"><span>Nueva contraseña</span><input id="invite-pass" type="password" autocomplete="new-password"></label>
+    <label class="field"><span>Repite la contraseña</span><input id="invite-pass2" type="password" autocomplete="new-password"></label>
+    <p class="hint">Mínimo 12 caracteres con mayúscula, minúscula, número y símbolo.</p>
+    <p id="invite-error" class="login-error"></p>
+    <button class="btn btn-primary" type="submit" id="invite-btn">Crear contraseña y entrar</button>
+  </form>
+</div>
+
 <div id="login" class="login">
   <form id="login-form" class="login-card glass" autocomplete="on">
     <div class="login-avatar hidden" id="login-avatar-wrap">
@@ -34,11 +63,16 @@
     </div>
     <p class="login-sub">Tu cartera de Bitvavo, con la fiscalidad resuelta.</p>
     <label class="field">
+      <span>Usuario</span>
+      <input id="login-user" type="text" autocomplete="username" spellcheck="false" placeholder="tu usuario" required>
+    </label>
+    <label class="field">
       <span>Contraseña</span>
       <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
     </label>
     <button id="login-btn" class="btn btn-primary btn-lg" type="submit">Entrar</button>
     <p id="login-error" class="login-error" role="alert"></p>
+    <button type="button" id="forgot-btn" class="link tiny" style="align-self:flex-start">He olvidado mi contraseña</button>
     <p class="login-foot">Los datos no salen de tu servidor.</p>
   </form>
 </div>
@@ -453,6 +487,7 @@
           <div id="tax-sim-result" class="sim-result muted">Elige una moneda y una cantidad.</div>
         </div>
       </div>
+
     </section>
 
     <!-- ============================ ALERTAS -->
@@ -620,7 +655,7 @@
           </div>
         </article>
 
-        <article class="card glass span-6">
+        <article class="card glass span-6" id="password-card">
           <header class="card-head"><h2>Seguridad</h2><span class="chip" id="pass-status">—</span></header>
           <form id="password-form" class="form">
             <label class="field"><span>Contraseña actual</span><input id="pass-current" type="password" autocomplete="current-password"></label>
@@ -628,7 +663,7 @@
               <label class="field"><span>Nueva contraseña</span><input id="pass-new" type="password" autocomplete="new-password" minlength="8"></label>
               <label class="field"><span>Repite la nueva</span><input id="pass-repeat" type="password" autocomplete="new-password" minlength="8"></label>
             </div>
-            <p class="hint">Mínimo 8 caracteres. Se guarda con hash scrypt, nunca en claro.</p>
+            <p class="hint">Mínimo 12 caracteres con mayúscula, minúscula, número y símbolo. Se guarda con hash scrypt, nunca en claro.</p>
             <div class="form-actions"><button class="btn btn-primary" type="submit">Cambiar contraseña</button></div>
             <div id="pass-result" class="result"></div>
           </form>
@@ -716,7 +751,53 @@
           </div>
         </article>
       </div>
-    </section>
+            <article class="card glass span-12 hidden" id="mail-card">
+          <header class="card-head">
+            <div><h2>Correo de avisos</h2><p class="card-sub">Sirve para enviar invitaciones y avisos. Sirve cualquier SMTP.</p></div>
+          </header>
+          <form id="mail-form" class="form">
+            <div class="form-row">
+              <label class="field"><span>Servidor SMTP</span><input id="mail-host" placeholder="smtp.gmail.com" autocomplete="off"></label>
+              <label class="field"><span>Puerto</span><input id="mail-port" type="number" placeholder="465"></label>
+              <label class="field"><span>Seguridad</span>
+                <select id="mail-secure" class="select">
+                  <option value="1">SSL (465)</option>
+                  <option value="0">STARTTLS (587)</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="field"><span>Usuario</span><input id="mail-user" type="email" placeholder="tucuenta@ejemplo.com" autocomplete="off"></label>
+              <label class="field"><span>Contraseña de aplicación</span><input id="mail-pass" type="password" placeholder="•••• •••• •••• ••••" autocomplete="new-password"></label>
+              <label class="field"><span>Remitente</span><input id="mail-from" type="email" placeholder="igual que el usuario" autocomplete="off"></label>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Guardar correo</button>
+              <button class="btn btn-ghost" type="button" id="mail-test">Probar envío</button>
+            </div>
+            <p class="hint" id="mail-status">Sin configurar.</p>
+            <p class="hint">Gmail: activa la verificación en 2 pasos y crea una «contraseña de aplicaciones» de 16 caracteres. No uses la de tu cuenta.</p>
+          </form>
+        </article>
+        <article class="card glass span-12 hidden" id="users-card">
+          <header class="card-head">
+            <div><h2>Usuarios</h2><p class="card-sub">Solo el administrador crea y gestiona cuentas.</p></div>
+          </header>
+          <form id="user-form" class="form-row">
+            <label class="field"><span>Usuario</span><input id="user-name" placeholder="jaime" maxlength="32" autocomplete="off"></label>
+            <label class="field"><span>Email (opcional)</span><input id="user-email" type="email" placeholder="jaime@correo.com" autocomplete="off"></label>
+            <label class="field"><span>Rol</span>
+              <select id="user-role" class="select">
+                <option value="user">Usuario</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </label>
+            <button class="btn btn-primary" type="submit">Crear e invitar</button>
+          </form>
+          <div id="user-invite-result" class="result hidden"></div>
+          <div id="users-list" class="users-list"></div>
+        </article>
+      </section>
   </main>
 </div>
 

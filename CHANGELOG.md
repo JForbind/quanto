@@ -3,6 +3,94 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.2.0] — 2026-11-14
+
+### Seguridad
+
+- **Guardia global de acceso**: todo `/api` exige sesión salvo la lista pública
+  (health, status, setup, login, forgot, invitación). Una ruta nueva ya no puede
+  quedarse sin proteger por orden de registro.
+- **Límite de intentos por usuario** además de por IP.
+- `/appearance-public` deja de leer datos y responde siempre sin foto.
+- Limpieza de código heredado del modo de un solo usuario.
+
+### Añadido
+
+- **Tests de autenticación**: política de contraseñas, hash, sesiones (falsificación y
+  caducidad), invitaciones, desactivación y borrado de usuarios. `npm test`.
+
+## [3.1.4] — 2026-11-14
+
+### Seguridad (auditoría completa)
+
+- `/api/status` y `/api/settings` calculan el estado de la contraseña desde `users.json`.
+- `/api/settings` ya no expone la ruta del servidor.
+- El cambio de contraseña heredado en `/api/settings` devuelve 400 (se usa `/api/password`).
+- Límite de 240 peticiones/minuto en exportaciones, copias, importación e iconos.
+- Los JSON con datos sensibles se guardan con permisos **600**.
+- Cerrojo en el alta inicial para evitar dos administradores simultáneos.
+
+## [3.1.3] — 2026-11-14
+
+### Corregido
+
+- **Los planes habían desaparecido**: sus rutas estaban registradas antes del middleware de
+  sesión, así que se ejecutaban sin el contexto del usuario y leían una carpeta vacía.
+  Ahora vuelven a mostrarse con sus tramos.
+- El mismo fallo afectaba a **radar, velas y sparklines**, que además quedaban accesibles
+  **sin sesión**. Ahora exigen login (401) y respetan la regla del admin sin datos.
+
+## [3.1.2] — 2026-11-14
+
+### Añadido
+
+- **Iconos reales de monedas** en el radar y en cualquier sitio donde aparezca una moneda
+  que no tenga icono propio: se descargan una vez y se guardan en `data/icons/` (caché).
+  Si no hay icono disponible, se mantiene la insignia con las iniciales.
+
+## [3.1.1] — 2026-11-14
+
+### Corregido
+
+- Al cambiar de usuario sin recargar, la interfaz conservaba el modo administrador.
+  Ahora se reinicia la vista y se aterriza en Resumen.
+- El campo «Usuario» del correo usaba una dirección de ejemplo que parecía un valor real.
+- El correo de ejemplo del repositorio se ha sustituido por un texto genérico.
+
+## [3.1.0] — 2026-11-14
+
+### Añadido
+
+- **Primera puesta en marcha**: en una instalación nueva, Quanto pide crear la cuenta de
+  administrador (usuario, email y contraseña) antes de nada. Con la opción de usar esa misma
+  cuenta también para la cartera.
+- **Correo de avisos** en Ajustes (solo admin): servidor SMTP, puerto, usuario, contraseña de
+  aplicación y remitente. Sirve Gmail o cualquier otro proveedor. Botón **Probar envío**.
+- Las **invitaciones** se envían por correo automáticamente cuando hay SMTP configurado.
+- **Aviso al administrador** cuando alguien pulsa «he olvidado mi contraseña».
+- Variables de entorno `SMTP_*` para configurar el correo desde docker-compose.
+
+## [3.0.0] — 2026-11-14
+
+### Añadido
+
+- **Multi-usuario**: cada cuenta tiene su propia cartera, claves de Bitvavo, alertas,
+  planes, apariencia y datos fiscales. Nada se mezcla.
+- **Registro solo por invitación**: el administrador crea la cuenta y comparte un enlace
+  de un solo uso (caduca en 72 h) donde el invitado elige su contraseña.
+- **Cuenta de administración** (`adminquanto20`) sin datos financieros: solo gestiona usuarios.
+- **Panel de usuarios** en Ajustes: crear, resetear, desactivar, borrar y copiar enlaces.
+- **«He olvidado mi contraseña»**: avisa al administrador para que genere un enlace nuevo,
+  sin perder ningún dato.
+- Política de contraseñas: **12 caracteres con mayúscula, minúscula, número y símbolo**.
+- Sesiones firmadas con el usuario y su versión: resetear o desactivar expulsa al instante.
+
+### Cambiado
+
+- El login ahora pide **usuario y contraseña**.
+- La migración conserva el usuario actual como `jorge` con su contraseña de siempre.
+- Los datos de ejemplo quedan detrás de `DEMO=1`; una cuenta nueva empieza vacía.
+
 ## [2.2.5] — 2026-11-13
 
 ### Cambiado

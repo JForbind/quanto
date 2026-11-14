@@ -1,6 +1,6 @@
 {
   "name": "quanto",
-  "version": "2.2.5",
+  "version": "3.2.0",
   "private": true,
   "type": "commonjs",
   "main": "server.js",
@@ -10,10 +10,11 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/quanto.test.js"
+    "test": "node tests/quanto.test.js && node tests/auth.test.js"
   },
   "dependencies": {
     "exceljs": "4.4.0",
-    "express": "4.22.3"
+    "express": "4.22.3",
+    "nodemailer": "^6.9.16"
   }
 }

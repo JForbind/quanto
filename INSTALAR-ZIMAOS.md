@@ -228,7 +228,7 @@ dominio que resuelve por Pi-hole, solo hay que apuntarlo al puerto **8766**.
 Ejemplo con Caddy:
 
 ```caddyfile
-quanto2.forbind.com {
+quanto.tudominio.com {
     reverse_proxy 127.0.0.1:8766
 }
 ```

@@ -27,6 +27,7 @@ const state = {
   coinsQuery: '',
   coinsSort: 'value',
   sparklines: {},
+  me: null,
   tradeSymbol: null,
   tradeInterval: '1h',
   tradeInd: { ma: true, fib: true, boll: false, rsi: false, macd: false },
@@ -262,7 +263,7 @@ $('#login-form').addEventListener('submit', async (e) => {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: $('#login-pass').value }),
+      body: JSON.stringify({ username: $('#login-user').value.trim(), password: $('#login-pass').value }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -270,6 +271,8 @@ $('#login-form').addEventListener('submit', async (e) => {
       return;
     }
     $('#login-pass').value = '';
+    resetSessionUi();
+    state.me = data.user || null;
     showApp();
     await boot();
   } catch (e2) {
@@ -283,6 +286,7 @@ $('#login-form').addEventListener('submit', async (e) => {
 async function logout() {
   try { await fetch('/api/logout', { method: 'POST' }); } catch {}
   state.portfolio = null;
+  resetSessionUi();
   showLogin();
 }
 $('#logout-btn').addEventListener('click', logout);
@@ -360,8 +364,172 @@ function rollKpiNumbers() {
   });
 }
 
+/* Los iconos que fallan se quitan y queda la insignia con iniciales.
+   (El CSP bloquea los onerror inline, así que se hace desde JS.) */
+document.addEventListener('error', (e) => {
+  const el = e.target;
+  if (el && el.classList && el.classList.contains('coin-badge-dyn')) el.remove();
+}, true);
+document.addEventListener('load', (e) => {
+  const el = e.target;
+  if (el && el.classList && el.classList.contains('coin-badge-dyn')) el.classList.add('is-loaded');
+}, true);
+
+/* ------------------------------------------------ usuarios y sesión */
+/* Limpia la interfaz al cambiar de sesión (evita restos del panel admin) */
+function resetSessionUi() {
+  state.me = null;
+  document.body.classList.remove('is-admin');
+  $$('.sidebar .nav-item').forEach(b => b.classList.remove('hidden'));
+  $$('#view-settings .card').forEach(c => c.classList.remove('hidden'));
+  const users = $('#users-card'); if (users) users.classList.add('hidden');
+  const mail = $('#mail-card'); if (mail) mail.classList.add('hidden');
+  if (location.hash && location.hash !== '#/') history.replaceState(null, '', location.pathname);
+}
+
+async function loadMe() {
+  try {
+    const r = await api('/api/me');
+    state.me = r.user || null;
+  } catch { state.me = null; }
+}
+
+function applyAdminUi() {
+  document.body.classList.add('is-admin');
+  $$('.sidebar .nav-item').forEach(b => b.classList.add('hidden'));
+  const card = $('#users-card');
+  if (card) card.classList.remove('hidden');
+  const mailCard = $('#mail-card');
+  if (mailCard) mailCard.classList.remove('hidden');
+  loadMail();
+  $('#view-settings')?.querySelectorAll('.card').forEach(c => {
+    if (c.id === 'users-card' || c.id === 'mail-card' || c.id === 'password-card') return;
+    c.classList.add('hidden');
+  });
+  navigate('settings');
+  loadUsers();
+}
+
+async function loadMail() {
+  try {
+    const r = await api('/api/mail');
+    const m = r.mail || {};
+    $('#mail-host').value = m.host || '';
+    $('#mail-port').value = m.port || 465;
+    $('#mail-secure').value = m.secure ? '1' : '0';
+    $('#mail-user').value = m.user || '';
+    $('#mail-from').value = m.from || '';
+    $('#mail-pass').value = m.hasPass ? '__KEEP__' : '';
+    $('#mail-status').textContent = m.ready
+      ? (m.source === 'env' ? 'Configurado por variables de entorno.' : 'Configurado y listo.')
+      : 'Sin configurar: las invitaciones se copian a mano.';
+  } catch (e) { $('#mail-status').textContent = e.message; }
+}
+
+$('#mail-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const out = $('#mail-status');
+  try {
+    const r = await api('/api/mail', { method: 'POST', body: JSON.stringify({
+      host: $('#mail-host').value.trim(),
+      port: Number($('#mail-port').value) || 465,
+      secure: $('#mail-secure').value === '1',
+      user: $('#mail-user').value.trim(),
+      pass: $('#mail-pass').value,
+      from: $('#mail-from').value.trim(),
+    }) });
+    out.textContent = r.mail && r.mail.ready ? 'Guardado. Ya se pueden enviar correos.' : 'Guardado (falta la contraseña).';
+  } catch (err) { out.textContent = err.message; }
+});
+
+$('#mail-test')?.addEventListener('click', async () => {
+  const out = $('#mail-status');
+  out.textContent = 'Enviando prueba…';
+  try {
+    const to = prompt('¿A qué email te mando la prueba?', $('#mail-user').value || '');
+    if (!to) { out.textContent = 'Cancelado'; return; }
+    const r = await api('/api/mail/test', { method: 'POST', body: JSON.stringify({ to }) });
+    out.textContent = 'Prueba enviada a ' + r.to + '. Revisa la bandeja (y el spam).';
+  } catch (err) { out.textContent = 'Error: ' + err.message; }
+});
+
+async function loadUsers() {
+  const box = $('#users-list');
+  if (!box) return;
+  try {
+    const r = await api('/api/users');
+    box.innerHTML = (r.users || []).map(u => `
+      <div class="user-row">
+        <b>${esc(u.username)}</b>
+        <span class="chip ${u.role === 'admin' ? 'chip-warn' : ''}">${u.role === 'admin' ? 'admin' : 'usuario'}</span>
+        <span class="muted tiny">${u.active ? 'activo' : 'desactivado'}${u.resetRequestedAt ? ' · pidió reset' : ''}</span>
+        <span class="muted tiny">${u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('es-ES') : 'nunca'}</span>
+        <button class="btn btn-ghost btn-xs" data-user-reset="${esc(u.id)}">Resetear</button>
+        <button class="btn btn-ghost btn-xs" data-user-toggle="${esc(u.id)}">${u.active ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn btn-ghost btn-xs btn-danger-ghost" data-user-del="${esc(u.id)}">Borrar</button>
+      </div>`).join('') || '<p class="muted tiny">Sin usuarios.</p>';
+  } catch (e) {
+    box.innerHTML = `<p class="muted tiny">${esc(e.message)}</p>`;
+  }
+}
+
+function showSetup(needed) {
+  $('#login').classList.add('hidden');
+  $('#app').classList.add('hidden');
+  const box = $('#setup');
+  if (box) box.classList.remove('hidden');
+  const note = $('#setup-data');
+  if (note) { note.checked = !!needed.legacy; note.disabled = !!needed.legacy; }
+  const u = $('#setup-user'); if (u) u.focus();
+}
+
+$('#setup-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = $('#setup-error');
+  err.textContent = '';
+  if ($('#setup-pass').value !== $('#setup-pass2').value) { err.textContent = 'Las contraseñas no coinciden'; return; }
+  try {
+    const r = await fetch('/api/setup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: $('#setup-user').value.trim(),
+        email: $('#setup-email').value.trim(),
+        password: $('#setup-pass').value,
+        canData: $('#setup-data').checked,
+      }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { err.textContent = d.problems ? 'Falta: ' + d.problems.join(', ') : (d.error || 'No se pudo crear'); return; }
+    state.me = d.user || null;
+    history.replaceState(null, '', '/');
+    showApp();
+    await boot();
+  } catch { err.textContent = 'No se pudo conectar'; }
+});
+
+async function showInvite(token) {
+  $('#login').classList.add('hidden');
+  $('#app').classList.add('hidden');
+  const box = $('#invite');
+  if (!box) return;
+  box.classList.remove('hidden');
+  const userEl = $('#invite-user');
+  try {
+    const r = await fetch('/api/invite/' + encodeURIComponent(token));
+    const d = await r.json();
+    if (!r.ok) { userEl.textContent = d.error || 'Enlace no válido'; $('#invite-btn').disabled = true; return; }
+    userEl.textContent = 'Cuenta: ' + d.username;
+    $('#invite-form').dataset.token = token;
+  } catch {
+    userEl.textContent = 'No se pudo comprobar el enlace';
+  }
+}
+
 async function boot() {
   showApp();
+  await loadMe();
+  if (state.me && state.me.role === 'admin') { applyAdminUi(); return; }
+  document.body.classList.remove('is-admin');
   await loadCoinIcons();
   await Promise.all([loadOverview(true), loadFearGreed(), loadHistory(), loadSettings(), loadTransactions(), loadAppearance()]);
   loadSparklines();
@@ -701,7 +869,8 @@ function coinBadge(symbol) {
   }
   const c = coinColor(symbol);
   const label = String(symbol).length <= 4 ? String(symbol) : String(symbol).slice(0, 3);
-  return `<span class="coin-badge" style="background:linear-gradient(140deg,${c},${hexA(c, .55)})">${esc(label)}</span>`;
+  const dyn = `<img class="coin-badge-dyn" src="/api/icon/${encodeURIComponent(String(symbol).toUpperCase())}" alt="" loading="lazy" decoding="async">`;
+  return `<span class="coin-badge" style="background:linear-gradient(140deg,${c},${hexA(c, .55)})">${esc(label)}${dyn}</span>`;
 }
 
 /* Radar del mercado: mayores subidas y bajadas del día */
@@ -1930,15 +2099,16 @@ $('#password-form')?.addEventListener('submit', async (e) => {
   out.className = 'result';
   out.textContent = '';
   const next = $('#pass-new').value;
-  if (next.length < 8) { out.className = 'result err'; out.textContent = 'La nueva contraseña necesita 8 caracteres o más.'; return; }
   if (next !== $('#pass-repeat').value) { out.className = 'result err'; out.textContent = 'Las contraseñas no coinciden.'; return; }
   try {
-    await api('/api/settings', { method: 'POST', body: JSON.stringify({ password: next, currentPassword: $('#pass-current').value }) });
+    await api('/api/password', { method: 'POST', body: JSON.stringify({ currentPassword: $('#pass-current').value, newPassword: next }) });
     out.className = 'result ok';
-    out.textContent = 'Contraseña cambiada. Vuelve a entrar con ella.';
-    $('#pas-current');
-    setTimeout(() => location.reload(), 1400);
-  } catch (e2) { out.className = 'result err'; out.textContent = e2.message; }
+    out.textContent = 'Contraseña cambiada.';
+    setTimeout(() => location.reload(), 1200);
+  } catch (e2) {
+    out.className = 'result err';
+    out.textContent = (e2.data && e2.data.problems) ? 'Falta: ' + e2.data.problems.join(', ') : e2.message;
+  }
 });
 
 /* importación de historial */
@@ -2487,9 +2657,96 @@ function renderChartsForCurrentView() {
   if (state.view === 'market') renderFearGreed();
 }
 
+/* ------------------------------------------------ invitación, olvido y usuarios */
+$('#invite-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const token = $('#invite-form').dataset.token;
+  const pass = $('#invite-pass').value;
+  const err = $('#invite-error');
+  err.textContent = '';
+  if (pass !== $('#invite-pass2').value) { err.textContent = 'Las contraseñas no coinciden'; return; }
+  try {
+    const r = await fetch('/api/invite/' + encodeURIComponent(token), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pass }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { err.textContent = (d.problems && d.problems.length) ? 'Falta: ' + d.problems.join(', ') : (d.error || 'No se pudo crear la contraseña'); return; }
+    state.me = d.user || null;
+    history.replaceState(null, '', '/');
+    showApp();
+    await boot();
+  } catch { err.textContent = 'No se pudo conectar'; }
+});
+
+$('#forgot-btn')?.addEventListener('click', async () => {
+  const id = prompt('Escribe tu usuario o email. El administrador recibirá el aviso.');
+  if (!id) return;
+  try {
+    await fetch('/api/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: id }) });
+    toast('Aviso enviado al administrador');
+  } catch { toast('No se pudo enviar el aviso', true); }
+});
+
+$('#user-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const out = $('#user-invite-result');
+  try {
+    const r = await api('/api/users', { method: 'POST', body: JSON.stringify({ username: $('#user-name').value.trim(), email: $('#user-email').value.trim(), role: $('#user-role').value }) });
+    const link = location.origin + '/#/invite/' + r.inviteToken;
+    out.className = 'result ok';
+    out.innerHTML = `Invitación creada. Enlace (caduca en 72 h):<br><code>${esc(link)}</code>`;
+    out.classList.remove('hidden');
+    $('#user-name').value = ''; $('#user-email').value = '';
+    await loadUsers();
+  } catch (err) {
+    out.className = 'result err';
+    out.textContent = err.message;
+    out.classList.remove('hidden');
+  }
+});
+
+document.addEventListener('click', async (e) => {
+  const reset = e.target.closest('[data-user-reset]');
+  const toggle = e.target.closest('[data-user-toggle]');
+  const del = e.target.closest('[data-user-del]');
+  try {
+    if (reset) {
+      const r = await api('/api/users/' + reset.dataset.userReset + '/reset', { method: 'POST', body: '{}' });
+      const link = location.origin + '/#/invite/' + r.inviteToken;
+      const out = $('#user-invite-result');
+      out.className = 'result ok';
+      out.innerHTML = `Contraseña reseteada. Enlace nuevo (72 h):<br><code>${esc(link)}</code>`;
+      out.classList.remove('hidden');
+      await loadUsers();
+    } else if (toggle) {
+      await api('/api/users/' + toggle.dataset.userToggle + '/toggle', { method: 'POST', body: '{}' });
+      await loadUsers();
+    } else if (del) {
+      if (!confirm('¿Borrar este usuario y todos sus datos?')) return;
+      await api('/api/users/' + del.dataset.userDel, { method: 'DELETE' });
+      await loadUsers();
+      toast('Usuario borrado');
+    }
+  } catch (err) { toast(err.message, true); }
+});
+
 (async function start() {
   try { const saved = localStorage.getItem('quanto-theme'); if (saved) document.documentElement.dataset.theme = saved; } catch {}
   try { if (localStorage.getItem('quanto-privacy') === '1') applyPrivacy(true, false); } catch {}
+  if (location.hash.startsWith('#/invite/')) {
+    await showInvite(location.hash.slice(9));
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+    return;
+  }
+  try {
+    const setup = await (await fetch('/api/setup')).json();
+    if (setup && setup.needed) {
+      showSetup(setup);
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+      return;
+    }
+  } catch {}
   try {
     const status = await (await fetch('/api/status')).json();
     if (!status.hasPassword) { $('#login-error').textContent = 'Sin contraseña configurada: revisa el log del contenedor.'; }

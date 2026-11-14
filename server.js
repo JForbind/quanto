@@ -15,10 +15,13 @@ const { buildPortfolio, demoPortfolio, demoOps, demoEvolution, FALLBACK_PRICES }
 const { taxReport, simulateSale, estimateTax } = require('./lib/tax');
 const { evolutionSeries } = require('./lib/evolution');
 const { getFearGreed } = require('./lib/feargreed');
-const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createLimiter } = require('./lib/auth');
+const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createSessionToken, verifySessionToken, createLimiter } = require('./lib/auth');
+const { createUserStore, passwordProblems, randomPassword } = require('./lib/users');
+const { createTenant } = require('./lib/tenant');
+const { createMailer } = require('./lib/mailer');
 const { round } = require('./lib/util');
 
-const VERSION = '2.2.5';
+const VERSION = '3.2.0';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -28,13 +31,27 @@ const COOKIE_NAME = 'quanto_session';
 
 ensureDir(DATA_DIR);
 
-const FILES = {
+const userStore = createUserStore(DATA_DIR);
+const mailer = createMailer(DATA_DIR);
+
+// Rutas antiguas (antes de multi-usuario): solo para la migración inicial.
+const LEGACY_FILES = {
   ops: path.join(DATA_DIR, 'bitvavo-history.json'),
   history: path.join(DATA_DIR, 'history.json'),
   holdings: path.join(DATA_DIR, 'holdings.json'),
   overrides: path.join(DATA_DIR, 'overrides.json'),
   settings: path.join(DATA_DIR, 'settings.json'),
+  alerts: path.join(DATA_DIR, 'alerts.json'),
+  plans: path.join(DATA_DIR, 'plans.json'),
 };
+
+const tenant = createTenant({
+  dataDir: DATA_DIR,
+  userStore,
+  loadOps: () => loadOps(),
+  applyKeys: () => applyKeys(),
+});
+const FILES = tenant.FILES;
 
 // ------------------------------------------------------------------ settings
 function getSettings() { return readJson(FILES.settings, {}) || {}; }
@@ -52,21 +69,6 @@ function migrateSettings() {
 }
 migrateSettings();
 
-function ensurePassword() {
-  const s = getSettings();
-  if (s.password && s.password.hash) return;
-  if ((process.env.APP_PASSWORD || '').trim()) return;
-  const pw = crypto.randomBytes(9).toString('base64url');
-  s.password = Object.assign({ algo: 'scrypt', generated: true, createdAt: Date.now() }, hashPassword(pw));
-  saveSettings(s);
-  console.log('================================================');
-  console.log(' No hay APP_PASSWORD: contraseña generada');
-  console.log('   ' + pw);
-  console.log(' Cámbiala en Ajustes → Seguridad');
-  console.log('================================================');
-}
-ensurePassword();
-
 const COOKIE_SECRET = (() => {
   if (process.env.COOKIE_SECRET) return process.env.COOKIE_SECRET;
   const file = path.join(DATA_DIR, 'session-secret.txt');
@@ -79,29 +81,19 @@ const COOKIE_SECRET = (() => {
   return secret;
 })();
 
+function currentUser() {
+  const { userId } = tenant.ctx();
+  return userId ? userStore.findById(userId) : null;
+}
+
 function checkPassword(password) {
-  const s = getSettings();
-  if (s.password && s.password.hash) return verifyPassword(password, s.password);
-  const env = (process.env.APP_PASSWORD || '').trim();
-  return !!env && safeEqual(password, env);
+  const user = currentUser();
+  return user ? userStore.checkPassword(user.id, password) : false;
 }
 
 // ------------------------------------------------------------------ estado
-const client = new BitvavoClient();
-const state = {
-  mode: 'demo',
-  ops: [],
-  meta: { importedAt: null, autoCaptured: 0, lastSyncAt: null, source: null },
-  analysis: null,
-  portfolio: null,
-  portfolioAt: 0,
-  error: null,
-  keysError: null,
-  syncing: false,
-  snapshots: [],
-  prices: {},
-  evolutionCache: { at: 0, day: '', data: null },
-};
+const client = tenant.client;
+const state = tenant.state;
 
 function loadOps() {
   const saved = readJson(FILES.ops, null);
@@ -157,9 +149,14 @@ async function fetchMarket() {
  * En DEMO, si no hay historial real, se generan datos de ejemplo al vuelo
  * (nunca se guardan en disco).
  */
+function demoEnabled() {
+  return String(process.env.DEMO || '') === '1';
+}
+
 function opsForView() {
   if (state.ops.length) return state.ops;
-  if (state.mode === 'demo') return demoOps(state.prices);
+  // Los datos de ejemplo solo con DEMO=1: una cuenta nueva empieza vacía.
+  if (demoEnabled() && state.mode === 'demo') return demoOps(state.prices);
   return [];
 }
 
@@ -193,6 +190,25 @@ async function syncFromBitvavo({ force = false } = {}) {
 }
 
 // ------------------------------------------------------------------ cartera
+function emptyPortfolio(prices) {
+  return {
+    mode: 'empty',
+    updatedAt: new Date().toISOString(),
+    currency: 'EUR',
+    totalValue: 0,
+    cryptoValue: 0,
+    cash: 0,
+    invested: 0,
+    pnl: 0,
+    pnlPct: 0,
+    dayChangeValue: 0,
+    dayChangePct: 0,
+    coinCount: 0,
+    coins: [],
+    prices: prices || {},
+  };
+}
+
 async function refreshPortfolio(force = false) {
   const now = Date.now();
   if (!force && state.portfolio && now - state.portfolioAt < 20e3) return state.portfolio;
@@ -240,7 +256,7 @@ async function refreshPortfolio(force = false) {
       let market = { prices: {}, dayChange: {} };
       try { market = await fetchMarket(); } catch {}
       state.prices = { ...FALLBACK_PRICES, ...market.prices };
-      portfolio = demoPortfolio(state.prices, market.dayChange);
+      portfolio = demoEnabled() ? demoPortfolio(state.prices, market.dayChange) : emptyPortfolio(state.prices);
     }
     state.portfolio = portfolio;
     state.portfolioAt = now;
@@ -316,7 +332,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '25mb' }));
-
+// Lectura de la cookie de sesión (antes que cualquier guardia)
 app.use((req, res, next) => {
   const raw = req.headers.cookie || '';
   const match = raw.match(new RegExp('(?:^|;\\s*)' + COOKIE_NAME + '=([^;]+)'));
@@ -324,7 +340,44 @@ app.use((req, res, next) => {
   next();
 });
 
+// ---------------- control de acceso global ----------------
+// Todo /api exige sesión salvo la lista pública. Se registra ANTES de las rutas
+// para que ninguna pueda quedarse sin proteger.
+const PUBLIC_API = new Set(['/api/health', '/api/status', '/api/setup', '/api/login', '/api/forgot']);
+const ADMIN_OK = new Set(['/api/me', '/api/password', '/api/logout', '/api/status']);
+
+function isPublicApi(full) {
+  if (PUBLIC_API.has(full)) return true;
+  return full.startsWith('/api/invite/');
+}
+
+app.use('/api', (req, res, next) => {
+  const full = (req.originalUrl || '').split('?')[0];
+  if (isPublicApi(full)) return next();
+  requireAuth(req, res, () => {
+    const user = req.user || {};
+    if (user.role === 'admin' && !user.canData) {
+      const allowed = ADMIN_OK.has(full) || full.startsWith('/api/users') || full.startsWith('/api/mail');
+      if (!allowed) {
+        return res.status(403).json({ error: 'La cuenta admin solo gestiona usuarios', code: 'admin-only' });
+      }
+    }
+    next();
+  });
+});
+
+
+
+
 const limiter = createLimiter({ windowMs: 10 * 60e3, max: 8 });
+const forgotLimiter = createLimiter({ windowMs: 3600e3, max: 3 });
+const heavyLimiter = createLimiter({ windowMs: 60e3, max: 240 });
+const userLimiter = createLimiter({ windowMs: 15 * 60e3, max: 10 });
+function limitHeavy(req, res, next) {
+  const lim = heavyLimiter.check(clientIp(req) + ':' + req.path);
+  if (!lim.allowed) return res.status(429).json({ error: 'Demasiadas peticiones, espera un momento' });
+  next();
+}
 const loginAttempts = new Map();
 
 function clientIp(req) {
@@ -336,10 +389,27 @@ function setSessionCookie(req, res, token) {
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secure}`);
 }
 
-function requireAuth(req, res, next) {
-  if (verifyToken(COOKIE_SECRET, req.session)) return next();
-  res.status(401).json({ error: 'No autorizado', code: 'unauthorized' });
+function sessionPayload(req) {
+  return verifySessionToken(COOKIE_SECRET, req.session);
 }
+
+function requireAuth(req, res, next) {
+  const payload = sessionPayload(req);
+  if (!payload || !payload.u) return res.status(401).json({ error: 'No autorizado', code: 'unauthorized' });
+  const user = userStore.findById(payload.u);
+  if (!user || user.active === false) return res.status(401).json({ error: 'Cuenta no disponible', code: 'unauthorized' });
+  if ((user.sessionVersion || 1) !== (payload.v || 1)) {
+    return res.status(401).json({ error: 'Sesión caducada, vuelve a entrar', code: 'session' });
+  }
+  req.user = user;
+  tenant.run(user, () => next());
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Solo el administrador', code: 'forbidden' });
+  next();
+}
+
 
 // ---------------- público ----------------
 app.get('/api/health', (req, res) => res.json({ ok: true, version: VERSION }));
@@ -349,9 +419,8 @@ app.get('/api/status', (req, res) => {
     ok: true,
     version: VERSION,
     mode: effectiveMode(),
-    configured: client.configured,
-    hasPassword: !!(getSettings().password && getSettings().password.hash) || !!(process.env.APP_PASSWORD || '').trim(),
-    imported: !!state.meta.importedAt,
+    hasPassword: userStore.list().some(u => !!u.hash),
+    imported: false,
   });
 });
 
@@ -472,15 +541,15 @@ function removePlanAlerts(planId) {
 }
 
 // ---------------- planes de inversión ----------------
-const PLANS_FILE = path.join(DATA_DIR, 'plans.json');
+const plansFile = () => path.join(tenant.ctx().files.dir, 'plans.json');
 
 function getPlanStore() {
-  const s = readJson(PLANS_FILE, null);
+  const s = readJson(plansFile(), null);
   if (!s || typeof s !== 'object' || Array.isArray(s)) return { plans: [] };
   if (!Array.isArray(s.plans)) s.plans = [];
   return s;
 }
-function savePlanStore(s) { writeJson(PLANS_FILE, s); }
+function savePlanStore(s) { writeJson(plansFile(), s); }
 function planId() { return Math.random().toString(36).slice(2, 10); }
 
 // Marca automáticamente los tramos cuando aparece una compra de esa moneda
@@ -609,24 +678,258 @@ app.delete('/api/plans/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------------- primera puesta en marcha ----------------
+function hasAdmin() {
+  return userStore.list().some(u => u.role === 'admin' && u.active !== false);
+}
+
+function legacyPending() {
+  try { return fs.existsSync(LEGACY_FILES.ops) || fs.existsSync(LEGACY_FILES.settings); } catch { return false; }
+}
+
+app.get('/api/setup', (req, res) => {
+  res.json({ ok: true, needed: !hasAdmin(), legacy: legacyPending() });
+});
+
+let setupBusy = false;
+app.post('/api/setup', async (req, res) => {
+  if (hasAdmin()) return res.status(400).json({ error: 'La instalación ya tiene administrador' });
+  if (setupBusy) return res.status(409).json({ error: 'Ya se está creando el administrador' });
+  setupBusy = true;
+  try {
+  const b = req.body || {};
+  const username = String(b.username || '').trim();
+  if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
+    return res.status(400).json({ error: 'Usuario no válido (3-32 caracteres, sin espacios)' });
+  }
+  const problems = passwordProblems(String(b.password || ''));
+  if (problems.length) return res.status(400).json({ error: 'La contraseña no cumple la política', problems });
+  const legacy = legacyPending();
+  const canData = legacy || b.canData !== false;
+  const user = userStore.create({ username, email: String(b.email || '').trim(), role: 'admin', password: String(b.password || ''), mustChange: false, canData });
+  if (legacy && canData) {
+    const dir = userStore.userDir(user.id);
+    for (const key of ['ops', 'history', 'holdings', 'overrides', 'settings', 'alerts', 'plans']) {
+      const src = LEGACY_FILES[key];
+      if (!src) continue;
+      try { if (fs.existsSync(src)) fs.renameSync(src, path.join(dir, path.basename(src))); } catch (e) { console.log('[setup]', key, e.message); }
+    }
+    for (const kind of ['wallpaper', 'avatar']) {
+      for (const ext of ['.jpg', '.png', '.webp']) {
+        const src = path.join(DATA_DIR, kind + ext);
+        try { if (fs.existsSync(src)) fs.renameSync(src, path.join(dir, kind + ext)); } catch {}
+      }
+    }
+  }
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
+  res.json({ ok: true, user: userStore.publicUser(userStore.findById(user.id)) });
+  } finally { setupBusy = false; }
+});
+
 app.post('/api/login', (req, res) => {
   const ip = clientIp(req);
   const limit = limiter.check(ip);
   if (!limit.allowed) {
     return res.status(429).json({ error: `Demasiados intentos. Espera ${Math.ceil(limit.retryAfter / 60)} minutos.` });
   }
+  const username = String((req.body && req.body.username) || '').trim();
   const password = String((req.body && req.body.password) || '');
-  if (!password) return res.status(400).json({ error: 'Falta la contraseña' });
-  if (!checkPassword(password)) {
-    return res.status(401).json({ error: 'Contraseña incorrecta' });
+  if (!username || !password) return res.status(400).json({ error: 'Usuario y contraseña obligatorios' });
+  const userKey = 'u:' + username.toLowerCase();
+  const limitUser = userLimiter.check(userKey);
+  if (!limitUser.allowed) {
+    return res.status(429).json({ error: 'Demasiados intentos para este usuario. Espera unos minutos.' });
   }
+  const out = userStore.login(username, password);
+  if (out.error === 'invitacion-pendiente') {
+    return res.status(403).json({ error: 'Tu cuenta está pendiente: abre el enlace de invitación que te enviaron', code: 'invite' });
+  }
+  if (out.error) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
   limiter.reset(ip);
-  setSessionCookie(req, res, createToken(COOKIE_SECRET, SESSION_DAYS * 86400e3));
-  res.json({ ok: true });
+  userLimiter.reset(userKey);
+  const user = out.user;
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
+  res.json({ ok: true, user: userStore.publicUser(user), mustChange: !!user.mustChange });
+});
+
+// Público: petición de reseteo (no revela si el usuario existe).
+app.post('/api/forgot', (req, res) => {
+  const ip = clientIp(req);
+  const limit = forgotLimiter.check(ip);
+  if (!limit.allowed) return res.status(429).json({ error: 'Demasiadas peticiones. Prueba más tarde.' });
+  let asked = null;
+  try { asked = userStore.requestReset(String((req.body && req.body.identifier) || '')); } catch {}
+  if (asked) notifyAdminsReset(req, asked).catch(() => {});
+  res.json({ ok: true, message: 'Aviso enviado al administrador' });
+});
+
+// Público: invitación / reseteo por token.
+app.get('/api/invite/:token', (req, res) => {
+  const user = userStore.inviteByToken(req.params.token);
+  if (!user) return res.status(404).json({ error: 'Enlace no válido o caducado' });
+  res.json({ ok: true, username: user.username, email: user.email || '' });
+});
+
+app.post('/api/invite/:token', (req, res) => {
+  const out = userStore.acceptInvite(req.params.token, (req.body || {}).password);
+  if (out.error === 'token') return res.status(404).json({ error: 'Enlace no válido o caducado' });
+  if (out.error === 'politica') return res.status(400).json({ error: 'La contraseña no cumple la política', problems: out.problems });
+  const user = out.user;
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
+  res.json({ ok: true, user: userStore.publicUser(user) });
 });
 
 // ---------------- privado ----------------
-app.use('/api', requireAuth);
+app.get('/api/me', (req, res) => {
+  res.json({ ok: true, user: userStore.publicUser(req.user) });
+});
+
+app.post('/api/password', (req, res) => {
+  const b = req.body || {};
+  if (!checkPassword(String(b.currentPassword || ''))) {
+    return res.status(400).json({ error: 'La contraseña actual no es correcta' });
+  }
+  const next = String(b.newPassword || '');
+  const problems = passwordProblems(next);
+  if (problems.length) return res.status(400).json({ error: 'La contraseña no cumple la política', problems });
+  if (next === String(b.currentPassword || '')) {
+    return res.status(400).json({ error: 'La nueva contraseña debe ser distinta' });
+  }
+  const updated = userStore.setPassword(req.user.id, next, { mustChange: false });
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: updated.id, v: updated.sessionVersion }, SESSION_DAYS * 86400e3));
+  res.json({ ok: true });
+});
+
+// ---------------- administración de usuarios ----------------
+app.get('/api/users', requireAdmin, (req, res) => {
+  res.json({ ok: true, users: userStore.list().map(userStore.publicUser) });
+});
+
+app.post('/api/users', requireAdmin, async (req, res) => {
+  const b = req.body || {};
+  const username = String(b.username || '').trim();
+  if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
+    return res.status(400).json({ error: 'Usuario no válido (3-32 caracteres, sin espacios)' });
+  }
+  if (userStore.findByUsername(username)) return res.status(400).json({ error: 'Ese usuario ya existe' });
+  const email = String(b.email || '').trim();
+  if (email && userStore.findByEmail(email)) return res.status(400).json({ error: 'Ese email ya está en uso' });
+  const role = b.role === 'admin' ? 'admin' : 'user';
+  const user = userStore.create({ username, email, role, mustChange: false });
+  const invite = userStore.issueInvite(user.id, 72);
+  const sent = await sendInviteEmail(req, user, invite.token);
+  res.json({ ok: true, user: userStore.publicUser(userStore.findById(user.id)), inviteToken: invite.token, expiresAt: invite.expiresAt, emailSent: sent });
+});
+
+app.post('/api/users/:id/reset', requireAdmin, async (req, res) => {
+  const user = userStore.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'No existe ese usuario' });
+  userStore.setPassword(user.id, randomPassword(20), { mustChange: true });
+  userStore.update(user.id, { inviteTokenHash: null, inviteExpiresAt: null, resetRequestedAt: null });
+  const invite = userStore.issueInvite(user.id, 72);
+  const sent = await sendInviteEmail(req, user, invite.token);
+  res.json({ ok: true, inviteToken: invite.token, expiresAt: invite.expiresAt, emailSent: sent, user: userStore.publicUser(userStore.findById(user.id)) });
+});
+
+app.post('/api/users/:id/toggle', requireAdmin, (req, res) => {
+  const user = userStore.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'No existe ese usuario' });
+  if (user.id === req.user.id) return res.status(400).json({ error: 'No puedes desactivar tu propia cuenta' });
+  const updated = userStore.update(user.id, { active: user.active === false, sessionVersion: (user.sessionVersion || 1) + 1 });
+  res.json({ ok: true, user: userStore.publicUser(updated) });
+});
+
+app.post('/api/users/:id/invite', requireAdmin, (req, res) => {
+  const user = userStore.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'No existe ese usuario' });
+  const invite = userStore.issueInvite(user.id, 72);
+  res.json({ ok: true, inviteToken: invite.token, expiresAt: invite.expiresAt });
+});
+
+// ---------------- correo de avisos (solo admin) ----------------
+app.get('/api/mail', requireAdmin, (req, res) => {
+  res.json({ ok: true, mail: mailer.publicConfig() });
+});
+
+app.post('/api/mail', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const host = String(b.host || '').trim();
+  const user = String(b.user || '').trim();
+  if (!host) return res.status(400).json({ error: 'Falta el servidor SMTP' });
+  if (!user) return res.status(400).json({ error: 'Falta el usuario' });
+  const patch = {
+    host,
+    port: Number(b.port) || (b.secure === false ? 587 : 465),
+    secure: b.secure !== false,
+    user,
+    from: String(b.from || user).trim(),
+    fromName: String(b.fromName || 'Quanto').trim(),
+  };
+  const pass = String(b.pass || '');
+  if (pass && pass !== '__KEEP__') patch.pass = pass;
+  mailer.save(patch);
+  res.json({ ok: true, mail: mailer.publicConfig() });
+});
+
+app.post('/api/mail/test', requireAdmin, async (req, res) => {
+  const to = String((req.body || {}).to || req.user.email || '').trim();
+  if (!to) return res.status(400).json({ error: 'Indica un email de destino' });
+  try {
+    await mailer.verify();
+    await mailer.send({
+      to,
+      subject: 'Quanto · correo de prueba',
+      text: 'Si estás leyendo esto, el correo de Quanto funciona correctamente.',
+    });
+    res.json({ ok: true, to });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+function mailBaseUrl(req) {
+  return (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+}
+
+async function sendInviteEmail(req, user, token) {
+  if (!user.email || !mailer.ready()) return false;
+  const link = `${mailBaseUrl(req)}/#/invite/${token}`;
+  try {
+    await mailer.send({
+      to: user.email,
+      subject: 'Te han invitado a Quanto',
+      text: `Hola ${user.username},\n\nTe han invitado a Quanto. Crea tu contraseña aquí (caduca en 72 horas):\n${link}\n\nSi no esperabas este correo, ignóralo.`,
+      html: `<p>Hola <b>${user.username}</b>,</p><p>Te han invitado a <b>Quanto</b>. Crea tu contraseña (caduca en 72 horas):</p><p><a href="${link}">${link}</a></p>`,
+    });
+    return true;
+  } catch (e) {
+    console.log('[mail] invitación:', e.message);
+    return false;
+  }
+}
+
+async function notifyAdminsReset(req, user) {
+  if (!mailer.ready()) return;
+  const admins = userStore.list().filter(u => u.role === 'admin' && u.email && u.active !== false);
+  for (const admin of admins) {
+    try {
+      await mailer.send({
+        to: admin.email,
+        subject: `Quanto · ${user.username} pide restablecer su contraseña`,
+        text: `${user.username} ha pedido restablecer su contraseña.\nEntra en Quanto → Ajustes → Usuarios y pulsa "Resetear".`,
+      });
+    } catch (e) { console.log('[mail] aviso admin:', e.message); }
+  }
+}
+
+app.delete('/api/users/:id', requireAdmin, (req, res) => {
+  const user = userStore.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'No existe ese usuario' });
+  if (user.id === req.user.id) return res.status(400).json({ error: 'No puedes borrar tu propia cuenta' });
+  tenant.forget(user.id);
+  userStore.remove(user.id);
+  res.json({ ok: true });
+});
 
 app.post('/api/logout', (req, res) => {
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
@@ -880,7 +1183,7 @@ app.get('/api/tax/simulate', async (req, res) => {
 });
 
 // ---------------- importaciones ----------------
-app.post('/api/import/history', (req, res) => {
+app.post('/api/import/history', limitHeavy, (req, res) => {
   const text = String((req.body && req.body.text) || '');
   if (text.trim().length < 20) return res.status(400).json({ error: 'Pega o sube el CSV del historial completo de Bitvavo.' });
   let ops = [];
@@ -925,18 +1228,18 @@ app.get('/api/import/status', (req, res) => {
 });
 
 // ---------------- alertas de precio (Telegram) ----------------
-const ALERTS_FILE = path.join(DATA_DIR, 'alerts.json');
+const alertsFile = () => path.join(tenant.ctx().files.dir, 'alerts.json');
 const ALERT_CHECK_MS = 60e3;
 let alertBusy = false;
 let lastAlertRefresh = 0;
 
 function getAlertStore() {
-  const s = readJson(ALERTS_FILE, null);
+  const s = readJson(alertsFile(), null);
   if (!s || typeof s !== 'object' || Array.isArray(s)) return { rules: [] };
   if (!Array.isArray(s.rules)) s.rules = [];
   return s;
 }
-function saveAlertStore(s) { writeJson(ALERTS_FILE, s); }
+function saveAlertStore(s) { writeJson(alertsFile(), s); }
 
 function telegramConfig() {
   const s = getSettings();
@@ -1198,7 +1501,7 @@ app.post('/api/telegram/test', async (req, res) => {
 const APPEARANCE_KINDS = ['wallpaper', 'avatar'];
 
 function appearancePaths(kind) {
-  const base = path.join(DATA_DIR, kind === 'avatar' ? 'avatar' : 'wallpaper');
+  const base = path.join(tenant.ctx().files.dir, kind === 'avatar' ? 'avatar' : 'wallpaper');
   return ['.jpg', '.png', '.webp'].map(ext => base + ext);
 }
 
@@ -1268,36 +1571,26 @@ for (const kind of APPEARANCE_KINDS) {
 }
 
 // Público (sin sesión): solo la foto de perfil, para mostrarla en la pantalla de acceso.
-app.get('/avatar', (req, res) => {
-  const file = findAppearance('avatar');
-  if (!file) return res.status(404).end();
-  res.setHeader('Cache-Control', 'no-cache');
-  res.sendFile(file);
-});
 
 app.get('/appearance-public', (req, res) => {
-  const s = getSettings();
-  const a = (s && s.appearance) || {};
+  // La apariencia es por usuario: el login ya no muestra foto de nadie.
   res.setHeader('Cache-Control', 'no-cache');
-  res.json({
-    avatar: !!findAppearance('avatar'),
-    ts: (a.avatar && a.avatar.ts) || 0,
-  });
+  res.json({ avatar: false, ts: 0 });
 });
 
 
 // ---------------- ajustes ----------------
 app.get('/api/settings', (req, res) => {
   const s = getSettings();
+  const me = currentUser();
   res.json({
     theme: s.theme || 'dark',
-    hasPassword: !!(s.password && s.password.hash) || !!(process.env.APP_PASSWORD || '').trim(),
+    hasPassword: !!(me && me.hash),
     apiKeyMasked: s.apiKey ? s.apiKey.slice(0, 4) + '••••••' + s.apiKey.slice(-4) : null,
     apiKeySet: !!s.apiKey,
     keysCleared: !!s.keysCleared,
     mode: effectiveMode(),
     version: VERSION,
-    dataDir: DATA_DIR,
   });
 });
 
@@ -1306,16 +1599,8 @@ app.post('/api/settings', (req, res) => {
   const s = getSettings();
 
   if (body.password !== undefined) {
-    const next = String(body.password || '');
-    if (next.length < 8 || next.length > 128) {
-      return res.status(400).json({ error: 'La contraseña debe tener entre 8 y 128 caracteres' });
-    }
-    if (!checkPassword(String(body.currentPassword || ''))) {
-      return res.status(400).json({ error: 'La contraseña actual no es correcta' });
-    }
-    s.password = Object.assign({ algo: 'scrypt', changedAt: Date.now() }, hashPassword(next));
+    return res.status(400).json({ error: 'La contraseña se cambia desde Ajustes → Seguridad (endpoint /api/password)' });
   }
-
   if (body.apiKey !== undefined || body.apiSecret !== undefined) {
     const key = body.apiKey === undefined ? s.apiKey : String(body.apiKey || '').trim();
     const secret = body.apiSecret === undefined ? s.apiSecret : String(body.apiSecret || '').trim();
@@ -1398,7 +1683,7 @@ app.post('/api/overrides', (req, res) => {
 // ---------------- copias y mantenimiento ----------------
 const BACKUP_FILES = { ops: FILES.ops, history: FILES.history, holdings: FILES.holdings, overrides: FILES.overrides };
 
-app.get('/api/backup', (req, res) => {
+app.get('/api/backup', limitHeavy, (req, res) => {
   const out = { app: 'quanto', version: VERSION, exportedAt: new Date().toISOString(), files: {} };
   for (const [key, file] of Object.entries(BACKUP_FILES)) {
     out.files[key] = readJson(file, null);
@@ -1408,7 +1693,7 @@ app.get('/api/backup', (req, res) => {
   res.send(JSON.stringify(out, null, 1));
 });
 
-app.post('/api/restore', (req, res) => {
+app.post('/api/restore', limitHeavy, (req, res) => {
   const backup = (req.body || {}).backup;
   const files = backup && backup.files;
   if (!files || typeof files !== 'object') return res.status(400).json({ error: 'Ese archivo no es una copia de Quanto.' });
@@ -1466,7 +1751,7 @@ function styleSheet(ws, columns) {
 const MONEY = '#,##0.00';
 const QTY = '#,##0.00000000';
 
-app.get('/api/export/transactions.xlsx', async (req, res) => {
+app.get('/api/export/transactions.xlsx', limitHeavy, async (req, res) => {
   try {
     const rows = transactions();
     const wb = new ExcelJS.Workbook();
@@ -1518,7 +1803,7 @@ app.get('/api/export/transactions.xlsx', async (req, res) => {
   }
 });
 
-app.get('/api/export/tax.xlsx', async (req, res) => {
+app.get('/api/export/tax.xlsx', limitHeavy, async (req, res) => {
   try {
     if (!opsForView().length) return res.status(400).json({ error: 'No hay historial importado' });
     const report = taxReport(opsForView());
@@ -1657,6 +1942,43 @@ app.use((req, res, next) => {
   if (/\.(js|css|html|webmanifest)$/.test(req.path)) res.setHeader('Cache-Control', 'no-cache');
   next();
 });
+// ---------------- iconos de monedas (con caché en disco) ----------------
+const ICON_DIR = path.join(DATA_DIR, 'icons');
+ensureDir(ICON_DIR);
+const iconMisses = new Set();
+
+app.get('/api/icon/:symbol', limitHeavy, async (req, res) => {
+  const sym = String(req.params.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+  if (!sym) return res.status(404).end();
+  const file = path.join(ICON_DIR, sym.toLowerCase() + '.png');
+  try {
+    if (fs.existsSync(file)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      return res.sendFile(file);
+    }
+  } catch {}
+  if (iconMisses.has(sym)) return res.status(404).end();
+  const sources = [
+    `https://assets.coincap.io/assets/icons/${sym.toLowerCase()}@2x.png`,
+    `https://bin.bnbstatic.com/static/assets/logos/${sym}.png`,
+  ];
+  for (const url of sources) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!r.ok) continue;
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length < 400) continue;
+      try { fs.writeFileSync(file, buf); } catch {}
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.type('png').send(buf);
+      return;
+    } catch {}
+  }
+  iconMisses.add(sym);
+  if (iconMisses.size > 4000) iconMisses.clear();
+  res.status(404).end();
+});
+
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 // Compatibilidad con la ruta de la app anterior (/app.html) y con enlaces antiguos
@@ -1667,39 +1989,74 @@ app.use((req, res) => {
   res.status(404).send('No encontrado');
 });
 
+// ---------------- migración a multi-usuario ----------------
+function migrateToUsers() {
+  if (userStore.list().length) return;
+  const hasLegacy = fs.existsSync(LEGACY_FILES.ops) || fs.existsSync(LEGACY_FILES.settings);
+  if (!hasLegacy) return; // instalación nueva: el asistente crea la cuenta
+  const legacySettings = readJson(LEGACY_FILES.settings, {}) || {};
+  let hash = legacySettings.password && legacySettings.password.hash ? legacySettings.password : null;
+  if (!hash && (process.env.APP_PASSWORD || '').trim()) hash = hashPassword(process.env.APP_PASSWORD.trim());
+
+  const jorge = userStore.create({ username: 'jorge', role: 'user', passwordHash: hash, mustChange: false });
+  const dir = userStore.userDir(jorge.id);
+  for (const key of ['ops', 'history', 'holdings', 'overrides', 'settings', 'alerts', 'plans']) {
+    const src = LEGACY_FILES[key];
+    if (!src) continue;
+    try {
+      if (fs.existsSync(src)) fs.renameSync(src, path.join(dir, path.basename(src)));
+    } catch (e) { console.log('[migracion]', key, e.message); }
+  }
+  for (const kind of ['wallpaper', 'avatar']) {
+    for (const ext of ['.jpg', '.png', '.webp']) {
+      const src = path.join(DATA_DIR, kind + ext);
+      try { if (fs.existsSync(src)) fs.renameSync(src, path.join(dir, kind + ext)); } catch {}
+    }
+  }
+  console.log('================================================');
+  console.log(' Quanto multi-usuario: datos migrados');
+  console.log('   Usuario de datos: jorge (conserva su contraseña)');
+  console.log('   Abre la app para crear la cuenta de administrador');
+  console.log('================================================');
+}
+
 // ---------------- arranque ----------------
-loadOps();
-applyKeys();
+migrateToUsers();
+tenant.forEachUser(() => { applyKeys(); });
 
 const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`Quanto ${VERSION} en http://0.0.0.0:${PORT} · modo ${state.mode}`);
+  console.log(`Quanto ${VERSION} en http://0.0.0.0:${PORT} · ${userStore.list().length} usuarios`);
   console.log(`Datos en ${DATA_DIR}`);
   try {
-    if (state.mode === 'live') {
-      const sync = await syncFromBitvavo({ force: true });
-      if (!sync.ok) console.log('[sync] inicial:', sync.error || sync.reason);
-    }
-    await refreshPortfolio(true);
-    if (state.portfolio) {
-      console.log(`Cartera: ${state.portfolio.totalValue} EUR · ${state.portfolio.coinCount} monedas`);
-    }
+    tenant.forEachUser(async (u) => {
+      if (client.configured) {
+        const sync = await syncFromBitvavo({ force: true });
+        if (!sync.ok) console.log('[sync] ' + u.username + ':', sync.error || sync.reason);
+      }
+      await refreshPortfolio(true);
+      if (state.portfolio) {
+        console.log(`[${u.username}] cartera: ${state.portfolio.totalValue} EUR · ${state.portfolio.coinCount} monedas`);
+      }
+    });
   } catch (e) {
     console.error('[arranque]', e.message);
   }
 });
 
-setInterval(() => { refreshPortfolio(true).catch(() => {}); }, SNAP_MS);
+setInterval(() => { tenant.forEachUser(() => refreshPortfolio(true).catch(() => {})); }, SNAP_MS);
 
 let syncTimer = 0;
 setInterval(() => {
-  if (!client.configured) return;
   if (Date.now() - syncTimer < 2 * 60e3) return;
   syncTimer = Date.now();
-  syncFromBitvavo().catch(() => {});
+  tenant.forEachUser(() => {
+    if (!client.configured) return;
+    syncFromBitvavo().catch(() => {});
+  });
 }, 2 * 60e3);
 
 // Alertas de precio: se revisan cada minuto (Telegram).
-setInterval(() => { runAlertCheck().catch(() => {}); }, ALERT_CHECK_MS);
+setInterval(() => { tenant.forEachUser(() => runAlertCheck().catch(() => {})); }, ALERT_CHECK_MS);
 
 process.on('unhandledRejection', (err) => console.error('[unhandled]', err && err.message ? err.message : err));
 process.on('SIGTERM', () => { server.close(() => process.exit(0)); });
