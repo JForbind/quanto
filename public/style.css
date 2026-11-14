@@ -779,17 +779,18 @@ html[data-theme="light"] body.has-wallpaper .orb { opacity: .16; }
 
 /* fila de alerta en columnas: aprovecha el ancho */
 .alert-row {
-  grid-template-columns: 150px 78px 108px 108px 1fr auto auto;
-  gap: 16px;
+  grid-template-columns: 150px 78px 108px 108px minmax(96px, 1fr) 132px auto;
+  gap: 14px;
 }
 .alert-cell { display: flex; flex-direction: column; gap: 2px; line-height: 1.2; }
 .alert-cell > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .alert-cell > b { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .alert-cell > small { font-size: 11px; color: var(--muted); }
-.alert-cell.right { align-items: flex-end; text-align: right; padding-left: 12px; }
+.alert-cell.right { align-items: flex-end; text-align: right; padding-left: 12px; justify-self: stretch; }
+.alert-row > .chips-alert { justify-content: flex-end; }
 .alert-main.alert-coin { display: flex; flex-direction: row; align-items: center; gap: 9px; line-height: 1.2; }
 @media (max-width: 1180px) {
-  .alert-row { grid-template-columns: 140px 110px minmax(120px, 1fr) auto auto; }
+  .alert-row { grid-template-columns: 140px 110px minmax(110px, 1fr) 120px auto; }
   .alert-cell.opt { display: none; }
 }
 /* móvil: la alerta se apila en tarjeta, nada se sale de pantalla */

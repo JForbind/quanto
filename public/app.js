@@ -931,7 +931,12 @@ function initTradeControls() {
   sel.addEventListener('change', () => { state.tradeSymbol = sel.value; loadTradeChart(); });
   $$('#trade-intervals button').forEach(b => b.addEventListener('click', () => {
     $$('#trade-intervals button').forEach(x => x.classList.toggle('is-active', x === b));
-    state.tradeInterval = b.dataset.iv;
+    if (b.dataset.iv === 'all') {
+      state.tradeAll = true;
+    } else {
+      state.tradeAll = false;
+      state.tradeInterval = b.dataset.iv;
+    }
     loadTradeChart();
   }));
   $$('#trade-wolfe button').forEach(b => b.addEventListener('click', () => {
@@ -961,7 +966,8 @@ async function loadTradeChart() {
   const iv = state.tradeInterval || '1h';
   if (stats) stats.textContent = 'Cargando…';
   try {
-    const r = await api(`/api/candles?symbol=${encodeURIComponent(sym)}&interval=${iv}&limit=300`);
+    const limite = state.tradeAll ? 1000 : 300;
+    const r = await api(`/api/candles?symbol=${encodeURIComponent(sym)}&interval=${iv}&limit=${limite}`);
     renderCandles(sym, iv, r.candles || []);
   } catch (e) {
     if (stats) stats.textContent = 'Sin datos: ' + e.message;
@@ -1128,6 +1134,8 @@ function bindWolfeClicks(inst, rows) {
 }
 
 function renderCandles(symbol, interval, rows) {
+  const prevInst = echarts.getInstanceByDom(document.getElementById('chart-trade'));
+  if (prevInst) prevInst.__manualY = false;
   const stats = $('#trade-stats');
   if (!rows.length) { if (stats) stats.textContent = 'Sin velas para esa moneda.'; return; }
   const v = themeVars();
@@ -1250,7 +1258,9 @@ function renderCandles(symbol, interval, rows) {
       },
     },
     dataZoom: [
-      { type: 'inside', xAxisIndex: xAxes.map((_, i) => i), start: 55, end: 100 },
+      { type: 'inside', xAxisIndex: xAxes.map((_, i) => i), start: state.tradeAll ? 0 : 55, end: 100, moveOnMouseMove: true, zoomOnMouseWheel: true, zoomOnPinch: true },
+      // Precio: Shift + rueda para escalar, Shift + arrastrar para mover el eje vertical
+      { type: 'inside', yAxisIndex: 0, zoomOnMouseWheel: 'shift', moveOnMouseWheel: false, moveOnMouseMove: 'shift', zoomOnPinch: false, filterMode: 'none' },
       {
         type: 'slider', xAxisIndex: xAxes.map((_, i) => i), height: 16, bottom: 6, borderColor: 'transparent',
         backgroundColor: 'rgba(255,255,255,.03)', fillerColor: 'rgba(139,164,255,.12)',
@@ -1260,6 +1270,37 @@ function renderCandles(symbol, interval, rows) {
     ],
     series: seriesList,
   });
+
+  // Arrastrar sobre el eje de precio (derecha) para escalar, como en TradingView.
+  if (!inst.__axisDrag) {
+    inst.__axisDrag = true;
+    inst.getZr().on('mousedown', (e) => {
+      const rect = inst.getModel().getComponent('grid', 0).coordinateSystem.getRect();
+      if (e.offsetX < rect.x + rect.width) return;
+      const y0 = e.offsetY;
+      const base = inst.getOption().yAxis[0];
+      const model = inst.getModel().getComponent('yAxis', 0);
+      const ext = model && model.axis ? model.axis.scale.getExtent() : null;
+      const lo0 = base.min != null ? base.min : (ext ? ext[0] : null);
+      const hi0 = base.max != null ? base.max : (ext ? ext[1] : null);
+      if (lo0 == null || hi0 == null) return;
+      const move = (ev) => {
+        const factor = Math.exp((ev.offsetY - y0) / 220);
+        const mid = (lo0 + hi0) / 2;
+        const half = ((hi0 - lo0) / 2) * factor;
+        inst.__manualY = true;
+        inst.setOption({ yAxis: [{ ...base, min: mid - half, max: mid + half }] }, { lazyUpdate: true });
+      };
+      const up = () => { inst.getZr().off('mousemove', move); inst.getZr().off('mouseup', up); };
+      inst.getZr().on('mousemove', move);
+      inst.getZr().on('mouseup', up);
+    });
+    // doble clic: volver a la escala automática
+    inst.getZr().on('dblclick', () => {
+      inst.__manualY = false;
+      inst.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: state.tradeAll ? 0 : 55, end: 100 });
+    });
+  }
 
   // Fibonacci sobre el tramo visible (se recalcula al hacer zoom)
   const spans = [[0, '0 %'], [0.236, '23,6 %'], [0.382, '38,2 %'], [0.5, '50 %'], [0.618, '61,8 %'], [0.786, '78,6 %'], [1, '100 %']];
@@ -1289,8 +1330,29 @@ function renderCandles(symbol, interval, rows) {
     inst.on('dataZoom', () => {
       clearTimeout(fibTimer);
       fibTimer = setTimeout(() => {
-        const dz = (inst.getOption().dataZoom || [])[0] || {};
-        applyFib(dz.start == null ? 55 : dz.start, dz.end == null ? 100 : dz.end);
+        const opt = inst.getOption();
+        const dz = (opt.dataZoom || [])[0] || {};
+        const startPct = dz.start == null ? 55 : dz.start;
+        const endPct = dz.end == null ? 100 : dz.end;
+        applyFib(startPct, endPct);
+
+        // Autoescala del precio a las velas visibles (como TradingView), salvo que
+        // el usuario haya escalado el eje a mano con Shift + rueda.
+        const yz = (opt.dataZoom || []).find(d => d.yAxisIndex !== undefined);
+        const manualY = inst.__manualY === true
+          || !!(yz && yz.start != null && !(yz.start === 0 && yz.end === 100));
+        if (!manualY) {
+          const a = Math.max(0, Math.floor((startPct / 100) * rows.length));
+          const b = Math.min(rows.length, Math.ceil((endPct / 100) * rows.length));
+          const slice = rows.slice(a, Math.max(b, a + 2));
+          if (slice.length) {
+            const hi = Math.max(...slice.map(r => r[2]));
+            const lo = Math.min(...slice.map(r => r[3]));
+            const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.01 || 1;
+            const y0 = { ...yAxes[0], min: lo - pad, max: hi + pad };
+            inst.setOption({ yAxis: yAxes.map((ax, i) => (i === 0 ? y0 : ax)) }, { lazyUpdate: true });
+          }
+        }
       }, 120);
     });
     const dz0 = (inst.getOption().dataZoom || [])[0] || {};
@@ -1646,7 +1708,11 @@ function openCoin(symbol) {
 async function loadCoinChart(symbol) {
   try {
     const data = await api('/api/candles?symbol=' + encodeURIComponent(symbol) + '&interval=1d&limit=180');
-    const pts = (data.points || []).slice().sort((a, b) => a.t - b.t);
+    // La API puede devolver velas en bruto ([ts, open, high, low, close, vol]) o puntos ya normalizados.
+    const raw = Array.isArray(data.points) && data.points.length
+      ? data.points
+      : (data.candles || []).map(c => ({ t: c[0], open: c[1], high: c[2], low: c[3], close: c[4], volume: c[5] }));
+    const pts = raw.slice().sort((a, b) => a.t - b.t);
     if (!pts.length) return;
     const v = themeVars();
     chart('coin-chart', {
@@ -1663,7 +1729,7 @@ async function loadCoinChart(symbol) {
         },
       },
       xAxis: { type: 'category', data: pts.map(p => new Date(p.t).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: v.muted, fontSize: 10, interval: Math.floor(pts.length / 6) } },
-      yAxis: { type: 'value', scale: true, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: v.muted, fontSize: 10, formatter: (x) => short(x) }, splitLine: { lineStyle: { color: v.line, type: [4, 4] } } },
+      yAxis: { type: 'value', scale: true, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: v.muted, fontSize: 10, formatter: (x) => priceFmt(x) }, splitLine: { lineStyle: { color: v.line, type: [4, 4] } } },
       series: [{
         type: 'candlestick',
         data: pts.map(p => [p.open, p.close, p.low, p.high]),

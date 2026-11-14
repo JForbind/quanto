@@ -483,7 +483,7 @@ app.get('/api/candles', async (req, res) => {
   const interval = String(req.query.interval || '1h');
   const allowed = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '1d'];
   if (!allowed.includes(interval)) return res.status(400).json({ error: 'Intervalo no válido' });
-  const limit = Math.min(500, Math.max(50, Number(req.query.limit) || 300));
+  const limit = Math.min(1000, Math.max(50, Number(req.query.limit) || 300));
   try {
     const raw = await client.candles(`${symbol}-EUR`, interval, limit);
     const candles = (Array.isArray(raw) ? raw : [])
@@ -1012,20 +1012,7 @@ app.get('/api/evolution', async (req, res) => {
   }
 });
 
-app.get('/api/candles', async (req, res) => {
-  const symbol = String(req.query.symbol || 'BTC').toUpperCase();
-  const interval = String(req.query.interval || '1d');
-  const limit = Math.min(1000, Number(req.query.limit) || 180);
-  try {
-    const raw = await client.candles(`${symbol}-EUR`, interval, limit);
-    const points = (Array.isArray(raw) ? raw : []).map(c => ({
-      t: c[0], open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4]), volume: parseFloat(c[5]),
-    }));
-    res.json({ symbol, interval, points });
-  } catch (e) {
-    res.status(502).json({ error: 'No se pudieron obtener las velas: ' + e.message });
-  }
-});
+;
 
 app.get('/api/fear-greed', async (req, res) => {
   const data = await getFearGreed(DATA_DIR);
