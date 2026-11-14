@@ -909,3 +909,17 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 /* ---------------------------------------------- canales de aviso */
 .notify-box { margin: 14px 0; padding: 14px; border-radius: 14px; background: var(--glass-hi); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 .notify-box .form-row { margin: 4px 0 0; }
+
+/* ---------------------------------------------- analista */
+.analyst { margin-top: 16px; padding: 14px 16px; border-radius: 14px; background: var(--glass-hi); border: 1px solid var(--line); }
+.analyst-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.analyst-out { display: flex; flex-direction: column; gap: 10px; }
+.analyst-block { display: flex; flex-direction: column; gap: 3px; }
+.analyst-title { font-size: 10px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); }
+.analyst-block p { margin: 0; font-size: 13.5px; line-height: 1.55; }
+.analyst-facts { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.analyst-facts summary { cursor: pointer; }
+.analyst-facts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 4px 14px; margin-top: 8px; }
+.analyst-facts-grid b { font-weight: 600; color: var(--text); }
+.btn-sm { padding: 6px 12px; font-size: 12.5px; }
+@media (max-width: 760px) { .analyst-head { flex-direction: column; } }

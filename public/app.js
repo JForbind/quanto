@@ -1323,6 +1323,8 @@ async function loadTradeChart() {
     const limite = state.tradeAll ? 1000 : 300;
     const r = await api(`/api/candles?symbol=${encodeURIComponent(sym)}&interval=${iv}&limit=${limite}`);
     renderCandles(sym, iv, r.candles || []);
+    // Análisis automático la primera vez para cada moneda e intervalo
+    if (state.analystKey !== sym + '|' + iv && $('#analyst-btn')) runAnalyst();
   } catch (e) {
     if (stats) stats.textContent = 'Sin datos: ' + e.message;
   }
@@ -1486,6 +1488,38 @@ function bindWolfeClicks(inst, rows) {
     updateWolfe(inst, rows);
   });
 }
+
+/* ------------------------------------------------ analista determinista */
+async function runAnalyst() {
+  const out = $('#analyst-out');
+  const sub = $('#analyst-sub');
+  const btn = $('#analyst-btn');
+  if (!out) return;
+  const sym = state.tradeSymbol || (tradeSymbols()[0] || '');
+  const iv = state.tradeInterval || '1h';
+  if (!sym) { out.innerHTML = '<p class="muted tiny">Sin monedas en la cartera.</p>'; return; }
+  state.analystKey = sym + '|' + iv;
+  if (btn) { btn.disabled = true; btn.textContent = 'Analizando…'; }
+  try {
+    const d = await api(`/api/analyze?symbol=${encodeURIComponent(sym)}&interval=${iv}`);
+    if (!d.ok) throw new Error(d.error || 'Sin datos');
+    if (sub) sub.textContent = `${sym} · ${iv} · ${new Date(d.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+    out.innerHTML = (d.sections || []).map(s => `
+      <div class="analyst-block">
+        <span class="analyst-title">${esc(s.title)}</span>
+        <p>${esc(s.text)}</p>
+      </div>`).join('') +
+      `<details class="analyst-facts"><summary>Números usados</summary>
+        <div class="analyst-facts-grid">${(d.facts || []).map(f => `<span>${esc(f.label)}</span><b>${esc(f.value)}</b>`).join('')}</div>
+      </details>`;
+  } catch (e) {
+    out.innerHTML = `<p class="muted tiny">${esc(e.message)}</p>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Analizar'; }
+  }
+}
+
+$('#analyst-btn')?.addEventListener('click', runAnalyst);
 
 function renderCandles(symbol, interval, rows) {
   const prevInst = echarts.getInstanceByDom(document.getElementById('chart-trade'));

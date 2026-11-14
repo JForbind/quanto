@@ -24,6 +24,7 @@ const { getNews } = require('./lib/news');
 const { getLeverage } = require('./lib/leverage');
 const { getPulse } = require('./lib/pulse');
 const { getCalendar } = require('./lib/calendar');
+const { analyze: analyzeMarket } = require('./lib/analyst');
 const { round } = require('./lib/util');
 
 const VERSION = '3.2.0';
@@ -2321,6 +2322,30 @@ app.get('/api/pulse', async (req, res) => {
   } catch (e) {
     if (pulseCache.data) return res.json({ ok: true, ...pulseCache.data, cached: true, stale: true });
     res.status(502).json({ error: 'No se pudo leer el pulso: ' + e.message });
+  }
+});
+
+app.get('/api/analyze', async (req, res) => {
+  const symbol = String(req.query.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const interval = String(req.query.interval || '1h');
+  const allowed = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '1d'];
+  if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
+  if (!allowed.includes(interval)) return res.status(400).json({ error: 'Intervalo no válido' });
+  try {
+    const raw = await client.candles(`${symbol}-EUR`, interval, 300);
+    const rows = (Array.isArray(raw) ? raw : [])
+      .map(k => [Number(k[0]), Number(k[1]), Number(k[2]), Number(k[3]), Number(k[4]), Number(k[5])])
+      .filter(r => r.every(n => isFinite(n)))
+      .reverse();
+    const out = analyzeMarket({
+      rows,
+      symbol,
+      portfolio: state.portfolio,
+      plans: (getPlanStore().plans || []),
+    });
+    res.json({ ok: true, ...out, interval, at: Date.now() });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo analizar: ' + e.message });
   }
 });
 
