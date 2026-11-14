@@ -925,6 +925,120 @@ app.post('/api/notify/test', async (req, res) => {
   res.json({ ok: true, sent: out });
 });
 
+
+// ---------------- informe semanal en HTML ----------------
+function escMail(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function buildWeeklyReportHtml() {
+  const p = state.portfolio;
+  // Formato español a mano: 1.234,56 (el contenedor a veces no agrupa por locale)
+  const fmt = (value, dec) => {
+    const neg = (Number(value) || 0) < 0;
+    const s = Math.abs(Number(value) || 0).toFixed(dec);
+    const [ent, frac] = s.split('.');
+    const conPuntos = ent.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return (neg ? '-' : '') + conPuntos + (frac ? ',' + frac : '');
+  };
+  const eur = (v) => fmt(v, 2) + ' €';
+  const price = (v) => {
+    const n = Number(v) || 0;
+    return fmt(n, n < 1 ? 4 : n < 10 ? 3 : 2) + ' €';
+  };
+  const pct = (v) => (Number(v) >= 0 ? '+' : '') + fmt(v, 2) + ' %';
+  const col = (v) => (v >= 0 ? '#0f9d58' : '#d93025');
+  const today = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const rows = [];
+  if (p && Array.isArray(p.coins)) {
+    const top = p.coins.slice().sort((a, b) => b.value - a.value).slice(0, 8);
+    for (const c of top) {
+      rows.push(`<tr>
+        <td style="padding:8px 6px;border-bottom:1px solid #eef1f7;font-weight:600">${escMail(c.symbol)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #eef1f7;text-align:right">${eur(c.value)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #eef1f7;text-align:right;color:${col(c.pnl)}">${c.pnl == null ? '—' : eur(c.pnl)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #eef1f7;text-align:right;color:#6b7a90">${c.pnlPct == null ? '—' : pct(c.pnlPct)}</td>
+      </tr>`);
+    }
+  }
+
+  const extra = [];
+  try { if (liqCache.data && liqCache.data.state) extra.push(['Liquidez', liqCache.data.state.label, liqCache.data.change30]); } catch {}
+  try { if (levCache.data && levCache.data.risk) extra.push(['Deuda', levCache.data.risk.label, null]); } catch {}
+  try { if (pulseCache.data && pulseCache.data.breadth) extra.push(['Amplitud', pulseCache.data.breadth.up + '/' + pulseCache.data.breadth.total + ' en verde', null]); } catch {}
+  try { if (pulseCache.data && pulseCache.data.funding) extra.push(['Funding', (pulseCache.data.funding.avg >= 0 ? '+' : '') + fmt(pulseCache.data.funding.avg, 3) + ' %', null]); } catch {}
+  try { if (state.fearGreed) extra.push(['Miedo/codicia', String(state.fearGreed.value), null]); } catch {}
+
+  let plansHtml = '';
+  try {
+    const store = getPlanStore();
+    const items = [];
+    for (const plan of store.plans || []) {
+      const left = (plan.tranches || []).filter(x => x.status !== 'done');
+      if (!left.length) continue;
+      items.push(`<li style="margin:2px 0"><b>${escMail(plan.symbol)}</b> — faltan ${left.map(x => price(x.price)).join(' · ')}</li>`);
+    }
+    if (items.length) plansHtml = `<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8a97ab;margin:22px 0 8px">Planes</h3><ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.6">${items.join('')}</ul>`;
+  } catch {}
+
+  let newsHtml = '';
+  try {
+    const items = (newsCache.data && newsCache.data.items || []).slice(0, 3);
+    if (items.length) {
+      newsHtml = `<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8a97ab;margin:22px 0 8px">Titulares</h3>` +
+        items.map(n => `<div style="margin:0 0 10px"><div style="font-size:11px;color:#8a97ab;text-transform:uppercase;letter-spacing:.06em">${escMail(n.source)}</div>
+          <a href="${escMail(n.link)}" style="color:#111;text-decoration:none;font-size:14px;line-height:1.35">${escMail(n.title)}</a></div>`).join('');
+    }
+  } catch {}
+
+  const kpi = (label, value, sub, color) => `<td width="50%" style="padding:10px 12px;background:#f7f9fd;border-radius:12px">
+      <div style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8a97ab">${label}</div>
+      <div style="font-size:20px;font-weight:700;color:${color || '#0d1526'};margin-top:2px">${value}</div>
+      <div style="font-size:11px;color:#8a97ab">${sub || ''}</div>
+    </td>`;
+
+  return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#eef1f7;padding:22px">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f2">
+    <div style="background:#0b1220;padding:18px 22px;color:#fff">
+      <div style="font-size:18px;font-weight:700;letter-spacing:.08em">QUANTO</div>
+      <div style="font-size:12px;color:#9aa8c2;margin-top:2px">Resumen semanal · ${escMail(today)}</div>
+    </div>
+    <div style="padding:20px 22px">
+      <table width="100%" cellspacing="0" cellpadding="0"><tr>
+        ${kpi('Valor total', eur(p && p.totalValue), p ? pct(p.pnlPct) + ' P/L' : '', '#0d1526')}
+        ${kpi('Invertido', eur(p && p.invested), p ? (p.coinCount || 0) + ' monedas' : '')}
+      </tr><tr><td style="height:8px"></td></tr><tr>
+        ${kpi('P/L no realizado', eur(p && p.pnl), '', col(p && p.pnl))}
+        ${kpi('Hoy', eur(p && p.dayChangeValue), p ? pct(p.dayChangePct) : '', col(p && p.dayChangeValue))}
+      </tr></table>
+
+      ${rows.length ? `<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8a97ab;margin:22px 0 8px">Posiciones</h3>
+      <table width="100%" cellspacing="0" cellpadding="0" style="font-size:13px;border-collapse:collapse">
+        <tr><th align="left" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">Moneda</th>
+            <th align="right" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">Valor</th>
+            <th align="right" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">P/L</th>
+            <th align="right" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">%</th></tr>
+        ${rows.join('')}
+      </table>` : ''}
+
+      ${plansHtml}
+
+      ${extra.length ? `<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8a97ab;margin:22px 0 8px">Índices</h3>
+      <table width="100%" cellspacing="0" cellpadding="0" style="font-size:13px">
+        ${extra.map(([k, v, ch]) => `<tr><td style="padding:5px 0;color:#6b7a90">${escMail(k)}</td><td style="padding:5px 0;text-align:right;font-weight:600">${escMail(v)}${ch != null ? ' <span style="color:' + col(ch) + ';font-weight:400">(' + pct(ch) + ' 30 d)</span>' : ''}</td></tr>`).join('')}
+      </table>` : ''}
+
+      ${newsHtml}
+
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid #eef1f7;font-size:11px;color:#8a97ab">
+        Enviado por Quanto · puedes desactivarlo en Alertas → informes.
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
 // ---------------- informe semanal ----------------
 function weekKey(d = new Date()) {
   const t = new Date(d.getTime());
@@ -982,9 +1096,14 @@ async function sendWeeklyReport() {
   const canTelegram = n.telegramEnabled && tg.token && tg.chatId;
   const canEmail = n.emailEnabled && n.email && mailer.ready();
   if (!canTelegram && !canEmail) return { ok: false, reason: 'sin-canal' };
-  const res = await notifyUser(buildWeeklyReport(), 'Quanto · resumen semanal');
-  const sent = res.telegram === 'ok' || res.email === 'ok';
-  return sent ? { ok: true, channels: res } : { ok: false, reason: JSON.stringify(res) };
+  const text = buildWeeklyReport();
+  const html = buildWeeklyReportHtml();
+  const n2 = notifyConfig();
+  const r = { telegram: null, email: null };
+  if (canTelegram) { try { await telegramSend(text); r.telegram = 'ok'; } catch (e) { r.telegram = e.message; } }
+  if (canEmail) { try { await mailer.send({ to: n2.email, subject: 'Quanto · resumen semanal', text: text.replace(/<[^>]+>/g, ''), html }); r.email = 'ok'; } catch (e) { r.email = e.message; } }
+  const sent = r.telegram === 'ok' || r.email === 'ok';
+  return sent ? { ok: true, channels: r } : { ok: false, reason: JSON.stringify(r) };
 }
 
 setInterval(() => {
@@ -1014,6 +1133,11 @@ app.post('/api/weekly', (req, res) => {
   if (!enabled) s.weeklySent = null;
   saveSettings(s);
   res.json({ ok: true, weekly: s.weekly });
+});
+
+app.get('/api/weekly/preview', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(buildWeeklyReportHtml());
 });
 
 app.post('/api/weekly/send', async (req, res) => {

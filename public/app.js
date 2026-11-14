@@ -216,6 +216,10 @@ async function saveNotify() {
   }
 }
 
+$('#weekly-preview')?.addEventListener('click', () => {
+  window.open('/api/weekly/preview', '_blank', 'noopener');
+});
+
 $('#notify-test')?.addEventListener('click', async () => {
   const note = $('#notify-note');
   try {
