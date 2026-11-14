@@ -1324,7 +1324,7 @@ async function loadTradeChart() {
     const r = await api(`/api/candles?symbol=${encodeURIComponent(sym)}&interval=${iv}&limit=${limite}`);
     renderCandles(sym, iv, r.candles || []);
     // Análisis automático la primera vez para cada moneda e intervalo
-    if (state.analystKey !== sym + '|' + iv && $('#analyst-btn')) runAnalyst();
+    if (state.analystKey !== analystKeyFor(sym, iv) && $('#analyst-btn')) runAnalyst();
   } catch (e) {
     if (stats) stats.textContent = 'Sin datos: ' + e.message;
   }
@@ -1490,6 +1490,12 @@ function bindWolfeClicks(inst, rows) {
 }
 
 /* ------------------------------------------------ analista determinista */
+function analystKeyFor(sym, iv) {
+  const ind = Object.keys(state.tradeInd || {}).filter(k => state.tradeInd[k]).sort().join(',');
+  const w = (state.wolfe && state.wolfe.mode) || 'off';
+  return `${sym}|${iv}|${ind}|${w}`;
+}
+
 async function runAnalyst() {
   const out = $('#analyst-out');
   const sub = $('#analyst-sub');
@@ -1498,7 +1504,7 @@ async function runAnalyst() {
   const sym = state.tradeSymbol || (tradeSymbols()[0] || '');
   const iv = state.tradeInterval || '1h';
   if (!sym) { out.innerHTML = '<p class="muted tiny">Sin monedas en la cartera.</p>'; return; }
-  state.analystKey = sym + '|' + iv;
+  state.analystKey = analystKeyFor(sym, iv);
   if (btn) { btn.disabled = true; btn.textContent = 'Analizando…'; }
   try {
     const ind = Object.keys(state.tradeInd || {}).filter(k => state.tradeInd[k]).join(',');
