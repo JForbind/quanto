@@ -218,7 +218,7 @@ function navigate(view) {
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
   if (view === 'news') loadNews();
-  if (view === 'market') { loadLiquidity(); loadLeverage(); loadPulse(); }
+  if (view === 'market') { loadLiquidity(); loadLeverage(); loadPulse(); loadCalendar(); }
   const topText = document.querySelector('.topbar-text');
   if (topText) {
     topText.classList.remove('is-entering');
@@ -556,6 +556,47 @@ async function loadLiquidity() {
 
 let PULSE = null;
 
+async function loadCalendar() {
+  const box = $('#cal-list');
+  if (!box) return;
+  try {
+    const d = await api('/api/calendar');
+    const chip = $('#cal-chip');
+    if (!d.configured) {
+      if (chip) { chip.textContent = 'Sin clave'; chip.className = 'chip'; }
+      box.innerHTML = '<p class="muted tiny">Añade tu clave de FRED en <b>Ajustes → Datos macro</b>.</p>';
+      return;
+    }
+    const items = d.items || [];
+    if (chip) { chip.textContent = items.length ? items.length + ' eventos' : 'Sin datos'; chip.className = 'chip'; }
+    if (!items.length) { box.innerHTML = '<p class="muted tiny">Sin publicaciones en los próximos 60 días.</p>'; return; }
+    const fmt = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+    box.innerHTML = items.map(it => {
+      const near = it.days <= 3;
+      const label = it.days === 0 ? 'hoy' : it.days === 1 ? 'mañana' : 'en ' + it.days + ' días';
+      return `<div class="cal-row${near ? ' is-near' : ''}">
+        <span class="cal-date">${esc(fmt(it.date))}</span>
+        <span class="cal-name">${esc(it.name)}</span>
+        <span class="cal-days">${esc(label)}</span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    box.innerHTML = `<p class="muted tiny">${esc(e.message)}</p>`;
+  }
+}
+
+$('#fred-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const note = $('#fred-note');
+  try {
+    const key = $('#fred-key').value.trim();
+    const r = await api('/api/calendar/key', { method: 'POST', body: JSON.stringify({ key }) });
+    note.textContent = r.configured ? 'Clave guardada. El calendario ya funciona.' : 'Clave borrada.';
+    $('#fred-key').value = '';
+    loadCalendar();
+  } catch (err) { note.textContent = err.message; }
+});
+
 async function loadPulse() {
   try {
     const d = await api('/api/pulse');
@@ -781,6 +822,7 @@ async function boot() {
   loadLiquidity();
   loadLeverage();
   loadPulse();
+  loadCalendar();
   loadNews();
   navigate(location.hash.startsWith('#/') ? location.hash.slice(2) : 'dashboard');
   setTimeout(rollKpiNumbers, 220);

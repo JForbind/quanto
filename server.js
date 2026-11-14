@@ -23,6 +23,7 @@ const { getLiquidity } = require('./lib/liquidity');
 const { getNews } = require('./lib/news');
 const { getLeverage } = require('./lib/leverage');
 const { getPulse } = require('./lib/pulse');
+const { getCalendar } = require('./lib/calendar');
 const { round } = require('./lib/util');
 
 const VERSION = '3.2.0';
@@ -1705,6 +1706,7 @@ app.get('/api/settings', (req, res) => {
     mode: effectiveMode(),
     version: VERSION,
     weekly: (s.weekly && { enabled: !!s.weekly.enabled }) || { enabled: false },
+    fredKeySet: !!(s.fredKey && s.fredKey.length === 32),
     telegramReady: !!telegramConfig().token,
   });
 });
@@ -2073,6 +2075,36 @@ app.get('/api/liquidity', async (req, res) => {
     if (liqCache.data) return res.json({ ok: true, ...liqCache.data, cached: true, stale: true });
     res.status(502).json({ error: 'No se pudo obtener la liquidez: ' + e.message });
   }
+});
+
+let calCache = { at: 0, key: '', data: null };
+const CAL_TTL = 6 * 3600e3;
+
+app.get('/api/calendar', async (req, res) => {
+  const key = String((getSettings().fredKey || '')).trim();
+  if (!key) return res.json({ ok: true, configured: false, items: [] });
+  const sig = key.slice(-6);
+  if (calCache.data && calCache.key === sig && Date.now() - calCache.at < CAL_TTL) {
+    return res.json({ ok: true, ...calCache.data, cached: true });
+  }
+  try {
+    const data = await getCalendar(key);
+    calCache = { at: Date.now(), key: sig, data };
+    res.json({ ok: true, ...data, cached: false });
+  } catch (e) {
+    if (calCache.data && calCache.key === sig) return res.json({ ok: true, ...calCache.data, cached: true, stale: true });
+    res.status(502).json({ error: 'No se pudo leer el calendario: ' + e.message });
+  }
+});
+
+app.post('/api/calendar/key', (req, res) => {
+  const key = String((req.body || {}).key || '').trim();
+  const s = getSettings();
+  if (key && !/^[a-f0-9]{32}$/i.test(key)) return res.status(400).json({ error: 'La clave de FRED son 32 caracteres hexagonales' });
+  s.fredKey = key;
+  saveSettings(s);
+  calCache = { at: 0, key: '', data: null };
+  res.json({ ok: true, configured: !!key });
 });
 
 let pulseCache = { at: 0, data: null };

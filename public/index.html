@@ -377,6 +377,14 @@
           <p class="tiny muted" id="pulse-note">—</p>
         </article>
 
+        <article class="card glass span-6" id="cal-card">
+          <header class="card-head">
+            <div><h2>Próximos datos</h2><p class="card-sub">Calendario macro · FRED</p></div>
+            <span class="chip" id="cal-chip">—</span>
+          </header>
+          <div id="cal-list" class="cal-list"><p class="muted tiny">Cargando…</p></div>
+        </article>
+
         <article class="card glass span-12">
           <header class="card-head"><h2>Qué significa</h2></header>
           <div class="explain" id="fg-explainer"></div>
@@ -821,7 +829,18 @@
           </div>
         </article>
       </div>
-            <article class="card glass span-12 hidden" id="mail-card">
+                    <article class="card glass span-6" id="macro-card">
+          <header class="card-head"><h2>Datos macro</h2><span class="chip" id="fred-status">—</span></header>
+          <form id="fred-form" class="form">
+            <label class="field"><span>Clave de FRED (opcional)</span>
+              <input id="fred-key" placeholder="32 caracteres" autocomplete="off" spellcheck="false">
+            </label>
+            <p class="hint">Sirve para el calendario macro (IPC, empleo, PIB). Se obtiene gratis en fred.stlouisfed.org → API Keys.</p>
+            <div class="form-actions"><button class="btn btn-primary" type="submit">Guardar clave</button></div>
+            <p class="tiny muted" id="fred-note"></p>
+          </form>
+        </article>
+        <article class="card glass span-12 hidden" id="mail-card">
           <header class="card-head">
             <div><h2>Correo de avisos</h2><p class="card-sub">Sirve para enviar invitaciones y avisos. Sirve cualquier SMTP.</p></div>
           </header>
