@@ -1191,9 +1191,27 @@ app.post('/api/import/history', limitHeavy, (req, res) => {
   if (!ops.length) {
     return res.status(400).json({ error: 'No he reconocido el archivo. En Bitvavo: Historial → descargar CSV (el completo, no el de la cartera).' });
   }
-  const merged = mergeOps([], ops);
+  // Copia de seguridad del historial actual antes de tocar nada.
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  let backup = null;
+  try {
+    if (fs.existsSync(FILES.ops)) {
+      fs.copyFileSync(FILES.ops, FILES.ops + '.bak-' + stamp);
+      backup = stamp;
+    }
+  } catch (e) { console.log('[import] copia:', e.message); }
+
+  // Nunca se reemplaza: se fusiona con lo que ya hay.
+  const before = state.ops.length;
+  const merged = mergeOps(state.ops, ops);
   state.ops = merged.ops;
-  state.meta = { importedAt: Date.now(), autoCaptured: 0, lastSyncAt: state.meta.lastSyncAt, source: 'csv' };
+  state.meta = {
+    importedAt: state.meta.importedAt || Date.now(),
+    lastImportAt: Date.now(),
+    autoCaptured: state.meta.autoCaptured || 0,
+    lastSyncAt: state.meta.lastSyncAt,
+    source: state.meta.source || 'csv',
+  };
   refreshAnalysis();
   saveOps();
   state.evolutionCache = { at: 0, day: '', data: null };
@@ -1203,6 +1221,9 @@ app.post('/api/import/history', limitHeavy, (req, res) => {
   res.json({
     ok: true,
     ops: state.ops.length,
+    added: merged.added,
+    before,
+    backup,
     coins: Object.keys(stats.byCoin).length,
     sells: stats.totals.sells,
     from: stats.range.from,

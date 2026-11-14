@@ -2141,6 +2141,7 @@ async function importHistoryText(text) {
     const r = await api('/api/import/history', { method: 'POST', body: JSON.stringify({ text }) });
     out.className = 'result ok';
     out.innerHTML = `✅ <b>${r.ops}</b> operaciones · <b>${r.coins}</b> monedas · <b>${r.sells}</b> ventas<br>
+      <b>${r.added}</b> nuevas · <b>${Math.max(0, r.ops - r.added)}</b> ya estaban (no se ha borrado nada)${r.backup ? `<br><span class="muted tiny">Copia previa guardada: .bak-${r.backup}</span>` : ''}<br>
       Desde ${dateShort(r.from)} hasta ${dateShort(r.to)}<br>
       Comprado ${eur(r.bought)} · vendido ${eur(r.sold)}${r.unmatched > 0 ? `<br><span class="warn">⚠️ ${eur(r.unmatched)} en ventas sin compra registrada</span>` : ''}`;
     state.evolution = null;
