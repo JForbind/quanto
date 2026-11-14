@@ -176,6 +176,7 @@ function toast(message, isError) {
 
 /* ------------------------------------------------ navegación */
 const VIEW_TITLES = {
+  news: ['Noticias', 'Titulares filtrados por tus monedas'],
   dashboard: ['Resumen', 'Tu cartera de un vistazo'],
   coins: ['Monedas', 'Posiciones, precio medio y rentabilidad'],
   market: ['Miedo y codicia', 'El termómetro del mercado cripto'],
@@ -201,6 +202,7 @@ function navigate(view) {
   const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
+  if (view === 'news') loadNews();
   const topText = document.querySelector('.topbar-text');
   if (topText) {
     topText.classList.remove('is-entering');
@@ -473,6 +475,128 @@ async function loadUsers() {
   }
 }
 
+/* ------------------------------------------------ liquidez y noticias */
+const LIQ_STATE = {
+  exp: { label: 'Expansión', cls: 'chip-ok' },
+  neutro: { label: 'Neutro', cls: '' },
+  cont: { label: 'Contracción', cls: 'chip-warn' },
+};
+
+function moneyB(v) {
+  if (!isFinite(v)) return '—';
+  const m = v / 1e6; // millones de dólares, sin ambigüedad
+  return num(m, 0) + ' M$';
+}
+
+async function loadLiquidity() {
+  try {
+    const d = await api('/api/liquidity');
+    const st = LIQ_STATE[d.state && d.state.key] || LIQ_STATE.neutro;
+    const chip = $('#liq-state');
+    if (chip) { chip.textContent = st.label; chip.className = 'chip ' + st.cls; }
+    const total = $('#liq-total'); if (total) total.textContent = moneyB(d.total);
+    const c24 = $('#liq-24');
+    if (c24) {
+      const up = d.change24 >= 0;
+      c24.textContent = (up ? '+' : '') + num(d.change24, 2) + ' % 24 h';
+      c24.className = 'tiny ' + signed(d.change24);
+    }
+    const c30 = $('#liq-30');
+    if (c30) {
+      c30.textContent = (d.change30 >= 0 ? '+' : '') + num(d.change30, 2) + ' %';
+      c30.className = signed(d.change30);
+    }
+    const dom = $('#liq-dom');
+    if (dom) dom.textContent = d.dominance != null ? num(d.dominance, 2) + ' %' : '—';
+    const note = $('#liq-note');
+    if (note) note.textContent = d.state && d.state.key === 'cont'
+      ? 'Las stablecoins se reducen: hay menos liquidez entrando al mercado.'
+      : d.state && d.state.key === 'exp'
+        ? 'Entra dinero nuevo: las stablecoins crecen.'
+        : 'Saldo estable: sin cambio claro de liquidez.';
+    const v = themeVars();
+    const series = (d.series || []).map(p => [p[0], p[1]]);
+    if (series.length) {
+      chart('chart-liq', {
+        grid: { left: 0, right: 0, top: 6, bottom: 0 },
+        xAxis: { type: 'time', show: false },
+        yAxis: { type: 'value', show: false, scale: true },
+        tooltip: { ...baseTooltip(v), formatter: (items) => {
+          const it = items[0];
+          return new Date(it.value[0]).toLocaleDateString('es-ES') + '<br/>' + moneyB(it.value[1]);
+        } },
+        series: [{
+          type: 'line', data: series, showSymbol: false, smooth: true,
+          lineStyle: { width: 2, color: d.state && d.state.key === 'cont' ? v.neg : v.pos },
+          areaStyle: { opacity: .12, color: d.state && d.state.key === 'cont' ? v.neg : v.pos },
+        }],
+      });
+    }
+  } catch (e) {
+    const note = $('#liq-note');
+    if (note) note.textContent = 'Sin datos de liquidez: ' + e.message;
+  }
+}
+
+let NEWS = [];
+let newsFilter = 'mine';
+
+function renderNewsMini(list) {
+  const box = $('#news-mini');
+  if (!box) return;
+  if (!list.length) { box.innerHTML = '<p class="muted tiny">Sin noticias ahora mismo.</p>'; return; }
+  box.innerHTML = list.slice(0, 4).map(n => `
+    <a class="news-item" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">
+      <span class="news-meta">${esc(n.source)} · ${timeAgo(n.ts)}</span>
+      <span class="news-title">${esc(n.title)}</span>
+    </a>`).join('');
+}
+
+function renderNewsList() {
+  const box = $('#news-list');
+  if (!box) return;
+  const list = newsFilter === 'mine' ? NEWS.filter(n => n.coins.length || n.macro) : NEWS;
+  const sub = $('#news-sub');
+  if (sub) sub.textContent = `${list.length} noticias · ${newsFilter === 'mine' ? 'relacionadas con tus monedas' : 'de todas las fuentes'}`;
+  if (!list.length) { box.innerHTML = '<p class="muted">Sin noticias.</p>'; return; }
+  box.innerHTML = list.map(n => `
+    <a class="news-item" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">
+      <span class="news-meta">${esc(n.source)} · ${timeAgo(n.ts)}${n.coins.length ? ' · ' + n.coins.map(c => esc(c)).join(', ') : ''}</span>
+      <span class="news-title">${esc(n.title)}</span>
+      ${n.summary ? `<span class="news-sum">${esc(n.summary)}</span>` : ''}
+    </a>`).join('');
+}
+
+async function loadNews(force) {
+  try {
+    const coins = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol).slice(0, 40);
+    const d = await api('/api/news?coins=' + encodeURIComponent(coins.join(',')) + (force ? '&t=' + Date.now() : ''));
+    NEWS = d.items || [];
+    renderNewsMini(newsFilter === 'mine' ? NEWS.filter(n => n.coins.length || n.macro) : NEWS);
+    const mc = $('#news-mini-sub');
+    if (mc) mc.textContent = NEWS.length ? `${NEWS.length} titulares · ${new Date(d.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : 'Sin noticias';
+    renderNewsList();
+  } catch (e) {
+    const mc = $('#news-mini-sub');
+    if (mc) mc.textContent = 'No disponible: ' + e.message;
+  }
+}
+
+function timeAgo(ts) {
+  const m = Math.max(1, Math.round((Date.now() - ts) / 60000));
+  if (m < 60) return 'hace ' + m + ' min';
+  const h = Math.round(m / 60);
+  if (h < 24) return 'hace ' + h + ' h';
+  return 'hace ' + Math.round(h / 24) + ' d';
+}
+
+document.querySelectorAll('[data-news]').forEach(b => b.addEventListener('click', () => {
+  newsFilter = b.dataset.news;
+  document.querySelectorAll('[data-news]').forEach(x => x.classList.toggle('is-active', x === b));
+  renderNewsList();
+  renderNewsMini(newsFilter === 'mine' ? NEWS.filter(n => n.coins.length || n.macro) : NEWS);
+}));
+
 function showSetup(needed) {
   $('#login').classList.add('hidden');
   $('#app').classList.add('hidden');
@@ -534,6 +658,8 @@ async function boot() {
   await Promise.all([loadOverview(true), loadFearGreed(), loadHistory(), loadSettings(), loadTransactions(), loadAppearance()]);
   loadSparklines();
   loadRadar();
+  loadLiquidity();
+  loadNews();
   navigate(location.hash.startsWith('#/') ? location.hash.slice(2) : 'dashboard');
   setTimeout(rollKpiNumbers, 220);
 }

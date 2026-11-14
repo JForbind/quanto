@@ -11,9 +11,9 @@
 <link rel="icon" type="image/png" sizes="1024x1024" href="/favicon.png">
 <link rel="apple-touch-icon" href="/favicon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=225">
+<link rel="stylesheet" href="/style.css?v=226">
 <script src="/echarts.min.js" defer></script>
-<script src="/app.js?v=225" defer></script>
+<script src="/app.js?v=226" defer></script>
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -245,6 +245,27 @@
             <p class="tiny muted" id="fg-mini-note">—</p>
           </div>
         </article>
+        <article class="card glass span-6" id="liquidity-card">
+          <header class="card-head">
+            <div><h2>Liquidez global</h2><p class="card-sub">Stablecoins en circulación · DefiLlama</p></div>
+            <span class="chip" id="liq-state">—</span>
+          </header>
+          <div class="liq-grid">
+            <div class="liq-metric"><span>Stablecoins</span><b id="liq-total">—</b><small id="liq-24">—</small></div>
+            <div class="liq-metric"><span>30 días</span><b id="liq-30">—</b><small>variación</small></div>
+            <div class="liq-metric"><span>Dominancia</span><b id="liq-dom">—</b><small id="liq-dom-sub">USDT + USDC</small></div>
+          </div>
+          <div id="chart-liq" class="chart chart-sm"></div>
+          <p class="tiny muted" id="liq-note">—</p>
+        </article>
+
+        <article class="card glass span-6" id="news-card">
+          <header class="card-head">
+            <div><h2>Titulares</h2><p class="card-sub" id="news-mini-sub">Cargando…</p></div>
+            <button class="link" data-goto="news">Ver todas</button>
+          </header>
+          <div id="news-mini" class="news-mini"></div>
+        </article>
       </div>
     </section>
 
@@ -334,6 +355,20 @@
     </section>
 
     <!-- ============================ OPERACIONES -->
+
+    <section id="view-news" class="view hidden">
+      <article class="card glass">
+        <header class="card-head">
+          <div><h2>Noticias</h2><p class="card-sub" id="news-sub">Cargando…</p></div>
+          <div class="chips" id="news-filter">
+            <button data-news="mine" class="is-active">Mis monedas</button>
+            <button data-news="all">Todo</button>
+          </div>
+        </header>
+        <div id="news-list" class="news-list"></div>
+      </article>
+    </section>
+
     <section id="view-operations" class="view hidden">
       <div class="kpis shared-kpis" data-kpis>
         <article class="card glass kpi"><span class="kpi-label">Valor total</span><strong class="kpi-value" data-k="value">—</strong><span class="kpi-sub" data-k="value-sub">&nbsp;</span></article>
@@ -833,6 +868,7 @@
     <button class="more-item" data-view="tax"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2Z"/></svg><span>Fiscal</span></button>
     <button class="more-item" data-view="plans"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/><path d="m17 14 2 2 3-4"/></svg><span>Planes</span></button>
     <button class="more-item" data-view="trade"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 4 6-8 3 4"/><path d="M3 21h18"/></svg><span>Trading</span></button>
+    <button class="more-item" data-view="news"><svg viewBox="0 0 24 24"><path d="M4 5h13a2 2 0 0 1 2 2v11M4 5v12a2 2 0 0 0 2 2h13M8 9h7M8 12h7M8 15h4"/></svg><span>Noticias</span></button>
     <button class="more-item" data-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"/></svg><span>Ajustes</span></button>
   </div>
 

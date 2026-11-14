@@ -19,6 +19,8 @@ const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, creat
 const { createUserStore, passwordProblems, randomPassword } = require('./lib/users');
 const { createTenant } = require('./lib/tenant');
 const { createMailer } = require('./lib/mailer');
+const { getLiquidity } = require('./lib/liquidity');
+const { getNews } = require('./lib/news');
 const { round } = require('./lib/util');
 
 const VERSION = '3.2.0';
@@ -1950,6 +1952,43 @@ app.use((req, res, next) => {
   if (/\.(js|css|html|webmanifest)$/.test(req.path)) res.setHeader('Cache-Control', 'no-cache');
   next();
 });
+// ---------------- liquidez y noticias ----------------
+let liqCache = { at: 0, data: null };
+const LIQ_TTL = 6 * 3600e3;
+
+app.get('/api/liquidity', async (req, res) => {
+  if (liqCache.data && Date.now() - liqCache.at < LIQ_TTL) {
+    return res.json({ ok: true, ...liqCache.data, cached: true });
+  }
+  try {
+    const data = await getLiquidity();
+    liqCache = { at: Date.now(), data };
+    res.json({ ok: true, ...data, cached: false });
+  } catch (e) {
+    if (liqCache.data) return res.json({ ok: true, ...liqCache.data, cached: true, stale: true });
+    res.status(502).json({ error: 'No se pudo obtener la liquidez: ' + e.message });
+  }
+});
+
+let newsCache = { at: 0, key: '', data: null };
+const NEWS_TTL = 15 * 60e3;
+
+app.get('/api/news', async (req, res) => {
+  const coins = String(req.query.coins || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean).slice(0, 40);
+  const key = coins.join(',');
+  if (newsCache.data && newsCache.key === key && Date.now() - newsCache.at < NEWS_TTL) {
+    return res.json({ ok: true, ...newsCache.data, cached: true });
+  }
+  try {
+    const data = await getNews({ coins, limit: 60 });
+    newsCache = { at: Date.now(), key, data };
+    res.json({ ok: true, ...data, cached: false });
+  } catch (e) {
+    if (newsCache.data) return res.json({ ok: true, ...newsCache.data, cached: true, stale: true });
+    res.status(502).json({ error: 'No se pudieron leer las noticias: ' + e.message });
+  }
+});
+
 // ---------------- iconos de monedas (con caché en disco) ----------------
 const ICON_DIR = path.join(DATA_DIR, 'icons');
 ensureDir(ICON_DIR);

@@ -867,3 +867,24 @@ html[data-theme="light"] body.has-wallpaper .orb { opacity: .16; }
   .user-row b { grid-column: 1 / -1; }
 }
 body.is-admin .topbar-actions #refresh-btn { display: none; }
+
+/* ---------------------------------------------- liquidez y noticias */
+.liq-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 4px; }
+.liq-metric { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--glass-hi); border: 1px solid var(--line); }
+.liq-metric > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.liq-metric > b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.liq-metric > small { font-size: 11px; color: var(--muted); }
+.liq-metric > b.pos, .liq-metric > small.pos { color: var(--pos); }
+.liq-metric > b.neg, .liq-metric > small.neg { color: var(--neg); }
+.chart-sm { height: 84px; }
+.news-mini { display: flex; flex-direction: column; gap: 4px; }
+.news-item { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 12px; border: 1px solid transparent; text-decoration: none; color: inherit; transition: background .15s, border-color .15s; }
+.news-item:hover { background: var(--glass-hi); border-color: var(--line); }
+.news-meta { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.news-title { font-size: 13.5px; line-height: 1.35; }
+.news-sum { font-size: 12px; color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news-list { display: flex; flex-direction: column; gap: 6px; }
+.news-list .news-title { font-size: 14.5px; }
+@media (max-width: 760px) {
+  .liq-grid { grid-template-columns: 1fr 1fr; }
+}

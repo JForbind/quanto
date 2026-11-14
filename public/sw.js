@@ -1,5 +1,5 @@
 // Service worker de Quanto: red primero para la app, datos siempre frescos.
-const CACHE = 'quanto-v5';
+const CACHE = 'quanto-v6';
 const SHELL = ['/', '/index.html', '/app.js', '/style.css', '/echarts.min.js', '/manifest.webmanifest', '/favicon.png', '/fonts/NDLogos.ttf'];
 
 self.addEventListener('install', (e) => {
@@ -19,6 +19,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   if (url.pathname.startsWith('/api/')) return;
   if (url.origin !== self.location.origin) return;
+  const isDocument = e.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html');
   e.respondWith(
     fetch(e.request)
       .then((res) => {
@@ -28,6 +29,11 @@ self.addEventListener('fetch', (e) => {
         }
         return res;
       })
-      .catch(() => caches.match(e.request).then(r => r || caches.match('/index.html')))
+      .catch(() => caches.match(e.request).then(r => {
+        if (r) return r;
+        // Solo se sirve el HTML como respaldo de una página; nunca para un .js/.css
+        if (isDocument) return caches.match('/index.html');
+        return Response.error();
+      }))
   );
 });
