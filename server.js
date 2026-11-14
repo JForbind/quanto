@@ -21,6 +21,7 @@ const { createTenant } = require('./lib/tenant');
 const { createMailer } = require('./lib/mailer');
 const { getLiquidity } = require('./lib/liquidity');
 const { getNews } = require('./lib/news');
+const { getLeverage } = require('./lib/leverage');
 const { round } = require('./lib/util');
 
 const VERSION = '3.2.0';
@@ -1967,6 +1968,23 @@ app.get('/api/liquidity', async (req, res) => {
   } catch (e) {
     if (liqCache.data) return res.json({ ok: true, ...liqCache.data, cached: true, stale: true });
     res.status(502).json({ error: 'No se pudo obtener la liquidez: ' + e.message });
+  }
+});
+
+let levCache = { at: 0, data: null };
+const LEV_TTL = 6 * 3600e3;
+
+app.get('/api/leverage', async (req, res) => {
+  if (levCache.data && Date.now() - levCache.at < LEV_TTL) {
+    return res.json({ ok: true, ...levCache.data, cached: true });
+  }
+  try {
+    const data = await getLeverage();
+    levCache = { at: Date.now(), data };
+    res.json({ ok: true, ...data, cached: false });
+  } catch (e) {
+    if (levCache.data) return res.json({ ok: true, ...levCache.data, cached: true, stale: true });
+    res.status(502).json({ error: 'No se pudo calcular la deuda: ' + e.message });
   }
 });
 

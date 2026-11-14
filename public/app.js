@@ -179,7 +179,7 @@ const VIEW_TITLES = {
   news: ['Noticias', 'Titulares filtrados por tus monedas'],
   dashboard: ['Resumen', 'Tu cartera de un vistazo'],
   coins: ['Monedas', 'Posiciones, precio medio y rentabilidad'],
-  market: ['Miedo y codicia', 'El termómetro del mercado cripto'],
+  market: ['Índices', 'Liquidez, deuda y sentimiento de mercado'],
   operations: ['Operaciones', 'Todas tus compras, ventas y movimientos'],
   tax: ['Fiscal', 'Informe FIFO listo para la declaración'],
   alerts: ['Alertas', 'Avisos de precio por Telegram'],
@@ -203,6 +203,7 @@ function navigate(view) {
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
   if (view === 'news') loadNews();
+  if (view === 'market') { loadLiquidity(); loadLeverage(); }
   const topText = document.querySelector('.topbar-text');
   if (topText) {
     topText.classList.remove('is-entering');
@@ -538,6 +539,58 @@ async function loadLiquidity() {
   }
 }
 
+async function loadLeverage() {
+  try {
+    const d = await api('/api/leverage');
+    const risk = $('#debt-risk');
+    if (risk) {
+      const map = { alto: 'Riesgo alto', medio: 'Riesgo medio', bajo: 'Riesgo bajo' };
+      const cls = { alto: 'chip-warn', medio: '', bajo: 'chip-ok' };
+      risk.textContent = map[d.risk && d.risk.key] || '—';
+      risk.className = 'chip ' + (cls[d.risk && d.risk.key] || '');
+    }
+    const dt = $('#debt-total'); if (dt) dt.textContent = moneyB(d.debt);
+    const dc = $('#debt-chg');
+    if (dc) { dc.textContent = (d.debtChange30 >= 0 ? '+' : '') + num(d.debtChange30, 2) + ' %'; dc.className = 'tiny ' + signed(d.debtChange30); }
+    const ot = $('#oi-total'); if (ot) ot.textContent = moneyB(d.oi);
+    const oc = $('#oi-chg');
+    if (oc) { oc.textContent = (d.oiChange30 >= 0 ? '+' : '') + num(d.oiChange30, 2) + ' %'; oc.className = 'tiny ' + signed(d.oiChange30); }
+    const lr = $('#lev-ratio'); if (lr) lr.textContent = d.leverage != null ? num(d.leverage, 2) + ' %' : '—';
+    const note = $('#debt-note');
+    if (note) {
+      const alto = d.risk && d.risk.key === 'alto';
+      note.textContent = alto
+        ? 'Suben la deuda y el apalancamiento: más riesgo de liquidaciones en cascada.'
+        : 'Deuda y apalancamiento a la baja: menos presión sobre el precio.';
+    }
+    const v = themeVars();
+    const series = d.series || [];
+    if (series.length) {
+      chart('chart-debt', {
+        grid: { left: 0, right: 0, top: 6, bottom: 0 },
+        legend: { show: false },
+        xAxis: { type: 'category', show: false, data: series.map(p => p.d) },
+        yAxis: { type: 'value', show: false, scale: true },
+        tooltip: { ...baseTooltip(v), formatter: (its) => {
+          const d0 = its[0];
+          const row = series[d0.dataIndex];
+          if (!row) return '';
+          return new Date(row.d).toLocaleDateString('es-ES') +
+            '<br/>Deuda: ' + (row.debt ? moneyB(row.debt) : '—') +
+            '<br/>OI: ' + (row.oi ? moneyB(row.oi) : '—');
+        } },
+        series: [
+          { name: 'Deuda', type: 'line', data: series.map(p => p.debt), showSymbol: false, smooth: true, lineStyle: { width: 2, color: v.accent } },
+          { name: 'OI', type: 'line', data: series.map(p => p.oi), showSymbol: false, smooth: true, lineStyle: { width: 2, color: (d.risk && d.risk.key === 'alto') ? v.neg : v.muted, type: [4, 3] } },
+        ],
+      });
+    }
+  } catch (e) {
+    const note = $('#debt-note');
+    if (note) note.textContent = 'Sin datos de deuda: ' + e.message;
+  }
+}
+
 let NEWS = [];
 let newsFilter = 'mine';
 
@@ -659,6 +712,7 @@ async function boot() {
   loadSparklines();
   loadRadar();
   loadLiquidity();
+  loadLeverage();
   loadNews();
   navigate(location.hash.startsWith('#/') ? location.hash.slice(2) : 'dashboard');
   setTimeout(rollKpiNumbers, 220);

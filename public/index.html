@@ -11,9 +11,9 @@
 <link rel="icon" type="image/png" sizes="1024x1024" href="/favicon.png">
 <link rel="apple-touch-icon" href="/favicon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=226">
+<link rel="stylesheet" href="/style.css?v=227">
 <script src="/echarts.min.js" defer></script>
-<script src="/app.js?v=226" defer></script>
+<script src="/app.js?v=227" defer></script>
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -95,7 +95,7 @@
       </button>
       <button class="nav-item" data-view="market">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-6 4 3 7-9"/><circle cx="19" cy="6" r="2"/></svg>
-        <span>Miedo y codicia</span>
+        <span>Índices</span>
       </button>
       <button class="nav-item" data-view="operations">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>
@@ -245,21 +245,9 @@
             <p class="tiny muted" id="fg-mini-note">—</p>
           </div>
         </article>
-        <article class="card glass span-6" id="liquidity-card">
-          <header class="card-head">
-            <div><h2>Liquidez global</h2><p class="card-sub">Stablecoins en circulación · DefiLlama</p></div>
-            <span class="chip" id="liq-state">—</span>
-          </header>
-          <div class="liq-grid">
-            <div class="liq-metric"><span>Stablecoins</span><b id="liq-total">—</b><small id="liq-24">—</small></div>
-            <div class="liq-metric"><span>30 días</span><b id="liq-30">—</b><small>variación</small></div>
-            <div class="liq-metric"><span>Dominancia</span><b id="liq-dom">—</b><small id="liq-dom-sub">USDT + USDC</small></div>
-          </div>
-          <div id="chart-liq" class="chart chart-sm"></div>
-          <p class="tiny muted" id="liq-note">—</p>
-        </article>
 
-        <article class="card glass span-6" id="news-card">
+
+        <article class="card glass span-12" id="news-card">
           <header class="card-head">
             <div><h2>Titulares</h2><p class="card-sub" id="news-mini-sub">Cargando…</p></div>
             <button class="link" data-goto="news">Ver todas</button>
@@ -347,6 +335,33 @@
           </header>
           <div id="fg-chart" class="chart chart-xl"></div>
         </article>
+        <article class="card glass span-6" id="liquidity-card">
+          <header class="card-head">
+            <div><h2>Liquidez global</h2><p class="card-sub">Stablecoins en circulación · DefiLlama</p></div>
+            <span class="chip" id="liq-state">—</span>
+          </header>
+          <div class="liq-grid">
+            <div class="liq-metric"><span>Stablecoins</span><b id="liq-total">—</b><small id="liq-24">—</small></div>
+            <div class="liq-metric"><span>30 días</span><b id="liq-30">—</b><small>variación</small></div>
+            <div class="liq-metric"><span>Dominancia</span><b id="liq-dom">—</b><small id="liq-dom-sub">USDT + USDC</small></div>
+          </div>
+          <div id="chart-liq" class="chart chart-sm"></div>
+          <p class="tiny muted" id="liq-note">—</p>
+        </article>
+        <article class="card glass span-6" id="debt-card">
+          <header class="card-head">
+            <div><h2>Deuda y apalancamiento</h2><p class="card-sub">Préstamos DeFi y futuros · 30 días</p></div>
+            <span class="chip" id="debt-risk">—</span>
+          </header>
+          <div class="liq-grid">
+            <div class="liq-metric"><span>Deuda DeFi</span><b id="debt-total">—</b><small id="debt-chg">—</small></div>
+            <div class="liq-metric"><span>Open interest</span><b id="oi-total">—</b><small id="oi-chg">—</small></div>
+            <div class="liq-metric"><span>Apalancamiento</span><b id="lev-ratio">—</b><small>OI / capitalización</small></div>
+          </div>
+          <div id="chart-debt" class="chart chart-sm"></div>
+          <p class="tiny muted" id="debt-note">—</p>
+        </article>
+
         <article class="card glass span-12">
           <header class="card-head"><h2>Qué significa</h2></header>
           <div class="explain" id="fg-explainer"></div>
@@ -857,7 +872,7 @@
 <nav class="mobile-nav glass" aria-label="Secciones">
   <button class="nav-item is-active" data-view="dashboard"><svg viewBox="0 0 24 24"><path d="M4 13h6v7H4zM14 4h6v16h-6zM4 4h6v5H4z"/></svg><span>Resumen</span></button>
   <button class="nav-item" data-view="coins"><svg viewBox="0 0 24 24"><path d="M12 3v18M7 8h7a3 3 0 0 1 0 6H7"/></svg><span>Monedas</span></button>
-  <button class="nav-item" data-view="market"><svg viewBox="0 0 24 24"><path d="M4 18l5-6 4 3 7-9"/></svg><span>Índice</span></button>
+  <button class="nav-item" data-view="market"><svg viewBox="0 0 24 24"><path d="M4 18l5-6 4 3 7-9"/></svg><span>Índices</span></button>
   <button class="nav-item" data-view="alerts"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span>Alertas</span></button>
 
   <button class="nav-item" id="more-btn" type="button"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>Más</span></button>
