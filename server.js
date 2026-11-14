@@ -22,6 +22,7 @@ const { createMailer } = require('./lib/mailer');
 const { getLiquidity } = require('./lib/liquidity');
 const { getNews } = require('./lib/news');
 const { getLeverage } = require('./lib/leverage');
+const { getPulse } = require('./lib/pulse');
 const { round } = require('./lib/util');
 
 const VERSION = '3.2.0';
@@ -849,6 +850,107 @@ app.post('/api/users/:id/invite', requireAdmin, (req, res) => {
   res.json({ ok: true, inviteToken: invite.token, expiresAt: invite.expiresAt });
 });
 
+// ---------------- informe semanal ----------------
+function weekKey(d = new Date()) {
+  const t = new Date(d.getTime());
+  const day = (t.getDay() + 6) % 7;
+  t.setDate(t.getDate() - day);
+  return t.toISOString().slice(0, 10);
+}
+
+function buildWeeklyReport() {
+  const p = state.portfolio;
+  const money = (v) => (Math.round(Number(v) || 0)).toLocaleString('es-ES') + ' €';
+  const sign = (v) => (v >= 0 ? '+' : '');
+  const lines = [];
+  const now = new Date();
+  lines.push('📊 <b>Resumen semanal</b> · ' + now.toLocaleDateString('es-ES'));
+  if (!p) {
+    lines.push('Todavía no hay cartera.');
+  } else {
+    const weekAgo = state.snapshots.filter(s => s.t >= Date.now() - 7 * 86400e3);
+    const first = weekAgo[0];
+    const change = first && first.value ? ((p.totalValue - first.value) / first.value) * 100 : 0;
+    lines.push(`Valor: <b>${money(p.totalValue)}</b> (${sign(change)}${change.toFixed(2)} % esta semana)`);
+    lines.push(`Invertido: ${money(p.invested)} · P/L: <b>${money(p.pnl)}</b> (${sign(p.pnlPct)}${(p.pnlPct || 0).toFixed(1)} %)`);
+    if (p.cash) lines.push(`Efectivo: ${money(p.cash)}`);
+  }
+
+  // tramos pendientes
+  try {
+    const store = getPlanStore();
+    const pend = [];
+    for (const plan of store.plans || []) {
+      const left = (plan.tranches || []).filter(x => x.status !== 'done');
+      if (left.length) pend.push(`${plan.symbol}: ${left.map(x => x.price.toFixed(2)).join(' · ')} €`);
+    }
+    if (pend.length) lines.push('', '📋 <b>Planes</b>', ...pend.map(x => '• ' + x));
+  } catch {}
+
+  // índices (caché global): liquidez, deuda y sentimiento
+  const extra = [];
+  try {
+    if (liqCache.data && liqCache.data.state) extra.push('liquidez ' + liqCache.data.state.label.toLowerCase());
+    if (levCache.data && levCache.data.risk) extra.push('deuda ' + levCache.data.risk.label.toLowerCase());
+    if (pulseCache.data && pulseCache.data.breadth) extra.push(pulseCache.data.breadth.up + '/' + pulseCache.data.breadth.total + ' en verde');
+    const fg = state.fearGreed;
+    if (fg && typeof fg.value === 'number') extra.push('miedo/codicia ' + fg.value);
+  } catch {}
+  if (extra.length) lines.push('', '📈 <b>Índices</b>: ' + extra.join(' · '));
+
+  return lines.join('\n');
+}
+
+async function sendWeeklyReport() {
+  const cfg = telegramConfig();
+  if (!cfg.token || !cfg.chatId) return { ok: false, reason: 'sin-telegram' };
+  try {
+    await telegramSend(buildWeeklyReport());
+    return { ok: true };
+  } catch (e) {
+    console.log('[semanal]', e.message);
+    return { ok: false, reason: e.message };
+  }
+}
+
+setInterval(() => {
+  const now = new Date();
+  if (now.getDay() !== 0 || now.getHours() !== 9) return; // domingo a las 9
+  tenant.forEachUser((user) => {
+    const s = getSettings();
+    const w = s.weekly || {};
+    if (!w.enabled) return;
+    if (s.weeklySent === weekKey(now)) return;
+    if (!state.portfolio) return;
+    sendWeeklyReport().then(r => {
+      if (r.ok) {
+        const st = getSettings();
+        st.weeklySent = weekKey(now);
+        saveSettings(st);
+        console.log('[semanal] enviado a', user.username);
+      }
+    });
+  });
+}, 30 * 60e3);
+
+app.post('/api/weekly', (req, res) => {
+  const enabled = !!(req.body || {}).enabled;
+  const s = getSettings();
+  s.weekly = { enabled };
+  if (!enabled) s.weeklySent = null;
+  saveSettings(s);
+  res.json({ ok: true, weekly: s.weekly });
+});
+
+app.post('/api/weekly/send', async (req, res) => {
+  const r = await sendWeeklyReport();
+  if (!r.ok) return res.status(400).json({ error: r.reason === 'sin-telegram' ? 'Configura Telegram primero' : r.reason });
+  const s = getSettings();
+  s.weeklySent = weekKey(new Date());
+  saveSettings(s);
+  res.json({ ok: true });
+});
+
 // ---------------- correo de avisos (solo admin) ----------------
 app.get('/api/mail', requireAdmin, (req, res) => {
   res.json({ ok: true, mail: mailer.publicConfig() });
@@ -1602,6 +1704,8 @@ app.get('/api/settings', (req, res) => {
     keysCleared: !!s.keysCleared,
     mode: effectiveMode(),
     version: VERSION,
+    weekly: (s.weekly && { enabled: !!s.weekly.enabled }) || { enabled: false },
+    telegramReady: !!telegramConfig().token,
   });
 });
 
@@ -1971,6 +2075,23 @@ app.get('/api/liquidity', async (req, res) => {
   }
 });
 
+let pulseCache = { at: 0, data: null };
+const PULSE_TTL = 10 * 60e3;
+
+app.get('/api/pulse', async (req, res) => {
+  if (pulseCache.data && Date.now() - pulseCache.at < PULSE_TTL) {
+    return res.json({ ok: true, ...pulseCache.data, cached: true });
+  }
+  try {
+    const data = await getPulse();
+    pulseCache = { at: Date.now(), data };
+    res.json({ ok: true, ...data, cached: false });
+  } catch (e) {
+    if (pulseCache.data) return res.json({ ok: true, ...pulseCache.data, cached: true, stale: true });
+    res.status(502).json({ error: 'No se pudo leer el pulso: ' + e.message });
+  }
+});
+
 let levCache = { at: 0, data: null };
 const LEV_TTL = 6 * 3600e3;
 
@@ -2088,6 +2209,13 @@ function migrateToUsers() {
 // ---------------- arranque ----------------
 migrateToUsers();
 tenant.forEachUser(() => { applyKeys(); });
+
+// Calienta los índices globales para que el informe semanal y la pestaña vayan listos.
+setTimeout(() => {
+  getLiquidity().then(d => { liqCache = { at: Date.now(), data: d }; }).catch(() => {});
+  getLeverage().then(d => { levCache = { at: Date.now(), data: d }; }).catch(() => {});
+  getPulse().then(d => { pulseCache = { at: Date.now(), data: d }; }).catch(() => {});
+}, 8000);
 
 const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Quanto ${VERSION} en http://0.0.0.0:${PORT} · ${userStore.list().length} usuarios`);

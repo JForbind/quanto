@@ -362,6 +362,21 @@
           <p class="tiny muted" id="debt-note">—</p>
         </article>
 
+        <article class="card glass span-6" id="pulse-card">
+          <header class="card-head">
+            <div><h2>Amplitud y funding</h2><p class="card-sub">50 mayores · perpetuos de Binance</p></div>
+            <span class="chip" id="pulse-chip">—</span>
+          </header>
+          <div class="liq-grid">
+            <div class="liq-metric"><span>Amplitud</span><b id="pulse-breadth">—</b><small id="pulse-breadth-sub">—</small></div>
+            <div class="liq-metric"><span>Funding medio</span><b id="pulse-funding">—</b><small id="pulse-funding-sub">—</small></div>
+            <div class="liq-metric"><span>Monedas</span><b id="pulse-pos">—</b><small>con funding positivo</small></div>
+          </div>
+          <div class="breadth-bar"><span id="breadth-fill"></span></div>
+          <div class="chips-row" id="pulse-coins"></div>
+          <p class="tiny muted" id="pulse-note">—</p>
+        </article>
+
         <article class="card glass span-12">
           <header class="card-head"><h2>Qué significa</h2></header>
           <div class="explain" id="fg-explainer"></div>
@@ -553,9 +568,13 @@
             <label class="field"><span>Chat ID</span><input id="tg-chat" placeholder="123456789" autocomplete="off" spellcheck="false"></label>
           </div>
           <p class="hint">Crea el bot con <b>@BotFather</b> (<code>/newbot</code>) y copia el token. El <b>chat ID</b> te lo da <b>@userinfobot</b>; si es un grupo, añade el bot y usa el ID del grupo (empieza por <code>-</code>).</p>
+          <label class="hint" style="display:flex;gap:8px;align-items:center">
+            <input id="tg-weekly" type="checkbox"> Recibir un <b>informe semanal</b> los domingos a las 9:00
+          </label>
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">Guardar</button>
             <button class="btn btn-ghost" type="button" id="tg-test">Enviar prueba</button>
+            <button class="btn btn-ghost" type="button" id="tg-weekly-now">Enviar informe ahora</button>
           </div>
           <div id="tg-result" class="result"></div>
         </form>

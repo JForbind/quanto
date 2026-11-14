@@ -175,6 +175,21 @@ function toast(message, isError) {
 }
 
 /* ------------------------------------------------ navegación */
+/* informe semanal */
+$('#tg-weekly')?.addEventListener('change', async (e) => {
+  try {
+    await api('/api/weekly', { method: 'POST', body: JSON.stringify({ enabled: e.target.checked }) });
+    toast(e.target.checked ? 'Informe semanal activado' : 'Informe semanal desactivado');
+  } catch (err) { toast(err.message, true); }
+});
+
+$('#tg-weekly-now')?.addEventListener('click', async () => {
+  try {
+    await api('/api/weekly/send', { method: 'POST', body: '{}' });
+    toast('Informe enviado a Telegram');
+  } catch (err) { toast(err.message, true); }
+});
+
 const VIEW_TITLES = {
   news: ['Noticias', 'Titulares filtrados por tus monedas'],
   dashboard: ['Resumen', 'Tu cartera de un vistazo'],
@@ -203,7 +218,7 @@ function navigate(view) {
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
   if (view === 'news') loadNews();
-  if (view === 'market') { loadLiquidity(); loadLeverage(); }
+  if (view === 'market') { loadLiquidity(); loadLeverage(); loadPulse(); }
   const topText = document.querySelector('.topbar-text');
   if (topText) {
     topText.classList.remove('is-entering');
@@ -539,6 +554,58 @@ async function loadLiquidity() {
   }
 }
 
+let PULSE = null;
+
+async function loadPulse() {
+  try {
+    const d = await api('/api/pulse');
+    PULSE = d;
+    const b = d.breadth || {};
+    const el = $('#pulse-breadth');
+    if (el) el.textContent = `${b.up} de ${b.total}`;
+    const sub = $('#pulse-breadth-sub');
+    if (sub) sub.textContent = num(b.pctUp, 0) + ' % en verde';
+    const fill = $('#breadth-fill');
+    if (fill) fill.style.width = Math.max(2, Math.min(100, b.pctUp || 0)) + ' %';
+    const f = d.funding || {};
+    const fe = $('#pulse-funding');
+    if (fe) {
+      fe.textContent = (f.avg >= 0 ? '+' : '') + num(f.avg, 3) + ' %';
+      fe.className = signed(f.avg);
+    }
+    const fs = $('#pulse-funding-sub');
+    if (fs) fs.textContent = 'cada 8 h · mediana ' + num(f.median, 3) + ' %';
+    const pos = $('#pulse-pos');
+    if (pos) pos.textContent = `${f.positive || 0} de ${f.count || 0}`;
+    const chip = $('#pulse-chip');
+    if (chip) {
+      const pct = b.pctUp || 0;
+      const label = pct < 30 ? 'Débil' : pct > 70 ? 'Fuerte' : 'Mixto';
+      chip.textContent = label;
+      chip.className = 'chip ' + (pct < 30 ? 'chip-warn' : pct > 70 ? 'chip-ok' : '');
+    }
+    // funding de tus monedas
+    const row = $('#pulse-coins');
+    if (row) {
+      const mine = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol).slice(0, 6);
+      row.innerHTML = mine.map(sym => {
+        const r = f.map ? f.map[sym] : null;
+        if (r == null) return '';
+        return `<span class="chip ${r >= 0 ? 'chip-ok' : 'chip-warn'}">${esc(sym)} ${r >= 0 ? '+' : ''}${num(r, 3)} %</span>`;
+      }).join('') || '<span class="muted tiny">Sin funding para tus monedas (no cotizan en perpetuos).</span>';
+    }
+    const note = $('#pulse-note');
+    if (note) {
+      note.textContent = (f.avg || 0) < 0
+        ? 'Funding negativo: los cortos pagan a los largos; el mercado está sobrevendido.'
+        : 'Funding positivo: los largos pagan; hay más apalancamiento comprador.';
+    }
+  } catch (e) {
+    const note = $('#pulse-note');
+    if (note) note.textContent = 'Sin datos: ' + e.message;
+  }
+}
+
 async function loadLeverage() {
   try {
     const d = await api('/api/leverage');
@@ -713,6 +780,7 @@ async function boot() {
   loadRadar();
   loadLiquidity();
   loadLeverage();
+  loadPulse();
   loadNews();
   navigate(location.hash.startsWith('#/') ? location.hash.slice(2) : 'dashboard');
   setTimeout(rollKpiNumbers, 220);
@@ -772,6 +840,8 @@ async function loadSettings() {
     state.settings = await api('/api/settings');
     state.cold = await api('/api/holdings');
     state.overrides = await api('/api/overrides');
+    const wk = $('#tg-weekly');
+    if (wk && state.settings && state.settings.weekly) wk.checked = !!state.settings.weekly.enabled;
   } catch {}
 }
 
@@ -2243,6 +2313,8 @@ function renderSettings() {
   }
   const pass = $('#pass-status');
   if (pass) pass.textContent = s.hasPassword ? 'Protegido' : 'Sin contraseña';
+  const wk = $('#tg-weekly');
+  if (wk && s.weekly) wk.checked = !!s.weekly.enabled;
   if (s.apiKeyMasked) $('#set-apikey').placeholder = s.apiKeyMasked;
   const keysForm = $('#keys-form');
   if (keysForm) {
