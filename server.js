@@ -1077,7 +1077,55 @@ function buildWeeklyReportHtml() {
 }
 
 
+
+// ---------------- formato para Telegram (HTML limitado) ----------------
+function tgEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function tgNum(v, dec = 2) {
+  const n = Number(v) || 0;
+  const neg = n < 0;
+  const s = Math.abs(n).toFixed(dec);
+  const [en, fr] = s.split('.');
+  return (neg ? '\u2212' : '') + en.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (fr ? ',' + fr : '');
+}
+function tgMoney(v) { return tgNum(v, 2) + ' €'; }
+function tgPrice(v) {
+  const a = Math.abs(Number(v) || 0);
+  return tgNum(v, a < 1 ? 4 : a < 10 ? 3 : 2) + ' €';
+}
+function tgPct(v, dec = 1) { return (Number(v) >= 0 ? '+' : '') + tgNum(v, dec) + ' %'; }
+function tgPre(lines) { return '<pre>' + lines.map(l => tgEsc(l)).join('\n') + '</pre>'; }
+function tgPad(s, w, right = false) {
+  s = String(s);
+  if (s.length >= w) return s.slice(0, w);
+  const fill = ' '.repeat(w - s.length);
+  return right ? fill + s : s + fill;
+}
+function tgLink(text) {
+  const base = process.env.PUBLIC_URL ? process.env.PUBLIC_URL.replace(/\/$/, '') : '';
+  return base ? `\n<a href="${base}">Abrir Quanto</a>` : '';
+}
+
 // ---------------- informe de plan (HTML) ----------------
+function planAverages(plan) {
+  const buys = opsForView().filter(o => o.type === 'buy' && o.currency === plan.symbol);
+  const sumBuys = (list) => list.reduce((a, o) => {
+    const amt = Number(o.amount) || 0;
+    const cost = Number(o.paidEur) || (Number(o.quotePrice) * amt) || Number(o.value) || 0;
+    return { amt: a.amt + amt, cost: a.cost + cost };
+  }, { amt: 0, cost: 0 });
+  const planStart = Number(plan.createdAt) || 0;
+  const antes = sumBuys(buys.filter(o => Number(o.ts) < planStart));
+  const despues = sumBuys(buys);
+  const avgBefore = antes.amt > 0 ? antes.cost / antes.amt : null;
+  const coin = state.portfolio && Array.isArray(state.portfolio.coins)
+    ? state.portfolio.coins.find(c => c.symbol === plan.symbol) : null;
+  const avgAfter = despues.amt > 0 ? despues.cost / despues.amt : (coin ? coin.avgPrice : null);
+  const mejoraPct = avgBefore && avgAfter ? ((avgAfter - avgBefore) / avgBefore) * 100 : null;
+  return { avgBefore, avgAfter, mejoraPct };
+}
+
 function buildPlanReportHtml(plan, kind) {
   const done = (plan.tranches || []).filter(x => x.status === 'done');
   const cancelled = (plan.tranches || []).filter(x => x.status === 'cancelled');
@@ -1092,19 +1140,7 @@ function buildPlanReportHtml(plan, kind) {
   const coin = state.portfolio && Array.isArray(state.portfolio.coins)
     ? state.portfolio.coins.find(c => c.symbol === plan.symbol) : null;
 
-  // Precio medio antes y después del plan, calculado con las compras reales
-  const buys = opsForView().filter(o => o.type === 'buy' && o.currency === plan.symbol);
-  const sumBuys = (list) => list.reduce((a, o) => {
-    const amt = Number(o.amount) || 0;
-    const cost = Number(o.paidEur) || (Number(o.quotePrice) * amt) || Number(o.value) || 0;
-    return { amt: a.amt + amt, cost: a.cost + cost };
-  }, { amt: 0, cost: 0 });
-  const planStart = Number(plan.createdAt) || 0;
-  const antes = sumBuys(buys.filter(o => Number(o.ts) < planStart));
-  const despues = sumBuys(buys);
-  const avgBefore = antes.amt > 0 ? antes.cost / antes.amt : null;
-  const avgAfter = despues.amt > 0 ? despues.cost / despues.amt : (coin ? coin.avgPrice : null);
-  const mejoraPct = avgBefore && avgAfter ? ((avgAfter - avgBefore) / avgBefore) * 100 : null;
+  const { avgBefore, avgAfter, mejoraPct } = planAverages(plan);
 
   const f = (v, d = 2) => {
     if (!isFinite(v)) return '—';
@@ -1212,9 +1248,52 @@ function buildPlanReportHtml(plan, kind) {
 </div>`;
 }
 
+function buildPlanReportText(plan, kind) {
+  const done = (plan.tranches || []).filter(x => x.status === 'done');
+  const cancelled = (plan.tranches || []).filter(x => x.status === 'cancelled');
+  const pending = (plan.tranches || []).filter(x => x.status === 'pending');
+  const invested = done.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const coins = done.reduce((a, x) => {
+    const p = Number(x.donePrice) || Number(x.price) || 0;
+    return p > 0 ? a + (Number(x.amount) || 0) / p : a;
+  }, 0);
+  const avgPlan = coins > 0 ? invested / coins : null;
+  const { avgBefore, avgAfter, mejoraPct } = planAverages(plan);
+
+  const head = kind === 'completed' ? '✅ <b>PLAN COMPLETADO</b>' : '⛔ <b>PLAN CERRADO</b>';
+  const lines = [head + ' · ' + tgEsc(plan.symbol) + (plan.title ? '\n<i>' + tgEsc(plan.title) + '</i>' : '')];
+
+  lines.push('', tgPre([
+    tgPad('Invertido', 12) + tgPad(tgMoney(invested), 13, true),
+    tgPad('Presupuesto', 12) + tgPad(tgMoney(plan.budget), 13, true),
+    tgPad('Medio plan', 12) + tgPad(avgPlan ? tgPrice(avgPlan) : '—', 13, true),
+  ]));
+
+  if (avgBefore && avgAfter) {
+    lines.push('', '<b>TU MEDIA</b>');
+    lines.push(tgPre([
+      tgPad('Antes', 10) + tgPad(tgPrice(avgBefore), 12, true),
+      tgPad('Después', 10) + tgPad(tgPrice(avgAfter), 12, true),
+      tgPad('Mejora', 10) + tgPad(mejoraPct != null ? tgPct(mejoraPct, 2) : '—', 12, true),
+    ]));
+  }
+
+  lines.push('', '<b>TRAMOS</b>');
+  lines.push(tgPre((plan.tranches || []).map(x => {
+    const estado = x.status === 'done' ? 'ejecutado' : x.status === 'cancelled' ? 'cancelado' : 'pendiente';
+    return tgPad(tgPrice(x.price), 10) + tgPad(tgMoney(x.amount), 10, true) + '  ' + estado;
+  })));
+
+  if (pending.length) {
+    lines.push('', '⚠️ Sin ejecutar: ' + pending.map(x => tgPrice(x.price)).join(' · '));
+  }
+  lines.push(tgLink());
+  return lines.join('\n');
+}
+
 async function sendPlanReport(plan, kind) {
   const html = buildPlanReportHtml(plan, kind);
-  const text = (kind === 'completed' ? 'Plan completado' : 'Plan cerrado') + ' · ' + plan.symbol;
+  const text = buildPlanReportText(plan, kind);
   try {
     await notifyUser(text, 'Quanto · ' + text, html);
   } catch (e) { console.log('[plan informe]', e.message); }
@@ -1230,45 +1309,60 @@ function weekKey(d = new Date()) {
 
 function buildWeeklyReport() {
   const p = state.portfolio;
-  const money = (v) => (Math.round(Number(v) || 0)).toLocaleString('es-ES') + ' €';
-  const sign = (v) => (v >= 0 ? '+' : '');
-  const lines = [];
   const now = new Date();
-  lines.push('📊 <b>Resumen semanal</b> · ' + now.toLocaleDateString('es-ES'));
+  const lines = [];
+  lines.push('📊 <b>RESUMEN SEMANAL</b>');
+  lines.push('<i>' + now.toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) + '</i>');
+
   if (!p) {
-    lines.push('Todavía no hay cartera.');
+    lines.push('', 'Todavía no hay cartera.');
   } else {
     const weekAgo = state.snapshots.filter(s => s.t >= Date.now() - 7 * 86400e3);
     const first = weekAgo[0];
     const change = first && first.value ? ((p.totalValue - first.value) / first.value) * 100 : 0;
-    lines.push(`Valor: <b>${money(p.totalValue)}</b> (${sign(change)}${change.toFixed(2)} % esta semana)`);
-    lines.push(`Invertido: ${money(p.invested)} · P/L: <b>${money(p.pnl)}</b> (${sign(p.pnlPct)}${(p.pnlPct || 0).toFixed(1)} %)`);
-    if (p.cash) lines.push(`Efectivo: ${money(p.cash)}`);
+    lines.push('');
+    lines.push(tgPre([
+      tgPad('Valor', 12) + tgPad(tgMoney(p.totalValue), 14, true),
+      tgPad('Invertido', 12) + tgPad(tgMoney(p.invested), 14, true),
+      tgPad('P/L', 12) + tgPad(tgMoney(p.pnl), 14, true),
+      tgPad('Semana', 12) + tgPad(tgPct(change, 2), 14, true),
+    ]));
+    if (p.cash) lines.push('Efectivo: <b>' + tgMoney(p.cash) + '</b>');
+
+    const top = (p.coins || []).slice().sort((a, b) => b.value - a.value).slice(0, 5);
+    if (top.length) {
+      lines.push('', '<b>POSICIONES</b>');
+      lines.push(tgPre(top.map(c => tgPad(c.symbol, 7) + tgPad(tgMoney(c.value), 12, true) + tgPad(c.pnlPct == null ? '—' : tgPct(c.pnlPct, 1), 9, true))));
+    }
   }
 
-  // tramos pendientes
   try {
     const store = getPlanStore();
     const pend = [];
     for (const plan of store.plans || []) {
       const left = (plan.tranches || []).filter(x => x.status !== 'done');
-      if (left.length) pend.push(`${plan.symbol}: ${left.map(x => x.price.toFixed(2)).join(' · ')} €`);
+      if (left.length) pend.push('• ' + plan.symbol + ': faltan ' + left.map(x => tgPrice(x.price)).join(' · '));
     }
-    if (pend.length) lines.push('', '📋 <b>Planes</b>', ...pend.map(x => '• ' + x));
+    if (pend.length) lines.push('', '<b>PLANES</b>', ...pend);
   } catch {}
 
-  // índices (caché global): liquidez, deuda y sentimiento
-  const extra = [];
+  const idx = [];
+  try { if (liqCache.data && liqCache.data.state) idx.push('• Liquidez: ' + liqCache.data.state.label + ' (' + tgPct(liqCache.data.change30, 1) + ' 30 d)'); } catch {}
+  try { if (levCache.data && levCache.data.risk) idx.push('• Deuda: ' + levCache.data.risk.label); } catch {}
+  try { if (pulseCache.data && pulseCache.data.breadth) idx.push('• Amplitud: ' + pulseCache.data.breadth.up + '/' + pulseCache.data.breadth.total + ' en verde'); } catch {}
+  try { if (state.fearGreed) idx.push('• Miedo/codicia: ' + state.fearGreed.value); } catch {}
+  if (idx.length) lines.push('', '<b>ÍNDICES</b>', ...idx);
+
   try {
-    if (liqCache.data && liqCache.data.state) extra.push('liquidez ' + liqCache.data.state.label.toLowerCase());
-    if (levCache.data && levCache.data.risk) extra.push('deuda ' + levCache.data.risk.label.toLowerCase());
-    if (pulseCache.data && pulseCache.data.breadth) extra.push(pulseCache.data.breadth.up + '/' + pulseCache.data.breadth.total + ' en verde');
-    const fg = state.fearGreed;
-    if (fg && typeof fg.value === 'number') extra.push('miedo/codicia ' + fg.value);
+    const news = (newsCache.data && newsCache.data.items || []).slice(0, 2);
+    if (news.length) {
+      lines.push('', '<b>TITULARES</b>');
+      for (const n of news) lines.push('• <a href="' + tgEsc(n.link) + '">' + tgEsc(n.title) + '</a>');
+    }
   } catch {}
-  if (extra.length) lines.push('', '📈 <b>Índices</b>: ' + extra.join(' · '));
 
-  return lines.join('\n');
+  lines.push(tgLink());
+  return lines.filter(l => l !== null && l !== undefined).join('\n');
 }
 
 async function sendWeeklyReport() {
