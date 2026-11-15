@@ -548,8 +548,7 @@ async function loadUsers() {
         <b>${esc(u.username)}</b>
         <span class="chip ${u.role === 'admin' ? 'chip-warn' : ''}">${u.role === 'admin' ? 'admin' : 'usuario'}</span>
         <span class="chip ${online ? 'chip-ok' : ''}">${online ? 'en línea' : (u.active ? 'activo' : 'desactivado')}</span>
-        <span class="muted tiny">${u.resetRequestedAt ? 'pidió reset' : ''}</span>
-        <span class="muted tiny" title="Última conexión">Última: ${esc(lastTxt)}${u.loginCount ? ' · ' + u.loginCount + (u.loginCount === 1 ? ' acceso' : ' accesos') : ''}</span>
+        <span class="muted tiny user-last" title="Última conexión">Última: ${esc(lastTxt)}${u.loginCount ? ' · ' + u.loginCount + (u.loginCount === 1 ? ' acceso' : ' accesos') : ''}${u.resetRequestedAt ? ' · pidió reset' : ''}</span>
         <button class="btn btn-ghost btn-xs" data-user-reset="${esc(u.id)}">Resetear</button>
         <button class="btn btn-ghost btn-xs" data-user-toggle="${esc(u.id)}">${u.active ? 'Desactivar' : 'Activar'}</button>
         <button class="btn btn-ghost btn-xs btn-danger-ghost" data-user-del="${esc(u.id)}">Borrar</button>
