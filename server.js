@@ -1092,6 +1092,20 @@ function buildPlanReportHtml(plan, kind) {
   const coin = state.portfolio && Array.isArray(state.portfolio.coins)
     ? state.portfolio.coins.find(c => c.symbol === plan.symbol) : null;
 
+  // Precio medio antes y después del plan, calculado con las compras reales
+  const buys = opsForView().filter(o => o.type === 'buy' && o.currency === plan.symbol);
+  const sumBuys = (list) => list.reduce((a, o) => {
+    const amt = Number(o.amount) || 0;
+    const cost = Number(o.paidEur) || (Number(o.quotePrice) * amt) || Number(o.value) || 0;
+    return { amt: a.amt + amt, cost: a.cost + cost };
+  }, { amt: 0, cost: 0 });
+  const planStart = Number(plan.createdAt) || 0;
+  const antes = sumBuys(buys.filter(o => Number(o.ts) < planStart));
+  const despues = sumBuys(buys);
+  const avgBefore = antes.amt > 0 ? antes.cost / antes.amt : null;
+  const avgAfter = despues.amt > 0 ? despues.cost / despues.amt : (coin ? coin.avgPrice : null);
+  const mejoraPct = avgBefore && avgAfter ? ((avgAfter - avgBefore) / avgBefore) * 100 : null;
+
   const f = (v, d = 2) => {
     if (!isFinite(v)) return '—';
     const neg = v < 0;
@@ -1158,6 +1172,29 @@ function buildPlanReportHtml(plan, kind) {
         </tr>
         ${filas}
       </table>
+
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8a97ab;margin:22px 0 8px">Tu precio medio</h3>
+      <table width="100%" cellspacing="0" cellpadding="0" style="font-size:13px">
+        <tr>
+          <td width="31%" style="padding:10px 12px;background:#f7f9fd;border-radius:12px">
+            <div style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8a97ab">Antes del plan</div>
+            <div style="font-size:18px;font-weight:700;color:#0d1526">${avgBefore ? px(avgBefore) : '—'}</div>
+          </td>
+          <td width="8"></td>
+          <td width="31%" style="padding:10px 12px;background:#f7f9fd;border-radius:12px">
+            <div style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8a97ab">Después del plan</div>
+            <div style="font-size:18px;font-weight:700;color:${mejoraPct != null && mejoraPct < 0 ? '#0f9d58' : '#0d1526'}">${avgAfter ? px(avgAfter) : '—'}</div>
+          </td>
+          <td width="8"></td>
+          <td width="31%" style="padding:10px 12px;background:#f7f9fd;border-radius:12px">
+            <div style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8a97ab">Mejora</div>
+            <div style="font-size:18px;font-weight:700;color:${mejoraPct != null && mejoraPct < 0 ? '#0f9d58' : '#d93025'}">${mejoraPct != null ? f(mejoraPct, 2) + ' %' : '—'}</div>
+          </td>
+        </tr>
+      </table>
+      ${mejoraPct != null ? `<p style="margin:10px 0 0;font-size:12.5px;color:#33415c">${mejoraPct < 0
+        ? 'El plan ha bajado tu precio medio en ' + f(Math.abs(mejoraPct), 2) + ' % (' + px(Math.abs(avgBefore - avgAfter)) + ' por moneda).'
+        : 'Tu precio medio ha subido un ' + f(mejoraPct, 2) + ' %: las compras del plan se hicieron por encima de tu media anterior.'}</p>` : ''}
 
       <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8a97ab;margin:22px 0 8px">Resultado</h3>
       <table width="100%" cellspacing="0" cellpadding="0" style="font-size:13px">
