@@ -399,6 +399,14 @@ function sessionPayload(req) {
   return verifySessionToken(COOKIE_SECRET, req.session);
 }
 
+const seenTouch = new Map();
+function touchSeen(user) {
+  const last = seenTouch.get(user.id) || 0;
+  if (Date.now() - last < 5 * 60e3) return;
+  seenTouch.set(user.id, Date.now());
+  try { userStore.update(user.id, { lastSeenAt: Date.now() }); } catch {}
+}
+
 function requireAuth(req, res, next) {
   const payload = sessionPayload(req);
   if (!payload || !payload.u) return res.status(401).json({ error: 'No autorizado', code: 'unauthorized' });
@@ -408,6 +416,7 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Sesión caducada, vuelve a entrar', code: 'session' });
   }
   req.user = user;
+  touchSeen(user);
   tenant.run(user, () => next());
 }
 

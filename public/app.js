@@ -537,16 +537,23 @@ async function loadUsers() {
   if (!box) return;
   try {
     const r = await api('/api/users');
-    box.innerHTML = (r.users || []).map(u => `
+    box.innerHTML = (r.users || []).map(u => {
+      const seen = u.lastSeenAt ? new Date(u.lastSeenAt) : null;
+      const online = seen && (Date.now() - seen.getTime()) < 10 * 60e3;
+      const lastTxt = u.lastLoginAt
+        ? new Date(u.lastLoginAt).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : 'nunca';
+      return `
       <div class="user-row">
         <b>${esc(u.username)}</b>
         <span class="chip ${u.role === 'admin' ? 'chip-warn' : ''}">${u.role === 'admin' ? 'admin' : 'usuario'}</span>
-        <span class="muted tiny">${u.active ? 'activo' : 'desactivado'}${u.resetRequestedAt ? ' · pidió reset' : ''}</span>
-        <span class="muted tiny">${u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('es-ES') : 'nunca'}</span>
+        <span class="chip ${online ? 'chip-ok' : ''}">${online ? 'en línea' : (u.active ? 'activo' : 'desactivado')}</span>
+        <span class="muted tiny">${u.resetRequestedAt ? 'pidió reset' : ''}</span>
+        <span class="muted tiny" title="Última conexión">Última: ${esc(lastTxt)}${u.loginCount ? ' · ' + u.loginCount + (u.loginCount === 1 ? ' acceso' : ' accesos') : ''}</span>
         <button class="btn btn-ghost btn-xs" data-user-reset="${esc(u.id)}">Resetear</button>
         <button class="btn btn-ghost btn-xs" data-user-toggle="${esc(u.id)}">${u.active ? 'Desactivar' : 'Activar'}</button>
         <button class="btn btn-ghost btn-xs btn-danger-ghost" data-user-del="${esc(u.id)}">Borrar</button>
-      </div>`).join('') || '<p class="muted tiny">Sin usuarios.</p>';
+      </div>`; }).join('') || '<p class="muted tiny">Sin usuarios.</p>';
   } catch (e) {
     box.innerHTML = `<p class="muted tiny">${esc(e.message)}</p>`;
   }
