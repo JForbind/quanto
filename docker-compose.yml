@@ -19,6 +19,8 @@ services:
       - BITVAVO_API_SECRET=${BITVAVO_API_SECRET:-}
       # Opcional: fija el secreto de sesión (si no, se genera y se guarda en data/)
       - COOKIE_SECRET=${COOKIE_SECRET:-}
+      # URL pública: se usa en los enlaces de los mensajes y correos
+      - PUBLIC_URL=${PUBLIC_URL:-}
     volumes:
       - ./data:/app/data
     healthcheck:
