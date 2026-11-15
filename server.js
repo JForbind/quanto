@@ -27,7 +27,7 @@ const { getCalendar } = require('./lib/calendar');
 const { analyze: analyzeMarket } = require('./lib/analyst');
 const { round } = require('./lib/util');
 
-const VERSION = '3.2.0';
+const VERSION = '3.3.0';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -918,7 +918,8 @@ async function notifyUser(text, subject = 'Aviso de Quanto', html = null) {
   }
   if (cfg.emailEnabled && cfg.email) {
     try {
-      await mailer.send({ to: cfg.email, subject, text: text.replace(/<[^>]+>/g, ''), html: html || undefined });
+      const plain = text.replace(/<[^>]+>/g, '') + (publicUrl() ? '\n\nAbrir Quanto: ' + publicUrl() : '');
+      await mailer.send({ to: cfg.email, subject, text: plain, html: html || undefined });
       results.email = 'ok';
     } catch (e) { results.email = e.message; }
   }
@@ -1068,7 +1069,8 @@ function buildWeeklyReportHtml() {
 
       ${newsHtml}
 
-      <div style="margin-top:24px;padding-top:14px;border-top:1px solid #eef1f7;font-size:11px;color:#8a97ab">
+      ${emailButton() ? `<div style="margin-top:24px;text-align:center">${emailButton()}</div>` : ''}
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid #eef1f7;font-size:11px;color:#8a97ab">
         Enviado por Quanto · puedes desactivarlo en Alertas → informes.
       </div>
     </div>
@@ -1124,6 +1126,15 @@ function planAverages(plan) {
   const avgAfter = despues.amt > 0 ? despues.cost / despues.amt : (coin ? coin.avgPrice : null);
   const mejoraPct = avgBefore && avgAfter ? ((avgAfter - avgBefore) / avgBefore) * 100 : null;
   return { avgBefore, avgAfter, mejoraPct };
+}
+
+function publicUrl() {
+  return (process.env.PUBLIC_URL || '').replace(/\/$/, '');
+}
+function emailButton() {
+  const base = publicUrl();
+  if (!base) return '';
+  return `<a href="${base}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:700">Abrir Quanto</a>`;
 }
 
 function buildPlanReportHtml(plan, kind) {
@@ -1240,7 +1251,8 @@ function buildPlanReportHtml(plan, kind) {
         ${pending.length ? `<tr><td style="padding:5px 0;color:#6b7a90">Sin ejecutar</td><td style="padding:5px 0;text-align:right;font-weight:600;color:#d93025">${pending.map(x => px(x.price)).join(' · ')}</td></tr>` : ''}
       </table>
 
-      <div style="margin-top:24px;padding-top:14px;border-top:1px solid #eef1f7;font-size:11px;color:#8a97ab">
+      ${emailButton() ? `<div style="margin-top:24px;text-align:center">${emailButton()}</div>` : ''}
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid #eef1f7;font-size:11px;color:#8a97ab">
         Informe generado por Quanto · ${fecha(Date.now())}
       </div>
     </div>
@@ -1295,7 +1307,8 @@ async function sendPlanReport(plan, kind) {
   const html = buildPlanReportHtml(plan, kind);
   const text = buildPlanReportText(plan, kind);
   try {
-    await notifyUser(text, 'Quanto · ' + text, html);
+    const label = kind === 'completed' ? 'Plan completado' : 'Plan cerrado';
+  await notifyUser(text, 'Quanto · ' + label + ': ' + plan.symbol, html);
   } catch (e) { console.log('[plan informe]', e.message); }
 }
 
@@ -1942,7 +1955,7 @@ async function runAlertCheck() {
       const cooled = !rule.lastSentAt || Date.now() - rule.lastSentAt > coolMs;
       if (hit && armed && cooled) {
         try {
-          await notifyUser(alertMessage(rule, coin), 'Quanto · alerta ' + rule.symbol);
+          await notifyUser(alertMessage(rule, coin), 'Quanto · ' + rule.symbol + (rule.op === 'above' ? ' ha subido a ' : ' ha bajado a ') + moneySmart(coin.price));
           rule.lastSentAt = Date.now();
           rule.armed = false;
           delete rule.lastError;
@@ -2048,7 +2061,7 @@ app.post('/api/alerts/:id/test', async (req, res) => {
     const portfolio = await refreshPortfolio(false);
     const coin = portfolio && Array.isArray(portfolio.coins) ? portfolio.coins.find(c => c.symbol === rule.symbol) : null;
     if (!coin) return res.status(404).json({ error: 'Esa moneda no está en la cartera' });
-    await notifyUser(alertMessage(rule, coin), 'Quanto · alerta ' + rule.symbol);
+    await notifyUser(alertMessage(rule, coin), 'Quanto · ' + rule.symbol + (rule.op === 'above' ? ' ha subido a ' : ' ha bajado a ') + moneySmart(coin.price));
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });

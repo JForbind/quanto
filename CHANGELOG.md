@@ -3,6 +3,36 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.3.0] — 2026-11-15
+
+### Añadido
+
+- **Pestaña Índices** (antes «Miedo y codicia»): reúne sentimiento, liquidez global,
+  deuda y apalancamiento, amplitud del mercado, funding y calendario macro.
+- **Liquidez global**: stablecoins en circulación (DefiLlama) y dominancia (CoinGecko),
+  con semáforo de expansión/contracción.
+- **Deuda y apalancamiento**: préstamos DeFi (Aave + Compound) y open interest (Binance).
+- **Amplitud y funding**: cuántas de las 50 mayores suben y funding medio de perpetuos.
+- **Calendario macro**: próximas publicaciones de FRED (IPC, empleo, PIB, PCE, PPI).
+- **Noticias**: titulares por RSS de cinco medios, filtrados por tus monedas.
+- **Analista determinista** en Trading: tendencia, momento, zonas y tu cartera, adaptado a
+  los indicadores activos (MA, Boll, Fibo, RSI, MACD, Wolfe) y con los números a la vista.
+- **Canales de aviso por usuario**: Telegram y/o email con la dirección que elija cada uno.
+- **Informe semanal en HTML** por email (posiciones, planes, índices y titulares).
+- **Informe de plan en HTML** al completarlo o cerrarlo, con precio medio antes y después.
+- **Mensajes de Telegram enriquecidos** con tablas monoespaciadas, enlaces y `PUBLIC_URL`.
+
+### Cambiado
+
+- La importación de CSV **nunca reemplaza**: fusiona con el historial existente y guarda copia.
+- El service worker ya no sirve HTML como respaldo de un `.js`.
+
+### Corregido
+
+- Los planes y otras rutas financieras quedaban sin sesión (y sin datos) por orden de registro.
+- Guardar Telegram con el campo vacío borraba el token.
+- Formato de importes en español en los informes.
+
 ## [3.2.0] — 2026-11-14
 
 ### Seguridad
