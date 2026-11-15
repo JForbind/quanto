@@ -923,3 +923,5 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 .analyst-facts-grid b { font-weight: 600; color: var(--text); }
 .btn-sm { padding: 6px 12px; font-size: 12.5px; }
 @media (max-width: 760px) { .analyst-head { flex-direction: column; } }
+
+.plan-head-actions { display: flex; align-items: center; gap: 8px; }

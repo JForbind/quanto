@@ -2399,7 +2399,10 @@ function planCard(plan) {
     <header class="card-head">
       <div><h2>${esc(plan.symbol)}${plan.title ? ' · ' + esc(plan.title) : ''}</h2>
         <p class="card-sub">Presupuesto ${eur(plan.budget)} · gastado ${eur(spent)} (${pct} %) · avisos de Telegram por tramo pendiente</p></div>
-      <button class="icon-btn" data-plan-del="${plan.id}" title="Borrar plan" aria-label="Borrar plan">×</button>
+      <div class="plan-head-actions">
+        <button class="btn btn-ghost btn-xs" data-plan-report="${plan.id}" title="Ver el informe del plan">Informe</button>
+        <button class="icon-btn" data-plan-del="${plan.id}" title="Borrar plan" aria-label="Borrar plan">×</button>
+      </div>
     </header>
     <div class="plan-progress"><span style="width:${Math.min(100, pct)}%"></span></div>
     <div class="plan-rows">${rows}</div>
@@ -3180,6 +3183,11 @@ $('#user-form')?.addEventListener('submit', async (e) => {
     out.textContent = err.message;
     out.classList.remove('hidden');
   }
+});
+
+document.addEventListener('click', (e) => {
+  const rep = e.target.closest('[data-plan-report]');
+  if (rep) window.open('/api/plans/' + rep.dataset.planReport + '/report', '_blank', 'noopener');
 });
 
 document.addEventListener('click', async (e) => {

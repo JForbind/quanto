@@ -668,10 +668,44 @@ app.post('/api/plans/:id/tranche/:tid', (req, res) => {
   tr.donePrice = status === 'done'
     ? (Number((req.body || {}).price) || Number((state.prices || {})[plan.symbol]) || tr.price)
     : null;
+  if (status === 'pending') plan.reportSentAt = null;
   savePlanStore(store);
   if (status === 'pending') ensurePlanAlert(plan, tr);
   else removePlanAlert(plan.id, tr.id);
+
+  // Informe automático: plan completado o cerrado con tramos cancelados
+  if (status !== 'pending' && !plan.reportSentAt) {
+    const pending = plan.tranches.filter(x => x.status === 'pending').length;
+    const cancelled = plan.tranches.filter(x => x.status === 'cancelled').length;
+    if (pending === 0) {
+      plan.reportSentAt = Date.now();
+      plan.reportKind = cancelled > 0 ? 'closed' : 'completed';
+      savePlanStore(store);
+      sendPlanReport(plan, plan.reportKind).catch(() => {});
+    }
+  }
   res.json({ ok: true, plan });
+});
+
+app.get('/api/plans/:id/report', (req, res) => {
+  const plan = getPlanStore().plans.find(p => p.id === req.params.id);
+  if (!plan) return res.status(404).send('No existe ese plan');
+  const cancelled = (plan.tranches || []).filter(x => x.status === 'cancelled').length;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(buildPlanReportHtml(plan, cancelled > 0 ? 'closed' : 'completed'));
+});
+
+app.post('/api/plans/:id/report', async (req, res) => {
+  const store = getPlanStore();
+  const plan = store.plans.find(p => p.id === req.params.id);
+  if (!plan) return res.status(404).json({ error: 'No existe ese plan' });
+  const cancelled = (plan.tranches || []).filter(x => x.status === 'cancelled').length;
+  const kind = cancelled > 0 ? 'closed' : 'completed';
+  plan.reportSentAt = Date.now();
+  plan.reportKind = kind;
+  savePlanStore(store);
+  await sendPlanReport(plan, kind);
+  res.json({ ok: true, kind });
 });
 
 app.delete('/api/plans/:id', (req, res) => {
@@ -681,6 +715,8 @@ app.delete('/api/plans/:id', (req, res) => {
   const removed = store.plans.splice(i, 1)[0];
   savePlanStore(store);
   removePlanAlerts(removed.id);
+  const done = (removed.tranches || []).filter(x => x.status === 'done').length;
+  if (done > 0 && !removed.reportSentAt) sendPlanReport(removed, 'closed').catch(() => {});
   res.json({ ok: true });
 });
 
@@ -873,7 +909,7 @@ async function sendByEmail(to, subject, text) {
 }
 
 /** Envía un aviso por los canales que el usuario tenga activos. */
-async function notifyUser(text, subject = 'Aviso de Quanto') {
+async function notifyUser(text, subject = 'Aviso de Quanto', html = null) {
   const cfg = notifyConfig();
   const results = { telegram: null, email: null };
   const tg = telegramConfig();
@@ -882,7 +918,7 @@ async function notifyUser(text, subject = 'Aviso de Quanto') {
   }
   if (cfg.emailEnabled && cfg.email) {
     try {
-      await sendByEmail(cfg.email, subject, text.replace(/<[^>]+>/g, ''));
+      await mailer.send({ to: cfg.email, subject, text: text.replace(/<[^>]+>/g, ''), html: html || undefined });
       results.email = 'ok';
     } catch (e) { results.email = e.message; }
   }
@@ -1038,6 +1074,113 @@ function buildWeeklyReportHtml() {
     </div>
   </div>
 </div>`;
+}
+
+
+// ---------------- informe de plan (HTML) ----------------
+function buildPlanReportHtml(plan, kind) {
+  const done = (plan.tranches || []).filter(x => x.status === 'done');
+  const cancelled = (plan.tranches || []).filter(x => x.status === 'cancelled');
+  const pending = (plan.tranches || []).filter(x => x.status === 'pending');
+  const invested = done.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const coins = done.reduce((a, x) => {
+    const p = Number(x.donePrice) || Number(x.price) || 0;
+    return p > 0 ? a + (Number(x.amount) || 0) / p : a;
+  }, 0);
+  const avgPrice = coins > 0 ? invested / coins : null;
+  const now = state.prices ? Number(state.prices[plan.symbol]) : null;
+  const coin = state.portfolio && Array.isArray(state.portfolio.coins)
+    ? state.portfolio.coins.find(c => c.symbol === plan.symbol) : null;
+
+  const f = (v, d = 2) => {
+    if (!isFinite(v)) return '—';
+    const neg = v < 0;
+    const s = Math.abs(v).toFixed(d);
+    const [en, fr] = s.split('.');
+    return (neg ? '\u2212' : '') + en.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (fr ? ',' + fr : '');
+  };
+  const eur = (v) => f(v, 2) + ' €';
+  const px = (v) => {
+    const a = Math.abs(Number(v) || 0);
+    return f(v, a < 1 ? 4 : a < 10 ? 3 : 2) + ' €';
+  };
+  const fecha = (ts) => ts ? new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+  const titulo = kind === 'completed' ? 'Plan completado' : 'Plan cerrado';
+  const subtitulo = kind === 'completed'
+    ? 'Todos los tramos ejecutados.'
+    : `Cerrado con ${cancelled.length} tramo(s) sin ejecutar.`;
+
+  const filas = (plan.tranches || []).map(x => {
+    const estado = x.status === 'done' ? 'Ejecutado' : x.status === 'cancelled' ? 'Cancelado' : 'Pendiente';
+    const color = x.status === 'done' ? '#0f9d58' : x.status === 'cancelled' ? '#d93025' : '#8a97ab';
+    const real = x.status === 'done' ? px(x.donePrice || x.price) : '—';
+    return `<tr>
+      <td style="padding:8px 6px;border-bottom:1px solid #eef1f7">${px(x.price)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid #eef1f7;text-align:right">${eur(x.amount)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid #eef1f7;text-align:right">${real}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid #eef1f7;text-align:right;color:${color};font-weight:600">${estado}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid #eef1f7;text-align:right;color:#8a97ab">${fecha(x.doneAt)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#eef1f7;padding:22px">
+  <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f2">
+    <div style="background:#0b1220;padding:18px 22px;color:#fff">
+      <div style="font-size:18px;font-weight:700;letter-spacing:.08em">QUANTO</div>
+      <div style="font-size:12px;color:#9aa8c2;margin-top:2px">${titulo} · ${plan.symbol}${plan.title ? ' · ' + escMail(plan.title) : ''}</div>
+    </div>
+    <div style="padding:20px 22px">
+      <p style="margin:0 0 14px;font-size:14px;color:#33415c">${subtitulo}</p>
+
+      <table width="100%" cellspacing="0" cellpadding="0"><tr>
+        <td width="50%" style="padding:10px 12px;background:#f7f9fd;border-radius:12px">
+          <div style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8a97ab">Invertido</div>
+          <div style="font-size:20px;font-weight:700;color:#0d1526">${eur(invested)}</div>
+          <div style="font-size:11px;color:#8a97ab">de ${eur(plan.budget)} de presupuesto</div>
+        </td>
+        <td width="8"></td>
+        <td width="50%" style="padding:10px 12px;background:#f7f9fd;border-radius:12px">
+          <div style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8a97ab">Precio medio de compra</div>
+          <div style="font-size:20px;font-weight:700;color:#0d1526">${avgPrice ? px(avgPrice) : '—'}</div>
+          <div style="font-size:11px;color:#8a97ab">${f(coins, 4)} ${escMail(plan.symbol)} comprados</div>
+        </td>
+      </tr></table>
+
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8a97ab;margin:22px 0 8px">Tramos</h3>
+      <table width="100%" cellspacing="0" cellpadding="0" style="font-size:13px;border-collapse:collapse">
+        <tr>
+          <th align="left" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">Objetivo</th>
+          <th align="right" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">Importe</th>
+          <th align="right" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">Comprado a</th>
+          <th align="right" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">Estado</th>
+          <th align="right" style="padding:6px;font-size:10px;color:#8a97ab;text-transform:uppercase">Fecha</th>
+        </tr>
+        ${filas}
+      </table>
+
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8a97ab;margin:22px 0 8px">Resultado</h3>
+      <table width="100%" cellspacing="0" cellpadding="0" style="font-size:13px">
+        ${avgPrice && now ? `<tr><td style="padding:5px 0;color:#6b7a90">Precio ahora</td><td style="padding:5px 0;text-align:right;font-weight:600">${px(now)}</td></tr>
+        <tr><td style="padding:5px 0;color:#6b7a90">Vs. tu media de compra</td><td style="padding:5px 0;text-align:right;font-weight:600;color:${now >= avgPrice ? '#0f9d58' : '#d93025'}">${f(((now - avgPrice) / avgPrice) * 100, 2)} %</td></tr>` : ''}
+        ${coin ? `<tr><td style="padding:5px 0;color:#6b7a90">Posición ahora</td><td style="padding:5px 0;text-align:right;font-weight:600">${px(coin.value)} · ${f(coin.amount, 4)} ${escMail(plan.symbol)}</td></tr>` : ''}
+        ${pending.length ? `<tr><td style="padding:5px 0;color:#6b7a90">Sin ejecutar</td><td style="padding:5px 0;text-align:right;font-weight:600;color:#d93025">${pending.map(x => px(x.price)).join(' · ')}</td></tr>` : ''}
+      </table>
+
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid #eef1f7;font-size:11px;color:#8a97ab">
+        Informe generado por Quanto · ${fecha(Date.now())}
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+async function sendPlanReport(plan, kind) {
+  const html = buildPlanReportHtml(plan, kind);
+  const text = (kind === 'completed' ? 'Plan completado' : 'Plan cerrado') + ' · ' + plan.symbol;
+  try {
+    await notifyUser(text, 'Quanto · ' + text, html);
+  } catch (e) { console.log('[plan informe]', e.message); }
 }
 
 // ---------------- informe semanal ----------------
