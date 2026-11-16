@@ -956,3 +956,7 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 .coin-rng span { white-space: nowrap; }
 .coin-rng b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .coin-rng { grid-template-columns: auto; } }
+
+/* tabla de monedas: números y cabeceras alineados a la izquierda */
+#coins-table th.num,
+#coins-table td.num { text-align: left; }
