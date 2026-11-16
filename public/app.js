@@ -1810,11 +1810,11 @@ function rngBlock(symbol) {
   if (!r || (!r.high && !r.ath)) return '';
   const y = r.year || new Date().getFullYear();
   const cell = (label, value) => value
-    ? `<span>${label} <b>${rangeFmt(value)}</b></span>`
+    ? `<span>${label} <b>${rangeFmt(value)} €</b></span>`
     : `<span class="muted">${label} —</span>`;
-  return `<div class="coin-rng" title="Máximo y mínimo históricos y del año en curso">
-    ${cell('Máx. hist.', r.ath)}${cell('Máx. ' + y, r.high)}
-    ${cell('Mín. hist.', r.atl)}${cell('Mín. ' + y, r.low)}
+  return `<div class="coin-rng">
+    ${cell('Máximo histórico', r.ath)}${cell('Máximo ' + y, r.high)}
+    ${cell('Mínimo histórico', r.atl)}${cell('Mínimo ' + y, r.low)}
   </div>`;
 }
 
@@ -1823,9 +1823,8 @@ function coinRow(c, index) {
   return `<tr data-symbol="${esc(c.symbol)}" class="clickable">
     <td>
       <div class="coin">${coinBadge(c.symbol)}
-        <div class="coin-name"><b>${esc(c.symbol)}</b>
-          ${rngBlock(c.symbol)}
-        </div>
+        <div class="coin-name"><b>${esc(c.symbol)}</b></div>
+        ${rngBlock(c.symbol)}
       </div>
     </td>
     <td class="num">${num(c.amount, 8)}</td>
@@ -1853,9 +1852,9 @@ function renderTopCoins() {
   table.innerHTML = `
     <thead><tr><th>Moneda</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">P. medio</th><th class="num">Valor</th><th class="num">Invertido</th><th class="num">P/L</th><th class="num">Hoy</th></tr></thead>
     <tbody>${rows.map(c => `<tr data-symbol="${esc(c.symbol)}" class="clickable">
-      <td><div class="coin">${coinBadge(c.symbol)}<div class="coin-name"><b>${esc(c.symbol)}</b><small>${num(c.share, 1)} %</small>
+      <td><div class="coin">${coinBadge(c.symbol)}<div class="coin-name"><b>${esc(c.symbol)}</b><small>${num(c.share, 1)} %</small></div>
         ${rngBlock(c.symbol)}
-      </div></div></td>
+      </div></td>
       <td class="num">${num(c.amount, 6)}</td>
       <td class="num">${priceFmt(c.price)}</td>
       <td class="num">${c.costKnown ? priceFmt(c.avgPrice) : '<span class="muted">n/d</span>'}</td>
