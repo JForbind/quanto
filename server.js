@@ -2663,6 +2663,10 @@ function rangeDrain() {
       }
       if (v) {
         rangeCache.data[sym] = { ...(rangeCache.data[sym] || {}), ...v, athAt: now };
+        // Solo CoinGecko da el histórico completo; el resto se marca como aproximado
+        const exacto = v.src === 'coingecko';
+        if (v.ath) rangeCache.data[sym].athApprox = !exacto;
+        if (v.atl) rangeCache.data[sym].atlApprox = !exacto;
         saveRangeCache();
         console.log('[rangos] ATH de', sym, 'listo');
       }
@@ -2685,13 +2689,16 @@ app.get('/api/ranges', async (req, res) => {
     const entry = out[sym] || {};
     if (entry.yearAt && now - entry.yearAt < RANGE_TTL) continue;
     try {
-      const raw = await client.candles(`${sym}-EUR`, '1d', 400);
+      const raw = await client.candles(`${sym}-EUR`, '1d', 1000);
       const rows = (Array.isArray(raw) ? raw : [])
         .map(k => [Number(k[0]), Number(k[1]), Number(k[2]), Number(k[3]), Number(k[4]), Number(k[5])])
         .filter(r => r.every(n => isFinite(n)))
         .reverse();
       const yr = ranges.yearRange(rows);
-      if (yr) out[sym] = { ...entry, ...yr, yearAt: now };
+      const hist = rows.length
+        ? { histHigh: Math.max(...rows.map(r => Number(r[2]))), histLow: Math.min(...rows.map(r => Number(r[3]))) }
+        : {};
+      if (yr) out[sym] = { ...entry, ...yr, ...hist, yearAt: now };
     } catch { /* sin par en EUR */ }
   }
 
@@ -2708,6 +2715,14 @@ app.get('/api/ranges', async (req, res) => {
   const pendiente = symbols.filter(s => !out[s] || !out[s].athAt || now - out[s].athAt > ATH_TTL);
   for (const s of pendiente) if (!rangeQueue.includes(s)) rangeQueue.push(s);
   rangeDrain();
+
+  // Relleno con el histórico de Bitvavo cuando no hay ATH/ATL exactos
+  for (const sym of symbols) {
+    const e = out[sym];
+    if (!e) continue;
+    if (!e.ath && e.histHigh) { e.ath = e.histHigh; e.athApprox = true; }
+    if (!e.atl && e.histLow) { e.atl = e.histLow; e.atlApprox = true; }
+  }
 
   rangeCache.data = out;
   rangeCache.at = now;

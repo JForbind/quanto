@@ -1809,9 +1809,7 @@ function rngBlock(symbol) {
   const r = RANGES[symbol];
   if (!r || (!r.high && !r.ath)) return '';
   const y = r.year || new Date().getFullYear();
-  const cell = (label, value) => value
-    ? `<span>${label} <b>${rangeFmt(value)} €</b></span>`
-    : `<span class="muted">${label} —</span>`;
+  const cell = (label, value, approx) => `<span class="rng-cell"><i>${label}</i><b${approx ? ' class="approx" title="Aproximado: desde que cotiza en Bitvavo"' : ''}>${value ? (approx ? '≈ ' : '') + rangeFmt(value) + ' €' : '—'}</b></span>`;
   return `<div class="coin-rng">
     ${cell('Máximo histórico', r.ath)}${cell('Máximo ' + y, r.high)}
     ${cell('Mínimo histórico', r.atl)}${cell('Mínimo ' + y, r.low)}

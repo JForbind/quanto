@@ -960,3 +960,18 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 /* tabla de monedas: números y cabeceras alineados a la izquierda */
 #coins-table th.num,
 #coins-table td.num { text-align: left; }
+
+/* celdas de rango con rejilla interna: etiqueta y valor siempre alineados */
+.coin-rng { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
+.rng-cell { display: grid; grid-template-columns: 104px minmax(70px, auto); align-items: baseline; gap: 0; }
+.rng-cell i { font-style: normal; color: var(--muted); }
+.rng-cell b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.rng-cell b.approx { color: var(--muted); }
+@media (max-width: 980px) { .coin-rng { grid-template-columns: 1fr; } }
+
+/* tabla de monedas más compacta para que quepa con los rangos */
+#coins-table td, #coins-table th { padding-left: 10px; padding-right: 10px; }
+#coins-table td.num, #coins-table th.num { white-space: nowrap; }
+#coins-table .coin-rng { font-size: 10px; }
+#coins-table .rng-cell { grid-template-columns: 86px minmax(54px, auto); }
+@media (max-width: 1200px) { #coins-table .rng-cell { grid-template-columns: 78px minmax(48px, auto); } }
