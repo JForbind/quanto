@@ -25,6 +25,7 @@ const { getLeverage } = require('./lib/leverage');
 const { getPulse } = require('./lib/pulse');
 const { getCalendar } = require('./lib/calendar');
 const { analyze: analyzeMarket } = require('./lib/analyst');
+const ranges = require('./lib/ranges');
 const { round } = require('./lib/util');
 
 const VERSION = '3.3.0';
@@ -2619,6 +2620,99 @@ app.get('/api/pulse', async (req, res) => {
     if (pulseCache.data) return res.json({ ok: true, ...pulseCache.data, cached: true, stale: true });
     res.status(502).json({ error: 'No se pudo leer el pulso: ' + e.message });
   }
+});
+
+// ---------------- rangos de precio (ATH/ATL y año en curso) ----------------
+const RANGE_FILE = path.join(DATA_DIR, 'cache', 'ranges.json');
+const RANGE_TTL = 6 * 3600e3;      // año en curso
+const ATH_TTL = 24 * 3600e3;       // ATH/ATL (CoinGecko limita mucho)
+
+function loadRangeCache() {
+  const raw = readJson(RANGE_FILE, null);
+  if (raw && typeof raw === 'object' && raw.data) return raw;
+  return { at: 0, data: {} };
+}
+let rangeCache = loadRangeCache();
+function saveRangeCache() {
+  try { writeJson(RANGE_FILE, rangeCache); } catch (e) { console.log('[rangos] guardar:', e.message); }
+}
+
+let rangeQueue = [];
+let rangeBusy = false;
+function rangeDrain() {
+  if (rangeBusy || !rangeQueue.length) return;
+  rangeBusy = true;
+  const sym = rangeQueue.shift();
+  (async () => {
+    try {
+      const now = Date.now();
+      const eur = rangeCache.eurRate;
+      let v = null;
+      // 1º CoinGecko (histórico completo y exacto)
+      try {
+        const ids = await ranges.symbolIds([sym]);
+        if (ids[sym]) {
+          const data = await ranges.athAtl({ [sym]: ids[sym] });
+          const cg = data[sym];
+          if (cg) v = { ...cg, ath: eur && cg.ath ? cg.ath * eur : null, atl: eur && cg.atl ? cg.atl * eur : null, src: 'coingecko' };
+        }
+      } catch (e) { v = null; }
+      // 2º Binance si CoinGecko no responde (aproximado: desde su salida en Binance)
+      if (!v) {
+        try { const b = await ranges.binanceRange(sym, eur); if (b) v = { ...b, src: 'binance' }; } catch (e) { v = null; }
+      }
+      if (v) {
+        rangeCache.data[sym] = { ...(rangeCache.data[sym] || {}), ...v, athAt: now };
+        saveRangeCache();
+        console.log('[rangos] ATH de', sym, 'listo');
+      }
+    } catch (e) { console.log('[rangos]', sym, e.message); }
+    rangeBusy = false;
+    setTimeout(rangeDrain, 20000);
+  })();
+}
+
+app.get('/api/ranges', async (req, res) => {
+  const symbols = String(req.query.symbols || '')
+    .toUpperCase().split(',').map(s => s.trim()).filter(Boolean).slice(0, 30);
+  if (!symbols.length) return res.status(400).json({ error: 'Faltan monedas' });
+
+  const now = Date.now();
+  const out = { ...rangeCache.data };
+
+  // 1) máximo y mínimo del año (velas de Bitvavo; barato y fiable)
+  for (const sym of symbols) {
+    const entry = out[sym] || {};
+    if (entry.yearAt && now - entry.yearAt < RANGE_TTL) continue;
+    try {
+      const raw = await client.candles(`${sym}-EUR`, '1d', 400);
+      const rows = (Array.isArray(raw) ? raw : [])
+        .map(k => [Number(k[0]), Number(k[1]), Number(k[2]), Number(k[3]), Number(k[4]), Number(k[5])])
+        .filter(r => r.every(n => isFinite(n)))
+        .reverse();
+      const yr = ranges.yearRange(rows);
+      if (yr) out[sym] = { ...entry, ...yr, yearAt: now };
+    } catch { /* sin par en EUR */ }
+  }
+
+  // 2) ATH/ATL: como máximo una moneda por petición y cacheado 24 h
+  let eurRate = rangeCache.eurRate && now - (rangeCache.eurAt || 0) < ATH_TTL ? rangeCache.eurRate : null;
+  if (!eurRate) {
+    try {
+      const usdc = await client.tickerPrice('USDC-EUR');
+      const px = Number(usdc && (usdc.price || (Array.isArray(usdc) && usdc[0] && usdc[0].price)));
+      if (px > 0) { eurRate = px; rangeCache.eurRate = px; rangeCache.eurAt = now; }
+    } catch {}
+  }
+
+  const pendiente = symbols.filter(s => !out[s] || !out[s].athAt || now - out[s].athAt > ATH_TTL);
+  for (const s of pendiente) if (!rangeQueue.includes(s)) rangeQueue.push(s);
+  rangeDrain();
+
+  rangeCache.data = out;
+  rangeCache.at = now;
+  saveRangeCache();
+  res.json({ ok: true, ranges: out, eurRate, pendiente: pendiente.length, cached: false });
 });
 
 app.get('/api/analyze', async (req, res) => {

@@ -928,3 +928,15 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 @media (max-width: 760px) { .analyst-head { flex-direction: column; } }
 
 .plan-head-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ---------------------------------------------- rangos de precio */
+.coin-rng { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.rng-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.rng-bar { position: relative; height: 8px; border-radius: 999px; margin-top: 10px;
+  background: linear-gradient(90deg, var(--neg-soft, rgba(255,90,90,.25)), var(--pos-soft, rgba(53,208,127,.25))); }
+.rng-bar > span { position: absolute; top: -3px; width: 4px; height: 14px; border-radius: 2px; background: var(--text); }
+
+.rng-grid .stat { display: flex; flex-direction: column; gap: 2px; }
+.rng-grid .stat > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.rng-grid .stat > strong { font-size: 16px; font-weight: 700; }
+.rng-grid .stat > small { font-size: 11px; color: var(--muted); }

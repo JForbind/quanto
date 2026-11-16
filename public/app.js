@@ -891,6 +891,7 @@ async function boot() {
   loadPulse();
   loadCalendar();
   loadNews();
+  loadRanges();
   navigate(location.hash.startsWith('#/') ? location.hash.slice(2) : 'dashboard');
   setTimeout(rollKpiNumbers, 220);
 }
@@ -1781,12 +1782,45 @@ async function loadSparklines() {
   } catch { /* es un extra: si falla, la tabla sigue igual */ }
 }
 
+function rangeFmt(v) {
+  const a = Math.abs(Number(v) || 0);
+  if (!a) return '—';
+  if (a < 0.001) return num(v, 6);
+  if (a < 1) return num(v, 4);
+  if (a < 10) return num(v, 3);
+  if (a < 1000) return num(v, 2);
+  return priceFmt(v);
+}
+
+let RANGES = {};
+async function loadRanges() {
+  const syms = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol);
+  if (!syms.length) return;
+  try {
+    const d = await api('/api/ranges?symbols=' + encodeURIComponent(syms.join(',')));
+    RANGES = d.ranges || {};
+    state.ranges = RANGES;
+    if (state.view === 'coins') renderCoins();
+    if (state.view === 'dashboard') renderTopCoins();
+  } catch {}
+}
+
 function coinRow(c, index) {
   const change = c.dayChangePct;
   return `<tr data-symbol="${esc(c.symbol)}" class="clickable">
     <td>
       <div class="coin">${coinBadge(c.symbol)}
-        <div class="coin-name"><b>${esc(c.symbol)}</b><small>${c.inCold > 0 ? 'parte en frío' : c.onExchange > 0 ? 'en Bitvavo' : '—'}</small></div>
+        <div class="coin-name"><b>${esc(c.symbol)}</b>
+          <small>${c.inCold > 0 ? 'parte en frío' : c.onExchange > 0 ? 'en Bitvavo' : '—'}</small>
+          ${(() => {
+            const r = RANGES[c.symbol];
+            if (!r || (!r.high && !r.ath)) return '';
+            const y = r.high && r.low ? `${r.year || ''} ${rangeFmt(r.low)}–${rangeFmt(r.high)}` : '';
+            const h = r.ath ? `máx ${rangeFmt(r.ath)}` : '';
+            const l = r.atl ? `mín ${rangeFmt(r.atl)}` : '';
+            return `<small class="coin-rng" title="Año en curso · máximo y mínimo históricos">${[y, h, l].filter(Boolean).join(' · ')}</small>`;
+          })()}
+        </div>
       </div>
     </td>
     <td class="num">${num(c.amount, 8)}</td>
@@ -1814,7 +1848,13 @@ function renderTopCoins() {
   table.innerHTML = `
     <thead><tr><th>Moneda</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">P. medio</th><th class="num">Valor</th><th class="num">Invertido</th><th class="num">P/L</th><th class="num">Hoy</th></tr></thead>
     <tbody>${rows.map(c => `<tr data-symbol="${esc(c.symbol)}" class="clickable">
-      <td><div class="coin">${coinBadge(c.symbol)}<div class="coin-name"><b>${esc(c.symbol)}</b><small>${num(c.share, 1)} %</small></div></div></td>
+      <td><div class="coin">${coinBadge(c.symbol)}<div class="coin-name"><b>${esc(c.symbol)}</b><small>${num(c.share, 1)} %</small>
+        ${(() => { const r = RANGES[c.symbol]; if (!r || (!r.high && !r.ath)) return '';
+          const y = r.high && r.low ? `${r.year || ''} ${rangeFmt(r.low)}–${rangeFmt(r.high)}` : '';
+          const h = r.ath ? `máx ${rangeFmt(r.ath)}` : '';
+          const l = r.atl ? `mín ${rangeFmt(r.atl)}` : '';
+          return `<small class="coin-rng">${[y, h, l].filter(Boolean).join(' · ')}</small>`; })()}
+      </div></div></td>
       <td class="num">${num(c.amount, 6)}</td>
       <td class="num">${priceFmt(c.price)}</td>
       <td class="num">${c.costKnown ? priceFmt(c.avgPrice) : '<span class="muted">n/d</span>'}</td>
@@ -2080,6 +2120,23 @@ function openCoin(symbol) {
       <div class="stat"><span>En wallet fría</span><strong>${num(coin.inCold, 8)}</strong></div>
     </div>
     <div id="coin-chart" class="chart" style="height:220px"></div>
+    ${(() => {
+      const r = RANGES[symbol] || {};
+      if (!r.high && !r.ath) return '';
+      const f = (v) => (v ? rangeFmt(v) : '—');
+      const fecha = (ts) => ts ? new Date(ts).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '';
+      return `<h3 class="h3" style="margin-top:16px">Rangos de precio</h3>
+      <div class="rng-grid">
+        <div class="stat"><span>Máximo histórico</span><strong>${f(r.ath)}</strong><small>${fecha(r.athDate)}</small></div>
+        <div class="stat"><span>Mínimo histórico</span><strong>${f(r.atl)}</strong><small>${fecha(r.atlDate)}</small></div>
+        <div class="stat"><span>Máximo ${r.year || ''}</span><strong>${f(r.high)}</strong><small>año en curso</small></div>
+        <div class="stat"><span>Mínimo ${r.year || ''}</span><strong>${f(r.low)}</strong><small>año en curso</small></div>
+      </div>
+      ${r.high && r.low && r.high > r.low ? `<div class="rng-bar" title="Dónde está el precio dentro del rango del año">
+        <span style="left:${Math.max(0, Math.min(100, ((coin.price - r.low) / (r.high - r.low)) * 100))}%"></span>
+      </div>
+      <p class="tiny muted" style="margin:6px 0 0">La marca señala el precio actual dentro del rango de ${r.year || 'este año'}.</p>` : ''}`;
+    })()}
     <div class="modal-grid" style="grid-template-columns:1fr 1fr">
       <form class="field" id="coin-invested-form">
         <span>Invertido total (€)</span>
