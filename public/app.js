@@ -1805,21 +1805,26 @@ async function loadRanges() {
   } catch {}
 }
 
+function rngBlock(symbol) {
+  const r = RANGES[symbol];
+  if (!r || (!r.high && !r.ath)) return '';
+  const y = r.year || new Date().getFullYear();
+  const cell = (label, value) => value
+    ? `<span>${label} <b>${rangeFmt(value)}</b></span>`
+    : `<span class="muted">${label} —</span>`;
+  return `<div class="coin-rng" title="Máximo y mínimo históricos y del año en curso">
+    ${cell('Máx. hist.', r.ath)}${cell('Máx. ' + y, r.high)}
+    ${cell('Mín. hist.', r.atl)}${cell('Mín. ' + y, r.low)}
+  </div>`;
+}
+
 function coinRow(c, index) {
   const change = c.dayChangePct;
   return `<tr data-symbol="${esc(c.symbol)}" class="clickable">
     <td>
       <div class="coin">${coinBadge(c.symbol)}
         <div class="coin-name"><b>${esc(c.symbol)}</b>
-          <small>${c.inCold > 0 ? 'parte en frío' : c.onExchange > 0 ? 'en Bitvavo' : '—'}</small>
-          ${(() => {
-            const r = RANGES[c.symbol];
-            if (!r || (!r.high && !r.ath)) return '';
-            const y = r.high && r.low ? `${r.year || ''} ${rangeFmt(r.low)}–${rangeFmt(r.high)}` : '';
-            const h = r.ath ? `máx ${rangeFmt(r.ath)}` : '';
-            const l = r.atl ? `mín ${rangeFmt(r.atl)}` : '';
-            return `<small class="coin-rng" title="Año en curso · máximo y mínimo históricos">${[y, h, l].filter(Boolean).join(' · ')}</small>`;
-          })()}
+          ${rngBlock(c.symbol)}
         </div>
       </div>
     </td>
@@ -1849,11 +1854,7 @@ function renderTopCoins() {
     <thead><tr><th>Moneda</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">P. medio</th><th class="num">Valor</th><th class="num">Invertido</th><th class="num">P/L</th><th class="num">Hoy</th></tr></thead>
     <tbody>${rows.map(c => `<tr data-symbol="${esc(c.symbol)}" class="clickable">
       <td><div class="coin">${coinBadge(c.symbol)}<div class="coin-name"><b>${esc(c.symbol)}</b><small>${num(c.share, 1)} %</small>
-        ${(() => { const r = RANGES[c.symbol]; if (!r || (!r.high && !r.ath)) return '';
-          const y = r.high && r.low ? `${r.year || ''} ${rangeFmt(r.low)}–${rangeFmt(r.high)}` : '';
-          const h = r.ath ? `máx ${rangeFmt(r.ath)}` : '';
-          const l = r.atl ? `mín ${rangeFmt(r.atl)}` : '';
-          return `<small class="coin-rng">${[y, h, l].filter(Boolean).join(' · ')}</small>`; })()}
+        ${rngBlock(c.symbol)}
       </div></div></td>
       <td class="num">${num(c.amount, 6)}</td>
       <td class="num">${priceFmt(c.price)}</td>
