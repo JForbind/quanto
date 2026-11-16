@@ -701,6 +701,9 @@ app.get('/api/plans/:id/report', (req, res) => {
   const plan = getPlanStore().plans.find(p => p.id === req.params.id);
   if (!plan) return res.status(404).send('No existe ese plan');
   const cancelled = (plan.tranches || []).filter(x => x.status === 'cancelled').length;
+  if (req.query.format === 'text') {
+    return res.type('text/plain; charset=utf-8').send(buildPlanReportText(plan, cancelled > 0 ? 'closed' : 'completed'));
+  }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(buildPlanReportHtml(plan, cancelled > 0 ? 'closed' : 'completed'));
 });
@@ -1016,7 +1019,7 @@ function buildWeeklyReportHtml() {
   try { if (levCache.data && levCache.data.risk) extra.push(['Deuda', levCache.data.risk.label, null]); } catch {}
   try { if (pulseCache.data && pulseCache.data.breadth) extra.push(['Amplitud', pulseCache.data.breadth.up + '/' + pulseCache.data.breadth.total + ' en verde', null]); } catch {}
   try { if (pulseCache.data && pulseCache.data.funding) extra.push(['Funding', (pulseCache.data.funding.avg >= 0 ? '+' : '') + fmt(pulseCache.data.funding.avg, 3) + ' %', null]); } catch {}
-  try { if (state.fearGreed) extra.push(['Miedo/codicia', String(state.fearGreed.value), null]); } catch {}
+  try { const fg = weeklyFng || state.fearGreed; if (fg && fg.value != null) extra.push(['Miedo/codicia', String(fg.value), null]); } catch {}
 
   let plansHtml = '';
   try {
@@ -1330,8 +1333,25 @@ function weekKey(d = new Date()) {
   return t.toISOString().slice(0, 10);
 }
 
+let weeklyFng = null;
+async function prepareWeekly() {
+  try {
+    const fg = await getFearGreed(DATA_DIR);
+    if (fg && fg.value != null) weeklyFng = fg;
+  } catch (e) { /* sin indice */ }
+  try {
+    if (!newsCache.data || !newsCache.data.items || !newsCache.data.items.length) {
+      const coins = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol);
+      const n = await getNews({ coins, limit: 20 });
+      newsCache = { at: Date.now(), key: coins.join(','), data: n };
+    }
+  } catch (e) { /* sin noticias */ }
+}
+
 function buildWeeklyReport() {
   const p = state.portfolio;
+  let outBase = null;
+  let outDays = 0;
   const now = new Date();
   const lines = [];
   lines.push('📊 <b>RESUMEN SEMANAL</b>');
@@ -1340,15 +1360,20 @@ function buildWeeklyReport() {
   if (!p) {
     lines.push('', 'Todavía no hay cartera.');
   } else {
-    const weekAgo = state.snapshots.filter(s => s.t >= Date.now() - 7 * 86400e3);
-    const first = weekAgo[0];
-    const change = first && first.value ? ((p.totalValue - first.value) / first.value) * 100 : 0;
+    // Referencia: el último snapshot anterior a hace 7 días (o el más antiguo que haya)
+    const cutoff = Date.now() - 7 * 86400e3;
+    const before = state.snapshots.filter(s => s.t <= cutoff);
+    const base = before.length ? before[before.length - 1] : (state.snapshots[0] || null);
+    const days = base ? Math.max(1, Math.round((Date.now() - base.t) / 86400e3)) : 0;
+    const change = base && base.value ? ((p.totalValue - base.value) / base.value) * 100 : 0;
+    outBase = base && base.value ? base.value : null;
+    outDays = days;
     lines.push('');
     lines.push(tgPre([
       tgPad('Valor', 12) + tgPad(tgMoney(p.totalValue), 14, true),
       tgPad('Invertido', 12) + tgPad(tgMoney(p.invested), 14, true),
       tgPad('P/L', 12) + tgPad(tgMoney(p.pnl), 14, true),
-      tgPad('Semana', 12) + tgPad(tgPct(change, 2), 14, true),
+      tgPad(days >= 6 ? 'Semana' : ('Últ. ' + days + ' d'), 12) + tgPad(tgPct(change, 2), 14, true),
     ]));
     if (p.cash) lines.push('Efectivo: <b>' + tgMoney(p.cash) + '</b>');
 
@@ -1373,7 +1398,7 @@ function buildWeeklyReport() {
   try { if (liqCache.data && liqCache.data.state) idx.push('• Liquidez: ' + liqCache.data.state.label + ' (' + tgPct(liqCache.data.change30, 1) + ' 30 d)'); } catch {}
   try { if (levCache.data && levCache.data.risk) idx.push('• Deuda: ' + levCache.data.risk.label); } catch {}
   try { if (pulseCache.data && pulseCache.data.breadth) idx.push('• Amplitud: ' + pulseCache.data.breadth.up + '/' + pulseCache.data.breadth.total + ' en verde'); } catch {}
-  try { if (state.fearGreed) idx.push('• Miedo/codicia: ' + state.fearGreed.value); } catch {}
+  try { const fg = weeklyFng || state.fearGreed; if (fg && fg.value != null) idx.push('• Miedo/codicia: ' + fg.value); } catch {}
   if (idx.length) lines.push('', '<b>ÍNDICES</b>', ...idx);
 
   try {
@@ -1389,6 +1414,7 @@ function buildWeeklyReport() {
 }
 
 async function sendWeeklyReport() {
+  await prepareWeekly();
   const n = notifyConfig();
   const tg = telegramConfig();
   const canTelegram = n.telegramEnabled && tg.token && tg.chatId;
@@ -1433,7 +1459,9 @@ app.post('/api/weekly', (req, res) => {
   res.json({ ok: true, weekly: s.weekly });
 });
 
-app.get('/api/weekly/preview', (req, res) => {
+app.get('/api/weekly/preview', async (req, res) => {
+  await prepareWeekly();
+  if (req.query.format === 'text') return res.type('text/plain; charset=utf-8').send(buildWeeklyReport());
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(buildWeeklyReportHtml());
 });
