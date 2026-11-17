@@ -1049,8 +1049,12 @@ function renderSimExtras(n, r) {
   const b = target > n.price ? (n.coin.invested - target * n.coin.amount) / (target - n.price) : -1;
   const bText = b > 0 ? `${eur(b)} a ${priceFmt(n.price)} te dejarían la media en ${priceFmt(target)}` : 'a ese precio no se puede bajar la media comprando';
 
+  const hoy = Number(n.coin.price) || 0;
+  const veces = hoy > 0 && r.ath ? r.ath / hoy : null;
   box.innerHTML = `<header class="card-head"><div><h2>Datos que ayudan</h2><p class="card-sub">Equilibrio, histórico y cuánto haría falta.</p></div></header>
     <div class="sim-kpis">
+      <div class="stat"><span>Precio actual</span><strong>${priceFmt(hoy)}</strong><small>${n.coin.dayChangePct === null || n.coin.dayChangePct === undefined ? 'ahora mismo' : `hoy ${n.coin.dayChangePct >= 0 ? '+' : ''}${num(n.coin.dayChangePct, 2)} %`}</small></div>
+      <div class="stat"><span>Máximo histórico</span><strong>${r.ath ? priceFmt(r.ath) : '—'}</strong><small>${veces ? `${num(veces, 1)}× el precio de hoy` : 'sin dato histórico'}</small></div>
       <div class="stat"><span>Precio de equilibrio</span><strong>${avg ? priceFmt(avg) : '—'}</strong><small>${need === null ? '' : `estás ${need >= 0 ? '+' : ''}${num(need, 1)} % de ahí`}</small></div>
       <div class="stat"><span>Si hubieras vendido en máx. histórico</span><strong>${r.ath ? eur(n.coin.amount * r.ath) : '—'}</strong><small>${r.ath ? 'bruto, antes de impuestos' : 'sin dato histórico'}</small></div>
       <div class="stat"><span>Para bajar tu media un 10 %</span><strong>${b > 0 ? eur(b) : '—'}</strong><small>${bText}</small></div>
