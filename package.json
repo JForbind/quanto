@@ -10,11 +10,12 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/quanto.test.js && node tests/auth.test.js && node tests/import.test.js"
+    "test": "node tests/quanto.test.js && node tests/auth.test.js && node tests/import.test.js && node tests/totp.test.js"
   },
   "dependencies": {
     "exceljs": "4.4.0",
     "express": "4.22.3",
-    "nodemailer": "^6.9.16"
+    "nodemailer": "^6.9.16",
+    "qrcode": "^1.5.4"
   }
 }

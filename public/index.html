@@ -70,6 +70,13 @@
       <span>Contraseña</span>
       <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
     </label>
+    <div id="login-2fa-box" class="hidden">
+      <label class="field">
+        <span>Código de 6 dígitos</span>
+        <input id="login-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+      </label>
+      <p class="hint">Ábrelo en tu app de doble factor (2FAS, Google Authenticator…). También vale un código de respaldo.</p>
+    </div>
     <button id="login-btn" class="btn btn-primary btn-lg" type="submit">Entrar</button>
     <p id="login-error" class="login-error" role="alert"></p>
     <button type="button" id="forgot-btn" class="link tiny" style="align-self:flex-start">He olvidado mi contraseña</button>
@@ -803,6 +810,38 @@
           </form>
         </article>
 
+
+        <article class="card glass span-6" id="totp-card">
+          <header class="card-head"><h2>Doble factor</h2><span class="chip" id="totp-status">—</span></header>
+          <p class="hint">Con el doble factor, además de la contraseña te pedirá un código de 6 dígitos de tu app (2FAS, Google Authenticator, Authy…).</p>
+
+          <div id="totp-off">
+            <button class="btn btn-primary" type="button" id="totp-start">Activar doble factor</button>
+          </div>
+
+          <div id="totp-setup" class="hidden">
+            <p class="hint">Escanea este código con tu app:</p>
+            <div class="totp-qr"><img id="totp-qr-img" alt="Código QR para el doble factor"></div>
+            <p class="hint">¿No puedes escanearlo? Escribe esta clave a mano:</p>
+            <p class="totp-secret" id="totp-secret">—</p>
+            <label class="field"><span>Código de 6 dígitos para confirmar</span>
+              <input id="totp-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+            </label>
+            <div class="form-actions">
+              <button class="btn btn-primary" type="button" id="totp-confirm">Confirmar y activar</button>
+              <button class="btn btn-ghost" type="button" id="totp-cancel">Cancelar</button>
+            </div>
+            <div id="totp-result" class="result"></div>
+          </div>
+
+          <div id="totp-on" class="hidden">
+            <div id="totp-codes" class="totp-codes hidden"></div>
+            <label class="field"><span>Código actual (para desactivar)</span>
+              <input id="totp-off-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456">
+            </label>
+            <div class="form-actions"><button class="btn btn-danger-ghost" type="button" id="totp-disable">Desactivar doble factor</button></div>
+          </div>
+        </article>
         <article class="card glass span-6">
           <header class="card-head"><h2>Apariencia</h2></header>
           <div class="theme-picker">

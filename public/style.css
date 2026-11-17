@@ -1038,3 +1038,13 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 #sim-now { margin-top: 16px; }
 @media (max-width: 1100px) { .sim-presets { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .sim-presets { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------- doble factor */
+.totp-qr { display: flex; justify-content: center; margin: 10px 0; }
+.totp-qr img { width: 220px; height: 220px; border-radius: 14px; background: #fff; padding: 8px; }
+.totp-secret { font-family: ui-monospace, monospace; letter-spacing: .12em; font-size: 13px; background: var(--glass-hi);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; word-break: break-all; user-select: all; }
+.totp-codes { margin-bottom: 14px; }
+.totp-code-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 8px; }
+.totp-code-list code { background: var(--glass-hi); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px; text-align: center; font-size: 12.5px; letter-spacing: .06em; user-select: all; }

@@ -26,6 +26,9 @@ const { getPulse } = require('./lib/pulse');
 const { getCalendar } = require('./lib/calendar');
 const { analyze: analyzeMarket } = require('./lib/analyst');
 const ranges = require('./lib/ranges');
+const totp = require('./lib/totp');
+let QRCode = null;
+try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
 const VERSION = '3.3.0';
@@ -350,7 +353,7 @@ app.use((req, res, next) => {
 // ---------------- control de acceso global ----------------
 // Todo /api exige sesión salvo la lista pública. Se registra ANTES de las rutas
 // para que ninguna pueda quedarse sin proteger.
-const PUBLIC_API = new Set(['/api/health', '/api/status', '/api/setup', '/api/login', '/api/forgot']);
+const PUBLIC_API = new Set(['/api/health', '/api/status', '/api/setup', '/api/login', '/api/login/2fa', '/api/forgot']);
 const ADMIN_OK = new Set(['/api/me', '/api/password', '/api/logout', '/api/status']);
 
 function isPublicApi(full) {
@@ -866,6 +869,95 @@ app.post('/api/setup', async (req, res) => {
   } finally { setupBusy = false; }
 });
 
+
+// ---------------- doble factor (TOTP) ----------------
+async function qrDataUrl(texto) {
+  if (!QRCode) return null;
+  try { return await QRCode.toDataURL(texto, { margin: 1, width: 260, errorCorrectionLevel: 'M' }); }
+  catch { return null; }
+}
+
+app.post('/api/login/2fa', (req, res) => {
+  const ip = clientIp(req);
+  const body = req.body || {};
+  const ticket = String(body.ticket || '');
+  const code = String(body.code || '');
+  const payload = verifySessionToken(COOKIE_SECRET, ticket);
+  if (!payload || !payload.tfa || !payload.u) {
+    return res.status(401).json({ error: 'La verificación ha caducado. Vuelve a entrar.', code: 'expired' });
+  }
+  const user = userStore.findById(payload.u);
+  if (!user || !user.totpEnabled) return res.status(401).json({ error: 'Cuenta no válida' });
+  if ((user.sessionVersion || 1) !== payload.v) {
+    return res.status(401).json({ error: 'La sesión ha cambiado. Vuelve a entrar.', code: 'expired' });
+  }
+  const limitUser = userLimiter.check('2fa:' + user.username.toLowerCase());
+  if (!limitUser.allowed) {
+    return res.status(429).json({ error: 'Demasiados códigos incorrectos. Espera unos minutos.' });
+  }
+
+  let ok = totp.verificar(user.totpSecret, code);
+  let usadoRespaldo = false;
+  if (!ok) {
+    // código de respaldo (un solo uso)
+    ok = userStore.consumeBackupCode(user.id, totp.hashCodigo(code));
+    usadoRespaldo = ok;
+  }
+  if (!ok) {
+    userLimiter.fail && userLimiter.fail('2fa:' + user.username.toLowerCase());
+    return res.status(401).json({ error: 'Código incorrecto', code: 'bad' });
+  }
+  userLimiter.reset('2fa:' + user.username.toLowerCase());
+  limiter.reset(ip);
+  const fresh = userStore.findById(user.id);
+  userStore.update(user.id, { lastLoginAt: Date.now(), lastSeenAt: Date.now(), loginCount: (fresh.loginCount || 0) + 1 });
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: fresh.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
+  res.json({ ok: true, user: userStore.publicUser(userStore.findById(user.id)), mustChange: !!fresh.mustChange, backupUsed: usadoRespaldo });
+});
+
+app.get('/api/2fa/status', (req, res) => {
+  const u = req.user;
+  res.json({ ok: true, enabled: !!u.totpEnabled, since: u.totpSince || null, backups: (u.totpBackup || []).length });
+});
+
+app.post('/api/2fa/setup', async (req, res) => {
+  try {
+    const secret = totp.nuevoSecreto();
+    userStore.setTotpPending(req.user.id, secret);
+    const uri = totp.uri(secret, req.user.username);
+    res.json({ ok: true, secret, uri, qr: await qrDataUrl(uri) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/2fa/enable', (req, res) => {
+  const u = userStore.findById(req.user.id);
+  const code = String((req.body && req.body.code) || '');
+  if (!u || !u.totpPending) return res.status(400).json({ error: 'Primero genera el código QR' });
+  if (!totp.verificar(u.totpPending, code)) return res.status(400).json({ error: 'Ese código no es válido. Revisa la hora del móvil.' });
+  const codes = totp.codigosRespaldo(10);
+  userStore.enableTotp(u.id, u.totpPending, codes.map(totp.hashCodigo));
+  res.json({ ok: true, backupCodes: codes });
+});
+
+app.post('/api/2fa/disable', (req, res) => {
+  const u = userStore.findById(req.user.id);
+  const code = String((req.body && req.body.code) || '');
+  if (!u || !u.totpEnabled) return res.status(400).json({ error: 'El doble factor no está activo' });
+  if (!totp.verificar(u.totpSecret, code)) return res.status(400).json({ error: 'Código incorrecto' });
+  userStore.disableTotp(u.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/users/:id/2fa-reset', (req, res) => {
+  if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Solo el administrador' });
+  const target = userStore.findById(req.params.id);
+  if (!target) return res.status(404).json({ error: 'No existe ese usuario' });
+  userStore.disableTotp(target.id);
+  res.json({ ok: true });
+});
+
 app.post('/api/login', (req, res) => {
   const ip = clientIp(req);
   const limit = limiter.check(ip);
@@ -888,6 +980,13 @@ app.post('/api/login', (req, res) => {
   limiter.reset(ip);
   userLimiter.reset(userKey);
   const user = out.user;
+
+  // Con doble factor activo, la contraseña sola no abre sesión
+  if (user.totpEnabled) {
+    const ticket = createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1, tfa: 1 }, 5 * 60e3);
+    return res.json({ ok: true, need2fa: true, ticket });
+  }
+
   setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
   res.json({ ok: true, user: userStore.publicUser(user), mustChange: !!user.mustChange });
 });

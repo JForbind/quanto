@@ -101,6 +101,7 @@ function arrow(v) { return v >= 0 ? '▲' : '▼'; }
 /* ------------------------------------------------ peticiones */
 async function api(path, options = {}) {
   const opts = { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...options };
+  if (opts.body && typeof opts.body !== 'string') opts.body = JSON.stringify(opts.body);
   const res = await fetch(path, opts);
   if (res.status === 401) {
     showLogin();
@@ -286,6 +287,7 @@ function navigate(view) {
   const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
+  if (view === 'settings') loadTotp();
   if (view === 'sim') {
     renderSim();
     if (!Object.keys(RANGES).length) {
@@ -336,6 +338,11 @@ document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('cl
 
 /* ------------------------------------------------ login */
 function showLogin() {
+  pending2fa = null;
+  const box2 = $('#login-2fa-box');
+  if (box2) box2.classList.add('hidden');
+  const b2 = $('#login-btn');
+  if (b2) b2.textContent = 'Entrar';
   $('#app').classList.add('hidden');
   $('#login').classList.remove('hidden');
   setTimeout(() => { const i = $('#login-pass'); if (i) i.focus(); }, 80);
@@ -345,12 +352,122 @@ function showApp() {
   $('#app').classList.remove('hidden');
 }
 
+// ---------------------------------------------------------------- doble factor
+let pending2fa = null; // ticket temporal entre contraseña y código
+
+function totpShow(estado) {
+  const off = $('#totp-off');
+  const setup = $('#totp-setup');
+  const on = $('#totp-on');
+  if (!off || !setup || !on) return;
+  off.classList.toggle('hidden', estado !== 'off');
+  setup.classList.toggle('hidden', estado !== 'setup');
+  on.classList.toggle('hidden', estado !== 'on');
+  const chip = $('#totp-status');
+  if (chip) {
+    chip.textContent = estado === 'on' ? 'activo' : estado === 'setup' ? 'configurando' : 'desactivado';
+    chip.classList.toggle('chip-ok', estado === 'on');
+  }
+}
+
+async function loadTotp() {
+  try {
+    const d = await api('/api/2fa/status');
+    totpShow(d.enabled ? 'on' : 'off');
+    if (d.enabled) {
+      const info = $('#totp-codes');
+      if (info) {
+        info.classList.add('hidden');
+        info.innerHTML = '';
+      }
+    }
+  } catch {}
+}
+
+async function totpStart() {
+  const res = $('#totp-result');
+  try {
+    const d = await api('/api/2fa/setup', { method: 'POST' });
+    totpShow('setup');
+    const img = $('#totp-qr-img');
+    if (img) {
+      if (d.qr) { img.src = d.qr; img.classList.remove('hidden'); }
+      else { img.classList.add('hidden'); }
+    }
+    const sec = $('#totp-secret');
+    if (sec) sec.textContent = d.secret.replace(/(.{4})/g, '$1 ').trim();
+    if (res) res.innerHTML = d.qr ? '' : '<p class="hint">Sin generador de QR: escribe la clave a mano en tu app.</p>';
+  } catch (e) {
+    if (res) res.innerHTML = `<p class="error">${esc(e.message)}</p>`;
+  }
+}
+
+async function totpConfirm() {
+  const code = ($('#totp-code') && $('#totp-code').value) || '';
+  const res = $('#totp-result');
+  try {
+    const d = await api('/api/2fa/enable', { method: 'POST', body: { code } });
+    totpShow('on');
+    const box = $('#totp-codes');
+    if (box && d.backupCodes) {
+      box.classList.remove('hidden');
+      box.innerHTML = `<h3 class="h3">Guarda estos códigos de respaldo</h3>
+        <p class="hint">Cada uno sirve una sola vez, si pierdes el móvil. Guárdalos fuera de este ordenador.</p>
+        <div class="totp-code-list">${d.backupCodes.map(c => `<code>${esc(c)}</code>`).join('')}</div>`;
+    }
+    toast('Doble factor activado', 'ok');
+  } catch (e) {
+    if (res) res.innerHTML = `<p class="error">${esc(e.message)}</p>`;
+  }
+}
+
+async function totpDisable() {
+  const code = ($('#totp-off-code') && $('#totp-off-code').value) || '';
+  try {
+    await api('/api/2fa/disable', { method: 'POST', body: { code } });
+    totpShow('off');
+    toast('Doble factor desactivado', 'ok');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
 $('#login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = $('#login-btn');
   const err = $('#login-error');
   err.textContent = '';
   btn.disabled = true;
+
+  // Segundo paso: ya hay contraseña correcta, toca el código
+  if (pending2fa) {
+    btn.textContent = 'Comprobando…';
+    try {
+      const r2 = await fetch('/api/login/2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket: pending2fa, code: ($('#login-code') && $('#login-code').value) || '' }),
+      });
+      const d2 = await r2.json().catch(() => ({}));
+      if (!r2.ok) { err.textContent = d2.error || 'Código incorrecto'; return; }
+      pending2fa = null;
+      const box = $('#login-2fa-box');
+      if (box) box.classList.add('hidden');
+      $('#login-pass').value = '';
+      resetSessionUi();
+      state.me = d2.user || null;
+      showApp();
+      await boot();
+      return;
+    } catch (e3) {
+      err.textContent = 'No se pudo conectar con el servidor';
+      return;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = pending2fa ? 'Verificar' : 'Entrar';
+    }
+  }
+
   btn.textContent = 'Entrando…';
   try {
     const res = await fetch('/api/login', {
@@ -363,6 +480,17 @@ $('#login-form').addEventListener('submit', async (e) => {
       err.textContent = data.error || 'Contraseña incorrecta';
       return;
     }
+    if (data.need2fa) {
+      pending2fa = data.ticket;
+      const box = $('#login-2fa-box');
+      if (box) box.classList.remove('hidden');
+      btn.textContent = 'Verificar';
+      err.textContent = '';
+      const code = $('#login-code');
+      if (code) { code.value = ''; code.focus(); }
+      return;
+    }
+    pending2fa = null;
     $('#login-pass').value = '';
     resetSessionUi();
     state.me = data.user || null;
@@ -372,7 +500,7 @@ $('#login-form').addEventListener('submit', async (e) => {
     err.textContent = 'No se pudo conectar con el servidor';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Entrar';
+    btn.textContent = pending2fa ? 'Verificar' : 'Entrar';
   }
 });
 
@@ -563,6 +691,7 @@ async function loadUsers() {
         <span class="chip ${u.role === 'admin' ? 'chip-warn' : ''}">${u.role === 'admin' ? 'admin' : 'usuario'}</span>
         <span class="chip ${online ? 'chip-ok' : ''}">${online ? 'en línea' : (u.active ? 'activo' : 'desactivado')}</span>
         <span class="muted tiny user-last" title="Última conexión">Última: ${esc(lastTxt)}${u.loginCount ? ' · ' + u.loginCount + (u.loginCount === 1 ? ' acceso' : ' accesos') : ''}${u.resetRequestedAt ? ' · pidió reset' : ''}</span>
+        ${u.totp ? `<button class="btn btn-ghost btn-xs" data-user-2fa="${esc(u.id)}" title="Quitar el doble factor a este usuario">2FA off</button>` : ''}
         <button class="btn btn-ghost btn-xs" data-user-reset="${esc(u.id)}">Resetear</button>
         <button class="btn btn-ghost btn-xs" data-user-toggle="${esc(u.id)}">${u.active ? 'Desactivar' : 'Activar'}</button>
         <button class="btn btn-ghost btn-xs btn-danger-ghost" data-user-del="${esc(u.id)}">Borrar</button>
@@ -903,6 +1032,13 @@ document.addEventListener('input', e => {
   if (e.target && e.target.id === 'sim-buy') { simState.buyAmount = e.target.value; }
 });
 document.addEventListener('click', e => {
+  const tfa = e.target.closest ? e.target.closest('#totp-start,#totp-confirm,#totp-cancel,#totp-disable') : null;
+  if (tfa) {
+    if (tfa.id === 'totp-start') { totpStart(); return; }
+    if (tfa.id === 'totp-confirm') { totpConfirm(); return; }
+    if (tfa.id === 'totp-cancel') { totpShow('off'); return; }
+    if (tfa.id === 'totp-disable') { totpDisable(); return; }
+  }
   const btn = e.target.closest ? e.target.closest('[data-sim-price],[data-sim-del],#sim-save') : null;
   if (!btn) return;
   if (btn.id === 'sim-save') {
@@ -3497,7 +3633,15 @@ document.addEventListener('click', async (e) => {
   const reset = e.target.closest('[data-user-reset]');
   const toggle = e.target.closest('[data-user-toggle]');
   const del = e.target.closest('[data-user-del]');
+  const tfa = e.target.closest('[data-user-2fa]');
   try {
+    if (tfa) {
+      if (!confirm('¿Quitar el doble factor a este usuario? Podrá entrar solo con su contraseña.')) return;
+      await api('/api/users/' + tfa.dataset.user2fa + '/2fa-reset', { method: 'POST', body: '{}' });
+      toast('Doble factor desactivado', 'ok');
+      await loadUsers();
+      return;
+    }
     if (reset) {
       const r = await api('/api/users/' + reset.dataset.userReset + '/reset', { method: 'POST', body: '{}' });
       const link = location.origin + '/#/invite/' + r.inviteToken;
