@@ -629,6 +629,91 @@ function autoMatchPlanBuys(store) {
   return store;
 }
 
+
+// ---------------- planes a partir de las órdenes de Bitvavo ----------------
+async function openBitvavoBuys(symbol) {
+  const raw = await client.request('GET', `/orders?market=${symbol}-EUR`, { auth: true });
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .filter(o => String(o.side) === 'buy' && String(o.status) === 'new')
+    .map(o => ({
+      orderId: String(o.orderId),
+      price: Number(o.price) || 0,
+      qty: Number(o.amount) || 0,
+      remaining: Number(o.amountRemaining) || 0,
+      created: Number(o.created) || Date.now(),
+      type: String(o.orderType || 'limit'),
+    }))
+    .filter(o => o.price > 0 && (o.remaining || o.qty) > 0);
+}
+
+async function syncBitvavoPlans() {
+  {
+    const store = getPlanStore();
+    autoMatchPlanBuys(store);
+    const coins = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol);
+    const symbols = coins.length ? coins : [...new Set(store.plans.map(p => p.symbol))];
+    let creados = 0, nuevos = 0, cerrados = 0, errores = 0;
+
+    for (const symbol of symbols) {
+      let orders = [];
+      try { orders = await openBitvavoBuys(symbol); } catch (e) { errores++; continue; }
+
+      let plan = store.plans.find(p => p.symbol === symbol && p.source === 'bitvavo');
+      if (!plan && orders.length) {
+        plan = {
+          id: planId(), symbol, source: 'bitvavo',
+          title: 'Órdenes en Bitvavo',
+          note: 'Tramos creados a partir de tus órdenes de compra abiertas. Se actualizan al sincronizar.',
+          budget: 0, createdAt: Date.now(), tranches: [], usedOps: [],
+        };
+        store.plans.push(plan);
+        creados++;
+      }
+      if (!plan) continue;
+
+      const abiertas = new Set(orders.map(o => o.orderId));
+      // 1) tramos nuevos
+      for (const o of orders) {
+        const importe = round(o.price * (o.remaining || o.qty), 2);
+        const tr = plan.tranches.find(x => x.orderId === o.orderId);
+        if (tr) {
+          tr.price = o.price;
+          tr.amount = importe;
+          tr.qty = o.remaining || o.qty;
+          continue;
+        }
+        plan.tranches.push({
+          id: planId(), price: o.price, amount: importe, qty: o.remaining || o.qty,
+          status: 'pending', doneAt: null, donePrice: null, orderId: o.orderId,
+          orderType: o.type, orderCreated: o.created,
+        });
+        nuevos++;
+      }
+      // 2) tramos cuya orden ya no está abierta
+      for (const tr of plan.tranches) {
+        if (tr.status !== 'pending' || !tr.orderId) continue;
+        if (abiertas.has(tr.orderId)) continue;
+        tr.status = 'cancelled';
+        tr.cancelledAt = Date.now();
+        tr.note = 'La orden ya no está abierta en Bitvavo';
+        removePlanAlert(plan.id, tr.id);
+        cerrados++;
+      }
+      plan.tranches.sort((a, b) => b.price - a.price);
+      plan.budget = round(plan.tranches.filter(x => x.status === 'pending').reduce((a, x) => a + x.amount, 0), 2);
+    }
+
+    savePlanStore(store);
+    return { ok: true, planesCreados: creados, tramosNuevos: nuevos, tramosCerrados: cerrados, errores, planes: store.plans };
+  }
+}
+
+app.post('/api/plans/bitvavo-sync', async (req, res) => {
+  try { res.json(await syncBitvavoPlans()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/plans', (req, res) => {
   const store = getPlanStore();
   autoMatchPlanBuys(store);
@@ -2928,6 +3013,19 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 });
 
 setInterval(() => { tenant.forEachUser(() => refreshPortfolio(true).catch(() => {})); }, SNAP_MS);
+
+// Cada 10 minutos trae las órdenes abiertas de Bitvavo a Planes.
+setInterval(() => {
+  tenant.forEachUser(async () => {
+    if (!client.configured) return;
+    try {
+      const r = await syncBitvavoPlans();
+      if (r && (r.tramosNuevos || r.tramosCerrados)) {
+        console.log(`[planes] Bitvavo: ${r.tramosNuevos} tramos nuevos, ${r.tramosCerrados} cerrados`);
+      }
+    } catch (e) { console.log('[planes] sync:', e.message); }
+  });
+}, 10 * 60e3);
 
 let syncTimer = 0;
 setInterval(() => {

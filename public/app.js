@@ -41,12 +41,19 @@ const charts = new Map();
 const eurFmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const eur0Fmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 
-function eur(v) { return v === null || v === undefined || !isFinite(v) ? '—' : eurFmt.format(v); }
-function eur0(v) { return v === null || v === undefined || !isFinite(v) ? '—' : eur0Fmt.format(v); }
-function num(v, d = 2) {
+// Formato español con agrupación desde 4 cifras (el Intl de es-ES no agrupa 4 dígitos)
+function groupNum(v, d = 2, minD = 0) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
-  return new Intl.NumberFormat('es-ES', { maximumFractionDigits: d }).format(v);
+  const neg = Number(v) < 0;
+  const fixed = Math.abs(Number(v)).toFixed(d);
+  const [en, fr] = fixed.split('.');
+  const ent = en.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const frac = fr && fr.replace(/0+$/, '').length >= minD ? fr.replace(/0+$/, '') : (minD > 0 ? fr : '');
+  return (neg ? '-' : '') + ent + (frac ? ',' + frac : '');
 }
+function eur(v) { return v === null || v === undefined || !isFinite(v) ? '—' : groupNum(v, 2, 2) + ' €'; }
+function eur0(v) { return v === null || v === undefined || !isFinite(v) ? '—' : groupNum(v, 0) + ' €'; }
+function num(v, d = 2) { return groupNum(v, d); }
 function pct(v, d = 2) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   return (v >= 0 ? '+' : '') + num(v, d) + ' %';
@@ -261,6 +268,7 @@ const VIEW_TITLES = {
   alerts: ['Alertas', 'Avisos de precio por Telegram'],
   trade: ['Trading', 'Velas, volumen y tendencia'],
   plans: ['Planes', 'Tu plan de compras, tramo a tramo'],
+  sim: ['Simulador', 'Que pasa si el precio llega a...'],
   settings: ['Ajustes', 'Claves, historial, seguridad y datos'],
 };
 
@@ -272,12 +280,13 @@ function navigate(view) {
   $$('.nav-item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   renderSharedKpis(state.portfolio);
   const moreBtn = document.getElementById('more-btn');
-  if (moreBtn) moreBtn.classList.toggle('is-active', ['operations', 'tax', 'plans', 'trade', 'settings'].includes(view));
+  if (moreBtn) moreBtn.classList.toggle('is-active', ['operations', 'tax', 'plans', 'trade', 'sim', 'settings'].includes(view));
   const settingsBtn = $('#settings-btn');
   if (settingsBtn) settingsBtn.classList.toggle('is-active', view === 'settings');
   const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
+  if (view === 'sim') renderSim();
   if (view === 'news') loadNews();
   if (view === 'market') { loadLiquidity(); loadLeverage(); loadPulse(); loadCalendar(); }
   const topText = document.querySelector('.topbar-text');
@@ -875,6 +884,200 @@ async function showInvite(token) {
   } catch {
     userEl.textContent = 'No se pudo comprobar el enlace';
   }
+}
+
+// ---------------------------------------------------------------- eventos del simulador
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (!t) return;
+  if (t.id === 'sim-coin') { simState.symbol = t.value; simState.price = Number((state.portfolio.coins.find(c => c.symbol === t.value) || {}).price) || 0; simState.tax = null; renderSim(); }
+  if (t.id === 'sim-price') { simState.price = Number(t.value) || 0; simState.tax = null; renderSim(); }
+  if (t.id === 'sim-buy') { simState.buyAmount = t.value; renderSim(); }
+});
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'sim-buy') { simState.buyAmount = e.target.value; }
+});
+document.addEventListener('click', e => {
+  const btn = e.target.closest ? e.target.closest('[data-sim-price],[data-sim-del],#sim-save') : null;
+  if (!btn) return;
+  if (btn.id === 'sim-save') {
+    const list = simSaved();
+    list.push({ symbol: simState.symbol, price: Number(simState.price) });
+    simSave(list.slice(-8));
+    renderSimSaved();
+    return;
+  }
+  if (btn.dataset.simPrice) {
+    simState.price = Number(btn.dataset.simPrice);
+    simState.tax = null;
+    renderSim();
+    return;
+  }
+  if (btn.dataset.simDel !== undefined) {
+    const list = simSaved();
+    list.splice(Number(btn.dataset.simDel), 1);
+    simSave(list);
+    renderSimSaved();
+  }
+});
+
+// ---------------------------------------------------------------- simulador
+const SIM_KEY = 'quanto.sim.escenarios';
+const simState = { symbol: null, price: null, buyAmount: '160', tax: null, taxAt: 0 };
+
+function simSaved() {
+  try { return JSON.parse(localStorage.getItem(SIM_KEY) || '[]'); } catch { return []; }
+}
+function simSave(list) { try { localStorage.setItem(SIM_KEY, JSON.stringify(list)); } catch {} }
+
+function simDefaults() {
+  const coins = (state.portfolio && state.portfolio.coins) || [];
+  if (!coins.length) return;
+  if (!simState.symbol || !coins.some(c => c.symbol === simState.symbol)) {
+    simState.symbol = coins[0].symbol;
+    simState.price = Number(coins[0].price);
+  }
+}
+
+function simNumbers() {
+  const p = state.portfolio;
+  const coin = ((p && p.coins) || []).find(c => c.symbol === simState.symbol);
+  if (!p || !coin) return null;
+  const price = Number(simState.price) || 0;
+  const cash = Number(p.cash) || 0;
+  const cryptoValue = Number(p.totalValue) - cash;
+  const newCoinValue = coin.amount * price;
+  const newCrypto = cryptoValue - coin.value + newCoinValue;
+  const newTotal = newCrypto + cash;
+  const delta = newTotal - p.totalValue;
+  const newPnl = newCrypto - p.invested;
+  const weight = newTotal > 0 ? (newCoinValue / newTotal) * 100 : 0;
+  const vsAvg = coin.avgPrice > 0 ? ((price - coin.avgPrice) / coin.avgPrice) * 100 : null;
+  return { p, coin, price, cash, cryptoValue, newCoinValue, newCrypto, newTotal, delta, newPnl, weight, vsAvg };
+}
+
+function renderSim() {
+  simDefaults();
+  const p = state.portfolio;
+  const box = $('#sim-coin');
+  if (!box || !p) return;
+
+  const coins = (p.coins || []).filter(c => c.amount > 0);
+  box.innerHTML = coins.map(c => `<option value="${esc(c.symbol)}"${c.symbol === simState.symbol ? ' selected' : ''}>${esc(c.symbol)}</option>`).join('');
+  const priceInput = $('#sim-price');
+  if (priceInput && document.activeElement !== priceInput) priceInput.value = simState.price;
+
+  const n = simNumbers();
+  if (!n) return;
+
+  const r = RANGES[simState.symbol] || {};
+  const base = Number(n.coin.price) || 0;
+  const presets = [
+    ['−50 %', base * 0.5], ['−25 %', base * 0.75], ['+25 %', base * 1.25], ['+50 %', base * 1.5],
+    ['×2', base * 2], ['Mi media', n.coin.avgPrice], ['Máx. año', r.high], ['Máx. histórico', r.ath],
+  ].filter(x => x[1] > 0);
+  $('#sim-presets').innerHTML = presets.map(([label, value]) =>
+    `<button class="btn btn-ghost btn-xs" data-sim-price="${value.toFixed(6)}">${label}</button>`).join('');
+
+  $('#sim-now').innerHTML = `Precio ahora de ${esc(simState.symbol)}: <b>${priceFmt(n.coin.price)}</b> · tu media: <b>${n.coin.costKnown ? priceFmt(n.coin.avgPrice) : 'n/d'}</b> · ${num(n.coin.amount, 8)} ${esc(simState.symbol)}`;
+
+  const up = n.delta >= 0;
+  $('#sim-resumen').innerHTML = `<header class="card-head">
+      <div><h2>Tu cartera con ${esc(simState.symbol)} a ${priceFmt(n.price)}</h2>
+      <p class="card-sub">${n.vsAvg === null ? '' : (n.vsAvg >= 0 ? '+' : '') + num(n.vsAvg, 1) + ' % respecto a tu precio medio'}</p></div>
+    </header>
+    <div class="sim-kpis">
+      <div class="stat"><span>Valor total</span><strong>${eur(n.newTotal)}</strong><small class="${up ? 'pos' : 'neg'}">${up ? '+' : ''}${eur(n.delta)} (${num((n.delta / n.p.totalValue) * 100, 1)} %)</small></div>
+      <div class="stat"><span>P/L total</span><strong class="${n.newPnl >= 0 ? 'pos' : 'neg'}">${eur(n.newPnl)}</strong><small>ahora ${eur(n.p.pnl)}</small></div>
+      <div class="stat"><span>Peso de ${esc(simState.symbol)}</span><strong>${num(n.weight, 1)} %</strong><small>${n.weight > 75 ? '⚠️ por encima del 75 %' : 'dentro del límite del 75 %'}</small></div>
+      <div class="stat"><span>Esa posición valdría</span><strong>${eur(n.newCoinValue)}</strong><small>hoy ${eur(n.coin.value)}</small></div>
+    </div>`;
+
+  if (simState.taxAt !== n.price || !simState.tax) {
+    simState.tax = null;
+    simState.taxAt = n.price;
+    api(`/api/tax/simulate?symbol=${encodeURIComponent(simState.symbol)}&amount=${n.coin.amount}&price=${n.price}`)
+      .then(d => { simState.tax = d; if (state.view === 'sim') renderSimTax(); })
+      .catch(() => {});
+  }
+  $('#sim-vender').innerHTML = `<header class="card-head"><div><h2>¿Y si vendo?</h2><p class="card-sub">Vender toda la posición a ${priceFmt(n.price)}</p></div></header><div id="sim-vender-body" class="sim-lines">Calculando…</div>`;
+  if (simState.tax) renderSimTax();
+
+  const buyAmount = Number(simState.buyAmount) || 0;
+  const buyQty = n.price > 0 ? buyAmount / n.price : 0;
+  const newQty = n.coin.amount + buyQty;
+  const newAvg = newQty > 0 ? (n.coin.amount * n.coin.avgPrice + buyAmount) / newQty : n.coin.avgPrice;
+  const newWeight = n.newTotal + buyAmount > 0 ? ((n.coin.amount * n.price + buyAmount) / (n.newTotal + buyAmount)) * 100 : 0;
+  $('#sim-comprar').innerHTML = `<header class="card-head"><div><h2>¿Y si compro más?</h2><p class="card-sub">Comprar a ${priceFmt(n.price)}</p></div></header>
+    <div class="form-row" style="margin-bottom:10px">
+      <label class="field"><span>Importe (€)</span><input id="sim-buy" type="number" step="any" min="0" inputmode="decimal" value="${esc(simState.buyAmount)}"></label>
+    </div>
+    <div class="sim-lines">
+      <div><span>Comprarías</span><b>${num(buyQty, 6)} ${esc(simState.symbol)}</b></div>
+      <div><span>Nueva media</span><b>${buyQty > 0 ? priceFmt(newAvg) : '—'}</b></div>
+      <div><span>Tendrías</span><b>${num(newQty, 6)} ${esc(simState.symbol)}</b></div>
+      <div><span>Valoraría</span><b>${eur(newQty * n.price)}</b></div>
+      <div><span>Peso en cartera</span><b class="${newWeight > 75 ? 'neg' : ''}">${num(newWeight, 1)} %${newWeight > 75 ? ' ⚠️' : ''}</b></div>
+    </div>`;
+
+  renderSimExtras(n, r);
+  renderSimSaved();
+}
+
+function renderSimTax() {
+  const body = $('#sim-vender-body');
+  if (!body) return;
+  const t = simState.tax;
+  if (!t || !t.ok) { body.innerHTML = `<p class="muted tiny">${esc((t && t.message) || 'No se pudo calcular.')}</p>`; return; }
+  const fifo = t.fifo || {};
+  const gain = Number(fifo.gain) || 0;
+  body.innerHTML = `
+    <div><span>Ingreso</span><b>${eur(t.proceeds)}</b></div>
+    <div><span>Coste FIFO</span><b>${eur(fifo.cost)}</b></div>
+    <div><span>Resultado</span><b class="${gain >= 0 ? 'pos' : 'neg'}">${gain >= 0 ? '+' : ''}${eur(gain)}</b></div>
+    <div><span>Impuestos estimados</span><b>${eur(fifo.tax)}</b></div>
+    <div><span>Te quedarían</span><b>${eur(t.netAfterTax)}</b></div>
+    <p class="hint" style="margin:10px 0 0">${gain > 0 ? 'Se aplican los tramos del ahorro sobre la ganancia.' : 'Si vendes con pérdidas no tributas: se compensan en la declaración.'}</p>`;
+}
+
+function renderSimExtras(n, r) {
+  const box = $('#sim-extras');
+  if (!box) return;
+  const avg = Number(n.coin.avgPrice) || 0;
+  const need = n.price > 0 && avg > 0 ? ((avg / n.price) - 1) * 100 : null;
+  const target = avg > 0 ? avg * 0.9 : 0;
+  const b = target > n.price ? (n.coin.invested - target * n.coin.amount) / (target - n.price) : -1;
+  const bText = b > 0 ? `${eur(b)} a ${priceFmt(n.price)} te dejarían la media en ${priceFmt(target)}` : 'a ese precio no se puede bajar la media comprando';
+
+  box.innerHTML = `<header class="card-head"><div><h2>Datos que ayudan</h2><p class="card-sub">Equilibrio, histórico y cuánto haría falta.</p></div></header>
+    <div class="sim-kpis">
+      <div class="stat"><span>Precio de equilibrio</span><strong>${avg ? priceFmt(avg) : '—'}</strong><small>${need === null ? '' : `estás ${need >= 0 ? '+' : ''}${num(need, 1)} % de ahí`}</small></div>
+      <div class="stat"><span>Si hubieras vendido en máx. histórico</span><strong>${r.ath ? eur(n.coin.amount * r.ath) : '—'}</strong><small>${r.ath ? 'bruto, antes de impuestos' : 'sin dato histórico'}</small></div>
+      <div class="stat"><span>Para bajar tu media un 10 %</span><strong>${b > 0 ? eur(b) : '—'}</strong><small>${bText}</small></div>
+      <div class="stat"><span>Diferencia con tu media</span><strong>${n.vsAvg === null ? '—' : (n.vsAvg >= 0 ? '+' : '') + num(n.vsAvg, 1) + ' %'}</strong><small>precio frente a ${avg ? priceFmt(avg) : '—'}</small></div>
+    </div>`;
+}
+
+function renderSimSaved() {
+  const box = $('#sim-guardados');
+  if (!box) return;
+  const list = simSaved();
+  const p = state.portfolio;
+  box.innerHTML = `<header class="card-head">
+      <div><h2>Escenarios guardados</h2><p class="card-sub">Compara varios precios a la vez.</p></div>
+      <button class="btn btn-ghost btn-xs" id="sim-save">Guardar el actual</button>
+    </header>
+    ${list.length ? `<table class="table"><thead><tr><th>Moneda</th><th class="num">Precio</th><th class="num">Cartera</th><th class="num">Diferencia</th><th></th></tr></thead><tbody>
+      ${list.map((s, i) => {
+        const c = ((p && p.coins) || []).find(x => x.symbol === s.symbol);
+        if (!c) return '';
+        const cryptoValue = Number(p.totalValue) - (Number(p.cash) || 0);
+        const total = cryptoValue - c.value + c.amount * s.price + (Number(p.cash) || 0);
+        const delta = total - p.totalValue;
+        return `<tr><td>${esc(s.symbol)}</td><td class="num">${priceFmt(s.price)}</td><td class="num">${eur(total)}</td>
+          <td class="num ${delta >= 0 ? 'pos' : 'neg'}">${delta >= 0 ? '+' : ''}${eur(delta)}</td>
+          <td class="num"><button class="btn btn-ghost btn-xs" data-sim-del="${i}">Quitar</button></td></tr>`;
+      }).join('')}</tbody></table>` : '<p class="muted tiny">Todavía no has guardado ninguno. Ajusta un precio y pulsa «Guardar el actual».</p>'}`;
 }
 
 async function boot() {
@@ -1811,28 +2014,29 @@ function rngBlock(symbol) {
   const y = r.year || new Date().getFullYear();
   const cell = (label, value, approx) => `<span class="rng-cell"><i>${label}</i><b${approx ? ' class="approx" title="Aproximado: desde que cotiza en Bitvavo"' : ''}>${value ? (approx ? '≈ ' : '') + rangeFmt(value) + ' €' : '—'}</b></span>`;
   return `<div class="coin-rng">
-    ${cell('Máximo histórico', r.ath)}${cell('Máximo ' + y, r.high)}
-    ${cell('Mínimo histórico', r.atl)}${cell('Mínimo ' + y, r.low)}
+    ${cell('Máximo histórico', r.ath, r.athApprox)}
+    ${cell('Máximo ' + y, r.high)}
+    ${cell('Mínimo ' + y, r.low)}
   </div>`;
 }
 
 function coinRow(c, index) {
   const change = c.dayChangePct;
   return `<tr data-symbol="${esc(c.symbol)}" class="clickable">
-    <td>
+    <td class="coin-cell" data-label="Moneda">
       <div class="coin">${coinBadge(c.symbol)}
         <div class="coin-name"><b>${esc(c.symbol)}</b></div>
         ${rngBlock(c.symbol)}
       </div>
     </td>
-    <td class="num">${num(c.amount, 8)}</td>
-    <td class="num">${priceFmt(c.price)}</td>
-    <td class="num">${c.costKnown ? priceFmt(c.avgPrice) : '<span class="muted">n/d</span>'}</td>
-    <td class="num"><b>${eur(c.value)}</b></td>
-    <td class="num">${c.costKnown ? eur(c.invested) : '<span class="muted">n/d</span>'}</td>
-    <td class="num ${c.pnl === null ? '' : signed(c.pnl)}">${c.pnl === null ? '<span class="muted">n/d</span>' : `<b>${c.pnl >= 0 ? '+' : ''}${eur(c.pnl)}</b><br><small>${pct(c.pnlPct)}</small>`}</td>
-    <td class="num ${signed(change || 0)}">${change === null || change === undefined ? '—' : pct(change)}</td>
-    <td class="num">${sparklineSvg(state.sparklines[c.symbol])}</td>
+    <td class="num" data-label="Cantidad">${num(c.amount, 8)}</td>
+    <td class="num" data-label="Precio">${priceFmt(c.price)}</td>
+    <td class="num" data-label="P. medio">${c.costKnown ? priceFmt(c.avgPrice) : '<span class="muted">n/d</span>'}</td>
+    <td class="num" data-label="Valor"><b>${eur(c.value)}</b></td>
+    <td class="num" data-label="Invertido">${c.costKnown ? eur(c.invested) : '<span class="muted">n/d</span>'}</td>
+    <td class="num ${c.pnl === null ? '' : signed(c.pnl)}" data-label="P/L">${c.pnl === null ? '<span class="muted">n/d</span>' : `<b>${c.pnl >= 0 ? '+' : ''}${eur(c.pnl)}</b><br><small>${pct(c.pnlPct)}</small>`}</td>
+    <td class="num ${signed(change || 0)}" data-label="Hoy">${change === null || change === undefined ? '—' : pct(change)}</td>
+    <td class="num spark-cell" data-label="7 días">${sparklineSvg(state.sparklines[c.symbol])}</td>
   </tr>`;
 }
 
@@ -2126,7 +2330,6 @@ function openCoin(symbol) {
       return `<h3 class="h3" style="margin-top:16px">Rangos de precio</h3>
       <div class="rng-grid">
         <div class="stat"><span>Máximo histórico</span><strong>${f(r.ath)}</strong><small>${fecha(r.athDate)}</small></div>
-        <div class="stat"><span>Mínimo histórico</span><strong>${f(r.atl)}</strong><small>${fecha(r.atlDate)}</small></div>
         <div class="stat"><span>Máximo ${r.year || ''}</span><strong>${f(r.high)}</strong><small>año en curso</small></div>
         <div class="stat"><span>Mínimo ${r.year || ''}</span><strong>${f(r.low)}</strong><small>año en curso</small></div>
       </div>
@@ -2479,7 +2682,28 @@ async function loadPlans() {
   } catch (e) { toast(e.message, true); }
 }
 
+async function syncBitvavoPlansUi(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Consultando…'; }
+  try {
+    const r = await api('/api/plans/bitvavo-sync', { method: 'POST' });
+    await loadPlans();
+    const bits = [];
+    if (r.tramosNuevos) bits.push(`${r.tramosNuevos} tramos nuevos`);
+    if (r.tramosCerrados) bits.push(`${r.tramosCerrados} cerrados`);
+    toast(bits.length ? 'Bitvavo: ' + bits.join(' · ') : 'Bitvavo: no hay cambios', 'ok');
+  } catch (e) {
+    toast('No se pudo consultar Bitvavo: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Traer órdenes de Bitvavo'; }
+  }
+}
+
 function renderPlans() {
+  const bvBtn = $('#plans-bitvavo');
+  if (bvBtn && !bvBtn.dataset.ready) {
+    bvBtn.dataset.ready = '1';
+    bvBtn.addEventListener('click', () => syncBitvavoPlansUi(bvBtn));
+  }
   const box = $('#plans-list');
   if (!box) return;
   if (!state.plans.length) {

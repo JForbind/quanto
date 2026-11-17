@@ -117,6 +117,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 4 6-8 3 4"/><path d="M3 21h18"/></svg>
         <span>Trading</span>
       </button>
+      <button class="nav-item" data-view="sim">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+        <span>Simulador</span>
+      </button>
     </nav>
 
     <div class="sidebar-foot">
@@ -691,6 +695,7 @@
       <article class="card glass">
         <header class="card-head">
           <div><h2>Nuevo plan</h2><p class="card-sub">Define los tramos: a qué precio compras y cuánto. Luego los marcas al ejecutarlos.</p></div>
+          <button class="btn btn-ghost btn-xs" type="button" id="plans-bitvavo" title="Trae a Planes las órdenes de compra que tienes abiertas en Bitvavo">Traer órdenes de Bitvavo</button>
         </header>
         <form id="plan-form" class="form">
           <div class="form-row">
@@ -709,6 +714,30 @@
       <div id="plans-list" class="plans-list"></div>
     </section>
 
+
+    <!-- ============================ SIMULADOR -->
+    <section id="view-sim" class="view hidden">
+      <div class="sim-top">
+        <article class="card glass">
+          <header class="card-head">
+            <div><h2>Escenario</h2><p class="card-sub">Elige una moneda y un precio teórico.</p></div>
+          </header>
+          <div class="form-row">
+            <label class="field"><span>Moneda</span><select id="sim-coin"></select></label>
+            <label class="field"><span>Precio objetivo (€)</span><input id="sim-price" type="number" step="any" min="0" inputmode="decimal"></label>
+          </div>
+          <div class="sim-presets" id="sim-presets"></div>
+          <p class="hint" id="sim-now">—</p>
+        </article>
+        <article class="card glass" id="sim-resumen"></article>
+      </div>
+      <div class="sim-2">
+        <article class="card glass" id="sim-vender"></article>
+        <article class="card glass" id="sim-comprar"></article>
+      </div>
+      <article class="card glass" id="sim-extras"></article>
+      <article class="card glass" id="sim-guardados"></article>
+    </section>
     <!-- ============================ AJUSTES -->
     <section id="view-settings" class="view hidden">
       <div class="grid">
@@ -948,6 +977,7 @@
     <button class="more-item" data-view="tax"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2Z"/></svg><span>Fiscal</span></button>
     <button class="more-item" data-view="plans"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/><path d="m17 14 2 2 3-4"/></svg><span>Planes</span></button>
     <button class="more-item" data-view="trade"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 4 6-8 3 4"/><path d="M3 21h18"/></svg><span>Trading</span></button>
+      <button class="more-item" data-view="sim"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/></svg><span>Simulador</span></button>
     <button class="more-item" data-view="news"><svg viewBox="0 0 24 24"><path d="M4 5h13a2 2 0 0 1 2 2v11M4 5v12a2 2 0 0 0 2 2h13M8 9h7M8 12h7M8 15h4"/></svg><span>Noticias</span></button>
     <button class="more-item" data-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"/></svg><span>Ajustes</span></button>
   </div>
