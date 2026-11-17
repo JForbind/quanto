@@ -352,6 +352,98 @@ function showApp() {
   $('#app').classList.remove('hidden');
 }
 
+// ---------------------------------------------------------------- orden de pestañas
+const NAV_SEL = '.sidebar .nav-item[data-view]';
+const NAV_MORE_SEL = '.more-item[data-view]';
+let navDragView = null;
+
+function navItems(sel) {
+  return Array.from(document.querySelectorAll(sel));
+}
+
+/** Pinta las asas de arrastre en cada pestaña del menú lateral. */
+function navPrepareHandles() {
+  navItems(NAV_SEL).forEach((item) => {
+    if (item.querySelector('.nav-handle')) return;
+    const asa = document.createElement('span');
+    asa.className = 'nav-handle';
+    asa.draggable = true;
+    asa.title = 'Arrastra para cambiar el orden';
+    asa.setAttribute('aria-hidden', 'true');
+    asa.textContent = '⋮⋮';
+    item.appendChild(asa);
+
+    asa.addEventListener('dragstart', (e) => {
+      navDragView = item.dataset.view;
+      item.classList.add('nav-dragging');
+      try {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', navDragView);
+      } catch {}
+    });
+    asa.addEventListener('dragend', () => {
+      item.classList.remove('nav-dragging');
+      navDragView = null;
+      navSaveOrder();
+    });
+    // arrastrar desde el asa no debe navegar
+    asa.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+  });
+
+  navItems(NAV_SEL).forEach((item) => {
+    if (item.dataset.dropReady) return;
+    item.dataset.dropReady = '1';
+    item.addEventListener('dragover', (e) => {
+      if (!navDragView || item.dataset.view === navDragView) return;
+      e.preventDefault();
+      const arrastrado = document.querySelector(`${NAV_SEL.replace('[data-view]', '')}[data-view="${navDragView}"]`);
+      if (!arrastrado) return;
+      const r = item.getBoundingClientRect();
+      const despues = e.clientY > r.top + r.height / 2;
+      item.parentNode.insertBefore(arrastrado, despues ? item.nextSibling : item);
+    });
+    item.addEventListener('drop', (e) => {
+      if (!navDragView) return;
+      e.preventDefault();
+    });
+  });
+}
+
+/** Aplica el orden guardado (solo mueve las que existen). */
+function navApplyOrder(order) {
+  if (!Array.isArray(order) || !order.length) return;
+  const lista = navItems(NAV_SEL);
+  if (!lista.length) return;
+  const contenedor = lista[0].parentNode;
+  const porVista = new Map(lista.map(it => [it.dataset.view, it]));
+  const enOrden = order.map(v => porVista.get(v)).filter(Boolean);
+  // las que no estén en el orden guardado van al final, en su orden actual
+  lista.forEach(it => { if (!enOrden.includes(it)) enOrden.push(it); });
+  enOrden.forEach(it => contenedor.appendChild(it));
+
+  // la hoja «Más» del móvil, con el mismo criterio
+  const hoja = document.querySelector('.more-menu') || document;
+  const mas = Array.from(document.querySelectorAll(NAV_MORE_SEL));
+  if (mas.length) {
+    const cont = mas[0].parentNode;
+    const mapa = new Map(mas.map(it => [it.dataset.view, it]));
+    const ordenMas = order.map(v => mapa.get(v)).filter(Boolean);
+    mas.forEach(it => { if (!ordenMas.includes(it)) ordenMas.push(it); });
+    ordenMas.forEach(it => cont.appendChild(it));
+  }
+}
+
+async function navSaveOrder() {
+  const order = navItems(NAV_SEL).map(it => it.dataset.view).filter(Boolean);
+  if (!order.length) return;
+  try {
+    await api('/api/nav-order', { method: 'POST', body: { order } });
+    toast('Orden del menú guardado', 'ok');
+  } catch (e) {
+    toast('No se pudo guardar el orden', 'err');
+  }
+}
+
 // ---------------------------------------------------------------- doble factor
 let pending2fa = null; // ticket temporal entre contraseña y código
 
@@ -1305,6 +1397,8 @@ async function loadTransactions() {
 async function loadSettings() {
   try {
     state.settings = await api('/api/settings');
+    navPrepareHandles();
+    if (state.settings && state.settings.navOrder) navApplyOrder(state.settings.navOrder);
     state.cold = await api('/api/holdings');
     state.overrides = await api('/api/overrides');
     const wk = $('#tg-weekly');

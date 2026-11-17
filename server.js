@@ -2418,7 +2418,27 @@ app.get('/api/settings', (req, res) => {
     fredKeySet: !!(s.fredKey && s.fredKey.length === 32),
     mailReady: mailer.ready(),
     telegramReady: !!telegramConfig().token,
+    navOrder: Array.isArray(s.navOrder) ? s.navOrder : null,
   });
+});
+
+
+// ---------------- orden de las pestañas del menú ----------------
+const NAV_VIEWS = new Set(['dashboard', 'coins', 'market', 'operations', 'tax', 'alerts', 'plans', 'trade', 'sim', 'news']);
+
+app.post('/api/nav-order', (req, res) => {
+  const body = req.body || {};
+  const entrada = Array.isArray(body.order) ? body.order : [];
+  const limpio = entrada
+    .map(v => String(v || '').trim())
+    .filter(v => NAV_VIEWS.has(v))
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .slice(0, 20);
+  if (!limpio.length) return res.status(400).json({ error: 'Orden no válido' });
+  const s = getSettings();
+  s.navOrder = limpio;
+  saveSettings(s);
+  res.json({ ok: true, navOrder: limpio });
 });
 
 app.post('/api/settings', (req, res) => {

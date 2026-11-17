@@ -1055,3 +1055,16 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 #totp-off { margin-top: 16px; }
 #totp-setup .hint:first-child { margin-top: 4px; }
 #totp-on .form-actions { margin-top: 14px; }
+
+/* asa para reordenar las pestañas */
+.sidebar .nav-item { position: relative; }
+.nav-handle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  font-size: 12px; line-height: 1; letter-spacing: -2px; color: var(--muted);
+  opacity: 0; cursor: grab; padding: 4px 3px; border-radius: 6px; user-select: none; transition: opacity .15s;
+}
+.sidebar .nav-item:hover .nav-handle { opacity: .75; }
+.nav-handle:hover { opacity: 1 !important; background: var(--glass-hi); }
+.nav-handle:active { cursor: grabbing; }
+.sidebar .nav-item.nav-dragging { opacity: .45; }
+.sidebar .nav-item.nav-dragging .nav-handle { opacity: 1; }
