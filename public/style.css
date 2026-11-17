@@ -1048,3 +1048,10 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 .totp-code-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 8px; }
 .totp-code-list code { background: var(--glass-hi); border: 1px solid var(--line); border-radius: 8px;
   padding: 8px; text-align: center; font-size: 12.5px; letter-spacing: .06em; user-select: all; }
+
+/* tarjeta de doble factor: aire entre el texto y el botón */
+#totp-card { align-self: start; }
+#totp-card > .hint { margin: 0 0 4px; }
+#totp-off { margin-top: 16px; }
+#totp-setup .hint:first-child { margin-top: 4px; }
+#totp-on .form-actions { margin-top: 14px; }
