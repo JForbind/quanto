@@ -286,7 +286,12 @@ function navigate(view) {
   const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
-  if (view === 'sim') renderSim();
+  if (view === 'sim') {
+    renderSim();
+    if (!Object.keys(RANGES).length) {
+      loadRanges().then(() => { if (state.view === 'sim') renderSim(); }).catch(() => {});
+    }
+  }
   if (view === 'news') loadNews();
   if (view === 'market') { loadLiquidity(); loadLeverage(); loadPulse(); loadCalendar(); }
   const topText = document.querySelector('.topbar-text');
@@ -973,11 +978,13 @@ function renderSim() {
   const r = RANGES[simState.symbol] || {};
   const base = Number(n.coin.price) || 0;
   const presets = [
-    ['−50 %', base * 0.5], ['−25 %', base * 0.75], ['+25 %', base * 1.25], ['+50 %', base * 1.5],
+    ['Precio actual', base], ['−50 %', base * 0.5], ['−25 %', base * 0.75], ['+25 %', base * 1.25], ['+50 %', base * 1.5],
     ['×2', base * 2], ['Mi media', n.coin.avgPrice], ['Máx. año', r.high], ['Máx. histórico', r.ath],
   ].filter(x => x[1] > 0);
-  $('#sim-presets').innerHTML = presets.map(([label, value]) =>
-    `<button class="btn btn-ghost btn-xs" data-sim-price="${value.toFixed(6)}">${label}</button>`).join('');
+  $('#sim-presets').innerHTML = presets.map(([label, value]) => {
+    const activo = Math.abs(value - n.price) <= Math.abs(value) * 0.0005;
+    return `<button class="btn btn-ghost btn-xs${activo ? ' is-active' : ''}" data-sim-price="${value.toFixed(6)}">${label}</button>`;
+  }).join('');
 
   $('#sim-now').innerHTML = `Precio ahora de ${esc(simState.symbol)}: <b>${priceFmt(n.coin.price)}</b> · tu media: <b>${n.coin.costKnown ? priceFmt(n.coin.avgPrice) : 'n/d'}</b> · ${num(n.coin.amount, 8)} ${esc(simState.symbol)}`;
 

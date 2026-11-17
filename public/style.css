@@ -1016,3 +1016,9 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
   .sim-top, .sim-2 { grid-template-columns: 1fr; }
   .sim-kpis { grid-template-columns: 1fr; }
 }
+
+/* boton de preset activo en el simulador */
+.sim-presets .btn.is-active {
+  background: var(--accent); color: #08111f; border-color: transparent; font-weight: 700;
+  box-shadow: 0 4px 14px rgba(139, 164, 255, .35);
+}
