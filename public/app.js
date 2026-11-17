@@ -2166,9 +2166,15 @@ function rngBlock(symbol) {
   const r = RANGES[symbol];
   if (!r || (!r.high && !r.ath)) return '';
   const y = r.year || new Date().getFullYear();
-  const cell = (label, value, approx) => `<span class="rng-cell"><i>${label}</i><b${approx ? ' class="approx" title="Aproximado: desde que cotiza en Bitvavo"' : ''}>${value ? (approx ? '≈ ' : '') + rangeFmt(value) + ' €' : '—'}</b></span>`;
+  const etiquetaMax = r.athApprox && r.athFrom
+    ? 'Máximo desde ' + new Date(r.athFrom).getFullYear()
+    : 'Máximo histórico';
+  const ayudaMax = r.athApprox && r.athFrom
+    ? 'No hay histórico completo: es el máximo desde que tenemos datos'
+    : '';
+  const cell = (label, value, approx, title) => `<span class="rng-cell"><i>${label}</i><b${approx ? ` class="approx"${title ? ` title="${esc(title)}"` : ''}` : ''}>${value ? (approx ? '≈ ' : '') + rangeFmt(value) + ' €' : '—'}</b></span>`;
   return `<div class="coin-rng">
-    ${cell('Máximo histórico', r.ath, r.athApprox)}
+    ${cell(etiquetaMax, r.ath, r.athApprox, ayudaMax)}
     ${cell('Máximo ' + y, r.high)}
     ${cell('Mínimo ' + y, r.low)}
   </div>`;
@@ -2483,7 +2489,7 @@ function openCoin(symbol) {
       const fecha = (ts) => ts ? new Date(ts).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '';
       return `<h3 class="h3" style="margin-top:16px">Rangos de precio</h3>
       <div class="rng-grid">
-        <div class="stat"><span>Máximo histórico</span><strong>${f(r.ath)}</strong><small>${fecha(r.athDate)}</small></div>
+        <div class="stat"><span>${r.athApprox && r.athFrom ? 'Máximo desde ' + new Date(r.athFrom).getFullYear() : 'Máximo histórico'}</span><strong>${f(r.ath)}</strong><small>${r.athApprox && r.athFrom ? 'sin histórico completo' : fecha(r.athDate)}</small></div>
         <div class="stat"><span>Máximo ${r.year || ''}</span><strong>${f(r.high)}</strong><small>año en curso</small></div>
         <div class="stat"><span>Mínimo ${r.year || ''}</span><strong>${f(r.low)}</strong><small>año en curso</small></div>
       </div>

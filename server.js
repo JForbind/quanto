@@ -2908,7 +2908,11 @@ app.get('/api/ranges', async (req, res) => {
         .reverse();
       const yr = ranges.yearRange(rows);
       const hist = rows.length
-        ? { histHigh: Math.max(...rows.map(r => Number(r[2]))), histLow: Math.min(...rows.map(r => Number(r[3]))) }
+        ? {
+            histHigh: Math.max(...rows.map(r => Number(r[2]))),
+            histLow: Math.min(...rows.map(r => Number(r[3]))),
+            histFrom: Number(rows[0][0]) || null,
+          }
         : {};
       if (yr) out[sym] = { ...entry, ...yr, ...hist, yearAt: now };
     } catch { /* sin par en EUR */ }
@@ -2924,7 +2928,13 @@ app.get('/api/ranges', async (req, res) => {
     } catch {}
   }
 
-  const pendiente = symbols.filter(s => !out[s] || !out[s].athAt || now - out[s].athAt > ATH_TTL);
+  // Los valores aproximados (Binance o histórico corto) se reintentan antes
+  const pendiente = symbols.filter(s => {
+    const e = out[s];
+    if (!e || !e.athAt) return true;
+    const ttl = e.athApprox ? 6 * 3600e3 : ATH_TTL;
+    return now - e.athAt > ttl;
+  });
   for (const s of pendiente) if (!rangeQueue.includes(s)) rangeQueue.push(s);
   rangeDrain();
 
@@ -2932,8 +2942,8 @@ app.get('/api/ranges', async (req, res) => {
   for (const sym of symbols) {
     const e = out[sym];
     if (!e) continue;
-    if (!e.ath && e.histHigh) { e.ath = e.histHigh; e.athApprox = true; }
-    if (!e.atl && e.histLow) { e.atl = e.histLow; e.atlApprox = true; }
+    if (!e.ath && e.histHigh) { e.ath = e.histHigh; e.athApprox = true; e.athFrom = e.histFrom || null; }
+    if (!e.atl && e.histLow) { e.atl = e.histLow; e.atlApprox = true; e.atlFrom = e.histFrom || null; }
   }
 
   rangeCache.data = out;
