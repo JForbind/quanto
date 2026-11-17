@@ -978,12 +978,19 @@ function renderSim() {
   const r = RANGES[simState.symbol] || {};
   const base = Number(n.coin.price) || 0;
   const presets = [
-    ['Precio actual', base], ['−50 %', base * 0.5], ['−25 %', base * 0.75], ['+25 %', base * 1.25], ['+50 %', base * 1.5],
-    ['×2', base * 2], ['Mi media', n.coin.avgPrice], ['Máx. año', r.high], ['Máx. histórico', r.ath],
+    ['Actual', base, 'Precio actual'],
+    ['−50 %', base * 0.5, 'La mitad del precio actual'],
+    ['−25 %', base * 0.75, 'Un 25 % por debajo'],
+    ['+25 %', base * 1.25, 'Un 25 % por encima'],
+    ['+50 %', base * 1.5, 'Un 50 % por encima'],
+    ['×2', base * 2, 'El doble'],
+    ['Media', n.coin.avgPrice, 'Tu precio medio de compra'],
+    ['Año', r.high, 'Máximo de este año'],
+    ['Histórico', r.ath, 'Máximo histórico'],
   ].filter(x => x[1] > 0);
-  $('#sim-presets').innerHTML = presets.map(([label, value]) => {
+  $('#sim-presets').innerHTML = presets.map(([label, value, title]) => {
     const activo = Math.abs(value - n.price) <= Math.abs(value) * 0.0005;
-    return `<button class="btn btn-ghost btn-xs${activo ? ' is-active' : ''}" data-sim-price="${value.toFixed(6)}">${label}</button>`;
+    return `<button class="btn btn-ghost btn-xs${activo ? ' is-active' : ''}" data-sim-price="${value.toFixed(6)}" title="${esc(title)}">${label}</button>`;
   }).join('');
 
   $('#sim-now').innerHTML = `Precio ahora de ${esc(simState.symbol)}: <b>${priceFmt(n.coin.price)}</b> · tu media: <b>${n.coin.costKnown ? priceFmt(n.coin.avgPrice) : 'n/d'}</b> · ${num(n.coin.amount, 8)} ${esc(simState.symbol)}`;

@@ -998,10 +998,11 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 }
 
 /* ---------------------------------------------- simulador */
-.sim-top { display: grid; grid-template-columns: 1fr 1.2fr; gap: 14px; }
+.sim-top { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .sim-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
 #view-sim > .card { margin-top: 14px; }
-.sim-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
+.sim-presets { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 8px; }
+.sim-presets .btn { font-size: 11px; padding: 5px 9px; line-height: 1.2; }
 .sim-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .sim-lines > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .sim-lines > div:last-child { border-bottom: 0; }
@@ -1021,4 +1022,9 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 .sim-presets .btn.is-active {
   background: var(--accent); color: #08111f; border-color: transparent; font-weight: 700;
   box-shadow: 0 4px 14px rgba(139, 164, 255, .35);
+}
+
+@media (max-width: 1420px) {
+  .sim-presets { gap: 4px; }
+  .sim-presets .btn { font-size: 10px; padding: 4px 7px; }
 }
