@@ -978,15 +978,15 @@ function renderSim() {
   const r = RANGES[simState.symbol] || {};
   const base = Number(n.coin.price) || 0;
   const presets = [
-    ['Actual', base, 'Precio actual'],
+    ['Precio actual', base, 'El precio de ahora mismo'],
     ['−50 %', base * 0.5, 'La mitad del precio actual'],
     ['−25 %', base * 0.75, 'Un 25 % por debajo'],
     ['+25 %', base * 1.25, 'Un 25 % por encima'],
     ['+50 %', base * 1.5, 'Un 50 % por encima'],
-    ['×2', base * 2, 'El doble'],
-    ['Media', n.coin.avgPrice, 'Tu precio medio de compra'],
-    ['Año', r.high, 'Máximo de este año'],
-    ['Histórico', r.ath, 'Máximo histórico'],
+    ['×2', base * 2, 'El doble del precio actual'],
+    ['Tu precio medio', n.coin.avgPrice, 'Tu precio medio de compra'],
+    ['Máximo del año', r.high, 'Precio más alto de este año'],
+    ['Máx. histórico', r.ath, 'Precio más alto de la historia'],
   ].filter(x => x[1] > 0);
   $('#sim-presets').innerHTML = presets.map(([label, value, title]) => {
     const activo = Math.abs(value - n.price) <= Math.abs(value) * 0.0005;
