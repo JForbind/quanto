@@ -1068,3 +1068,7 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 .nav-handle:active { cursor: grabbing; }
 .sidebar .nav-item.nav-dragging { opacity: .45; }
 .sidebar .nav-item.nav-dragging .nav-handle { opacity: 1; }
+
+#tls-card { align-self: start; }
+#tls-card .form-actions { margin-top: 14px; }
+#tls-card .hint { margin: 0 0 4px; }

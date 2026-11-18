@@ -842,6 +842,19 @@
             <div class="form-actions"><button class="btn btn-danger-ghost" type="button" id="totp-disable">Desactivar doble factor</button></div>
           </div>
         </article>
+
+        <article class="card glass span-6" id="tls-card">
+          <header class="card-head"><h2>Certificado local</h2><span class="chip chip-ok">red interna</span></header>
+          <p class="hint">El candado del navegador funciona con una autoridad propia. Instálala una vez en cada dispositivo y desaparece el aviso de «página no segura».</p>
+          <div class="form-actions">
+            <a class="btn btn-primary" href="/api/ca.crt" download="quanto-ca.crt">Descargar certificado</a>
+          </div>
+          <ul class="hint" style="margin:12px 0 0;padding-left:18px">
+            <li><b>Windows</b>: abre el archivo y elige «Entidades de certificación raíz de confianza».</li>
+            <li><b>Android</b>: Ajustes → Seguridad → Cifrado y credenciales → Instalar certificado → CA.</li>
+            <li><b>iPhone/iPad</b>: abre el archivo en Safari, instala el perfil y activa la confianza en Ajustes → General → VPN y gestión.</li>
+          </ul>
+        </article>
         <article class="card glass span-6">
           <header class="card-head"><h2>Apariencia</h2></header>
           <div class="theme-picker">

@@ -870,6 +870,20 @@ app.post('/api/setup', async (req, res) => {
 });
 
 
+
+// ---------------- certificado de la CA local ----------------
+app.get('/api/ca.crt', (req, res) => {
+  try {
+    const f = path.join(DATA_DIR, 'ca.crt');
+    if (!fs.existsSync(f)) return res.status(404).json({ error: 'No hay CA local' });
+    res.setHeader('Content-Type', 'application/x-x509-ca-cert');
+    res.setHeader('Content-Disposition', 'attachment; filename="quanto-ca.crt"');
+    res.send(fs.readFileSync(f));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ---------------- doble factor (TOTP) ----------------
 async function qrDataUrl(texto) {
   if (!QRCode) return null;
