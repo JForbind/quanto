@@ -353,7 +353,7 @@ app.use((req, res, next) => {
 // ---------------- control de acceso global ----------------
 // Todo /api exige sesión salvo la lista pública. Se registra ANTES de las rutas
 // para que ninguna pueda quedarse sin proteger.
-const PUBLIC_API = new Set(['/api/health', '/api/status', '/api/setup', '/api/login', '/api/login/2fa', '/api/forgot']);
+const PUBLIC_API = new Set(['/api/health', '/api/status', '/api/setup', '/api/login', '/api/login/2fa', '/api/forgot', '/api/ca.crt']);
 const ADMIN_OK = new Set(['/api/me', '/api/password', '/api/logout', '/api/status']);
 
 function isPublicApi(full) {
