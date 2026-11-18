@@ -1253,7 +1253,7 @@ function renderSim() {
       <label class="field"><span>Comprarías</span>
         <input id="sim-buy-qty" readonly value="${num(unidades, 8)} ${esc(simState.symbol)}"></label>
     </div>
-    <div id="sim-buy-body" class="sim-lines"><p class="muted tiny">Calculando…</p></div>`;
+    <div id="sim-buy-body" class="buy-wrap"><p class="muted tiny">Calculando…</p></div>`;
   renderSimBuy(unidades);
 
   renderSimPosicion();
