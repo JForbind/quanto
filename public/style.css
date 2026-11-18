@@ -1114,3 +1114,8 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 .buy-wrap .buy-compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: stretch; }
 .buy-wrap .buy-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--glass-hi); }
 .buy-wrap .buy-card.is-now { background: transparent; }
+
+/* la tarjeta de compra vuelve a media pantalla y las mini-tarjetas se alinean con los dos campos */
+#sim-comprar { grid-column: auto; }
+.buy-wrap .buy-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+.buy-wrap .buy-arrow { display: none; }
