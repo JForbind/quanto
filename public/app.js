@@ -1223,17 +1223,6 @@ function renderSim() {
 
   $('#sim-now').innerHTML = `Precio ahora de ${esc(simState.symbol)}: <b>${priceFmt(n.coin.price)}</b> · tu media: <b>${n.coin.costKnown ? priceFmt(n.coin.avgPrice) : 'n/d'}</b> · ${num(n.coin.amount, 8)} ${esc(simState.symbol)}`;
 
-  const up = n.delta >= 0;
-  $('#sim-resumen').innerHTML = `<header class="card-head">
-      <div><h2>Tu cartera con ${esc(simState.symbol)} a ${priceFmt(n.price)}</h2>
-      <p class="card-sub">${n.vsAvg === null ? '' : (n.vsAvg >= 0 ? '+' : '') + num(n.vsAvg, 1) + ' % respecto a tu precio medio'}</p></div>
-    </header>
-    <div class="sim-kpis">
-      <div class="stat"><span>Valor total</span><strong>${eur(n.newTotal)}</strong><small class="${up ? 'pos' : 'neg'}">${up ? '+' : ''}${eur(n.delta)} (${num((n.delta / n.p.totalValue) * 100, 1)} %)</small></div>
-      <div class="stat"><span>P/L total</span><strong class="${n.newPnl >= 0 ? 'pos' : 'neg'}">${eur(n.newPnl)}</strong><small>ahora ${eur(n.p.pnl)}</small></div>
-      <div class="stat"><span>Peso de ${esc(simState.symbol)}</span><strong>${num(n.weight, 1)} %</strong><small>${n.weight > 75 ? '⚠️ por encima del 75 %' : 'dentro del límite del 75 %'}</small></div>
-      <div class="stat"><span>Esa posición valdría</span><strong>${eur(n.newCoinValue)}</strong><small>hoy ${eur(n.coin.value)}</small></div>
-    </div>`;
 
   if (simState.taxAt !== n.price || !simState.tax) {
     simState.tax = null;
@@ -1259,7 +1248,7 @@ function renderSim() {
       <div><span>Nueva media</span><b>${buyQty > 0 ? priceFmt(newAvg) : '—'}</b></div>
       <div><span>Tendrías</span><b>${num(newQty, 6)} ${esc(simState.symbol)}</b></div>
       <div><span>Valoraría</span><b>${eur(newQty * n.price)}</b></div>
-      <div><span>Peso en cartera</span><b class="${newWeight > 75 ? 'neg' : ''}">${num(newWeight, 1)} %${newWeight > 75 ? ' ⚠️' : ''}</b></div>
+      <div><span>Beneficio a ese precio</span><b class="${(newQty * n.price - n.coin.invested - buyAmount) >= 0 ? 'pos' : 'neg'}">${(newQty * n.price - n.coin.invested - buyAmount) >= 0 ? '+' : ''}${eur(newQty * n.price - n.coin.invested - buyAmount)}</b></div>
     </div>`;
 
   renderSimPosicion();
@@ -1268,7 +1257,7 @@ function renderSim() {
 }
 
 function renderSimPosicion() {
-  const box = $('#sim-posicion');
+  const box = $('#sim-resumen');
   if (!box) return;
   const n = simNumbers();
   if (!n) return;
@@ -1346,14 +1335,13 @@ function renderSimSaved() {
       <div><h2>Escenarios guardados</h2><p class="card-sub">Compara varios precios a la vez.</p></div>
       <button class="btn btn-ghost btn-xs" id="sim-save">Guardar el actual</button>
     </header>
-    ${list.length ? `<table class="table"><thead><tr><th>Moneda</th><th class="num">Precio</th><th class="num">Cartera</th><th class="num">Diferencia</th><th></th></tr></thead><tbody>
+    ${list.length ? `<table class="table"><thead><tr><th>Moneda</th><th class="num">Precio</th><th class="num">Valdría</th><th class="num">Beneficio</th><th></th></tr></thead><tbody>
       ${list.map((s, i) => {
         const c = ((p && p.coins) || []).find(x => x.symbol === s.symbol);
         if (!c) return '';
-        const cryptoValue = Number(p.totalValue) - (Number(p.cash) || 0);
-        const total = cryptoValue - c.value + c.amount * s.price + (Number(p.cash) || 0);
-        const delta = total - p.totalValue;
-        return `<tr><td>${esc(s.symbol)}</td><td class="num">${priceFmt(s.price)}</td><td class="num">${eur(total)}</td>
+        const valor = c.amount * s.price;
+        const delta = valor - (Number(c.invested) || 0);
+        return `<tr><td>${esc(s.symbol)}</td><td class="num">${priceFmt(s.price)}</td><td class="num">${eur(valor)}</td>
           <td class="num ${delta >= 0 ? 'pos' : 'neg'}">${delta >= 0 ? '+' : ''}${eur(delta)}</td>
           <td class="num"><button class="btn btn-ghost btn-xs" data-sim-del="${i}">Quitar</button></td></tr>`;
       }).join('')}</tbody></table>` : '<p class="muted tiny">Todavía no has guardado ninguno. Ajusta un precio y pulsa «Guardar el actual».</p>'}`;
