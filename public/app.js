@@ -1116,18 +1116,18 @@ async function showInvite(token) {
 document.addEventListener('change', e => {
   const t = e.target;
   if (!t) return;
-  if (t.id === 'sim-coin') { simState.symbol = t.value; simState.buyQty = null; simState.price = Number((state.portfolio.coins.find(c => c.symbol === t.value) || {}).price) || 0; simState.tax = null; renderSim(); }
+  if (t.id === 'sim-coin') { simState.symbol = t.value; simState.price = Number((state.portfolio.coins.find(c => c.symbol === t.value) || {}).price) || 0; simState.tax = null; renderSim(); }
   if (t.id === 'sim-price') { simState.price = Number(t.value) || 0; simState.tax = null; renderSim(); }
-  if (t.id === 'sim-buy-qty') { simState.buyQty = Number(t.value) || 0; renderSim(); }
+  if (t.id === 'sim-buy-eur') { simState.buyAmount = Number(t.value) || 0; renderSim(); }
 });
 document.addEventListener('input', e => {
-  if (e.target && e.target.id === 'sim-buy-qty') {
-    simState.buyQty = Number(e.target.value) || 0;
-    const coste = $('#sim-buy-cost');
+  if (e.target && e.target.id === 'sim-buy-eur') {
+    simState.buyAmount = Number(e.target.value) || 0;
     const p = simNumbers();
-    if (coste && p) coste.value = p.coin.price > 0 ? priceFmt(simState.buyQty * p.coin.price) : '—';
+    const q = $('#sim-buy-qty');
+    if (q && p && p.coin.price > 0) q.value = num(simState.buyAmount / p.coin.price, 8) + ' ' + simState.symbol;
     clearTimeout(window.__simBuyT);
-    window.__simBuyT = setTimeout(renderSimBuy, 350);
+    window.__simBuyT = setTimeout(() => renderSimBuy(p && p.coin.price > 0 ? simState.buyAmount / p.coin.price : 0), 350);
   }
 });
 document.addEventListener('click', e => {
@@ -1163,7 +1163,7 @@ document.addEventListener('click', e => {
 
 // ---------------------------------------------------------------- simulador
 const SIM_KEY = 'quanto.sim.escenarios';
-const simState = { symbol: null, price: null, buyQty: null, tax: null, taxAt: 0 };
+const simState = { symbol: null, price: null, buyAmount: 150, tax: null, taxAt: 0 };
 
 function simSaved() {
   try { return JSON.parse(localStorage.getItem(SIM_KEY) || '[]'); } catch { return []; }
@@ -1243,19 +1243,18 @@ function renderSim() {
 
   // compra a precio de HOY y efecto en la venta al precio objetivo
   const mercado = Number(n.coin.price) || 0;
-  if (simState.buyQty === null || simState.buyQty === undefined) {
-    simState.buyQty = mercado > 0 ? Math.max(1, Math.round(150 / mercado)) : 0;
-  }
-  $('#sim-comprar').innerHTML = `<header class="card-head"><div><h2>¿Y si compro ahora?</h2>
+  const importe = Number(simState.buyAmount) || 0;
+  const unidades = mercado > 0 ? importe / mercado : 0;
+  $('#sim-comprar').innerHTML = `<header class="card-head"><div><h2>¿Y si invierto más?</h2>
       <p class="card-sub">Comprar al precio de hoy (${priceFmt(mercado)}) y vender a ${priceFmt(n.price)}</p></div></header>
     <div class="form-row" style="margin-bottom:10px">
-      <label class="field"><span>Cantidad a comprar (${esc(simState.symbol)})</span>
-        <input id="sim-buy-qty" type="number" step="any" min="0" inputmode="decimal" value="${esc(simState.buyQty)}"></label>
-      <label class="field"><span>Coste</span>
-        <input id="sim-buy-cost" readonly value="${mercado > 0 ? priceFmt(Number(simState.buyQty) * mercado) : '—'}"></label>
+      <label class="field"><span>Invertir (€)</span>
+        <input id="sim-buy-eur" type="number" step="any" min="0" inputmode="decimal" value="${esc(simState.buyAmount)}"></label>
+      <label class="field"><span>Comprarías</span>
+        <input id="sim-buy-qty" readonly value="${num(unidades, 8)} ${esc(simState.symbol)}"></label>
     </div>
     <div id="sim-buy-body" class="sim-lines"><p class="muted tiny">Calculando…</p></div>`;
-  renderSimBuy();
+  renderSimBuy(unidades);
 
   renderSimPosicion();
   renderSimExtras(n, r);
@@ -1293,20 +1292,19 @@ function renderSimPosicion() {
     <p class="hint" style="margin:10px 0 0">${bruto >= 0 ? 'Beneficio = valor a ese precio − lo que invertiste. Los impuestos salen del cálculo FIFO de tus compras reales.' : 'A ese precio estarías por debajo de lo invertido: no habría beneficio que declarar.'}</p>`;
 }
 
-async function renderSimBuy() {
+async function renderSimBuy(unidades) {
   const body = $('#sim-buy-body');
   if (!body) return;
   const n = simNumbers();
   if (!n) return;
-  const qty = Number(simState.buyQty) || 0;
-  if (qty <= 0) { body.innerHTML = '<p class="muted tiny">Escribe cuántas monedas comprarías.</p>'; return; }
+  const qty = Number(unidades) || (Number(simState.buyAmount) / (Number(n.coin.price) || 1));
+  if (!(qty > 0)) { body.innerHTML = '<p class="muted tiny">Escribe cuánto quieres invertir.</p>'; return; }
   try {
     const d = await api(`/api/simulate/buy?symbol=${encodeURIComponent(simState.symbol)}&qty=${qty}&target=${n.price}`);
     if (state.view !== 'sim') return;
     const fila = (etiqueta, a, b, clase) => `<div><span>${etiqueta}</span><b class="${clase || ''}">${a}${b !== undefined ? ` → <b>${b}</b>` : ''}</b></div>`;
     const o = d.antes, x = d.despues, k = d.diferencia;
     body.innerHTML = `
-      <div><span>Coste de la compra</span><b>${eur(d.costeCompra)}</b></div>
       <div><span>Cantidad</span><b>${num(o.cantidad, 6)} → <b>${num(x.cantidad, 6)}</b></b></div>
       <div><span>Precio medio</span><b>${priceFmt(o.media)} → <b>${priceFmt(x.media)}</b></b></div>
       <div><span>Invertido</span><b>${eur(o.invertido)} → <b>${eur(x.invertido)}</b></b></div>
