@@ -3843,14 +3843,14 @@ document.addEventListener('click', async (e) => {
   try { if (localStorage.getItem('quanto-privacy') === '1') applyPrivacy(true, false); } catch {}
   if (location.hash.startsWith('#/invite/')) {
     await showInvite(location.hash.slice(9));
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+    if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
     return;
   }
   try {
     const setup = await (await fetch('/api/setup')).json();
     if (setup && setup.needed) {
       showSetup(setup);
-      if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+      if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
       return;
     }
   } catch {}
@@ -3868,6 +3868,6 @@ document.addEventListener('click', async (e) => {
     showLogin();
   }
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
   }
 })();
