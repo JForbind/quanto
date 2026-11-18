@@ -591,7 +591,7 @@ $('#login-form').addEventListener('submit', async (e) => {
     showApp();
     await boot();
   } catch (e2) {
-    err.textContent = 'No se pudo conectar con el servidor';
+    err.textContent = 'No se pudo conectar con el servidor (' + ((e2 && e2.message) || 'error de red') + ')';
   } finally {
     btn.disabled = false;
     btn.textContent = pending2fa ? 'Verificar' : 'Entrar';
