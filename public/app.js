@@ -1302,18 +1302,39 @@ async function renderSimBuy(unidades) {
   try {
     const d = await api(`/api/simulate/buy?symbol=${encodeURIComponent(simState.symbol)}&qty=${qty}&target=${n.price}`);
     if (state.view !== 'sim') return;
-    const fila = (etiqueta, a, b, clase) => `<div><span>${etiqueta}</span><b class="${clase || ''}">${a}${b !== undefined ? ` → <b>${b}</b>` : ''}</b></div>`;
     const o = d.antes, x = d.despues, k = d.diferencia;
+    const sgn = (v) => (v >= 0 ? '+' : '');
+    const cls = (v) => (v >= 0 ? 'pos' : 'neg');
+    const cambio = Number(k.beneficioNeto) || 0;
+    const tarjeta = (titulo, sub, datos, destacado) => `
+      <div class="buy-card${destacado ? ' is-now' : ''}">
+        <div class="buy-card-head"><span>${titulo}</span><small>${sub}</small></div>
+        ${datos.map(([k2, v, clase]) => `<div class="buy-line"><span>${k2}</span><b class="${clase || ''}">${v}</b></div>`).join('')}
+      </div>`;
+
     body.innerHTML = `
-      <div><span>Cantidad</span><b>${num(o.cantidad, 6)} → <b>${num(x.cantidad, 6)}</b></b></div>
-      <div><span>Precio medio</span><b>${priceFmt(o.media)} → <b>${priceFmt(x.media)}</b></b></div>
-      <div><span>Invertido</span><b>${eur(o.invertido)} → <b>${eur(x.invertido)}</b></b></div>
-      <div><span>Valdría a ${priceFmt(d.target)}</span><b>${eur(o.ingreso)} → <b>${eur(x.ingreso)}</b></b></div>
-      <div><span>Beneficio bruto</span><b class="${o.ganancia >= 0 ? 'pos' : 'neg'}">${eur(o.ganancia)} → <b class="${x.ganancia >= 0 ? 'pos' : 'neg'}">${eur(x.ganancia)}</b></b></div>
-      <div><span>Impuestos</span><b>${eur(o.impuestos)} → <b>${eur(x.impuestos)}</b></b></div>
-      <div><span>Beneficio neto</span><b class="${o.neto >= 0 ? 'pos' : 'neg'}">${eur(o.neto)} → <b class="${x.neto >= 0 ? 'pos' : 'neg'}">${eur(x.neto)}</b></b></div>
-      <p class="hint" style="margin:12px 0 0">Con esta compra, al vender a ${priceFmt(d.target)} te llevarías
-        <b class="${k.neto >= 0 ? 'pos' : 'neg'}">${k.neto >= 0 ? '+' : ''}${eur(k.neto)}</b> más${k.rentabilidad !== null ? ` (${num(k.rentabilidad, 0)} % sobre los ${eur(k.invertido)} que pones)` : ''}.</p>`;
+      <div class="buy-compare">
+        ${tarjeta('Ahora', 'tu cartera real', [
+          ['Cantidad', num(o.cantidad, 6)],
+          ['Precio medio', priceFmt(o.media)],
+          ['Invertido', eur(o.invertido)],
+          ['Valdría a ' + priceFmt(d.target), eur(o.ingreso)],
+          ['Impuestos', eur(o.impuestos)],
+          ['Beneficio neto', sgn(o.beneficioNeto) + eur(o.beneficioNeto), cls(o.beneficioNeto)],
+        ], true)}
+        <div class="buy-arrow" aria-hidden="true">→</div>
+        ${tarjeta('Con ' + eur(Number(simState.buyAmount) || 0), 'cartera + simulación', [
+          ['Cantidad', num(x.cantidad, 6)],
+          ['Precio medio', priceFmt(x.media)],
+          ['Invertido', eur(x.invertido)],
+          ['Valdría a ' + priceFmt(d.target), eur(x.ingreso)],
+          ['Impuestos', eur(x.impuestos)],
+          ['Beneficio neto', sgn(x.beneficioNeto) + eur(x.beneficioNeto), cls(x.beneficioNeto)],
+        ])}
+      </div>
+      <p class="buy-summary ${cambio > 0 ? 'pos' : cambio < 0 ? 'neg' : ''}">${Math.abs(cambio) < 0.01
+        ? `Comprar y vender al mismo precio <b>no cambia tu beneficio neto</b>: los ${eur(Number(simState.buyAmount) || 0)} que pones los recuperas al vender.`
+        : `Tu beneficio neto ${cambio > 0 ? 'mejora' : 'empeora'} <b>${sgn(cambio)}${eur(cambio)}</b>${k.rentabilidad !== null ? ` (${num(k.rentabilidad, 0)} % sobre los ${eur(k.invertido)} que pones)` : ''}.`}</p>`;
   } catch (e) {
     body.innerHTML = `<p class="muted tiny">${esc(e.message)}</p>`;
   }

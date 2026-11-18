@@ -1081,3 +1081,22 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 .pos-line b.pos { color: var(--pos); }
 .pos-line b.neg { color: var(--neg); }
 @media (max-width: 860px) { .pos-grid { grid-template-columns: 1fr; } }
+
+/* comparativa de la compra simulada */
+.buy-compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
+.buy-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--glass-hi); }
+.buy-card.is-now { background: transparent; }
+.buy-card-head { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
+.buy-card-head span { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.buy-card-head small { font-size: 11px; color: var(--text); opacity: .75; }
+.buy-line { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 12.5px; border-bottom: 1px dashed var(--line); }
+.buy-line:last-child { border-bottom: 0; font-size: 13.5px; padding-top: 6px; }
+.buy-line span { color: var(--muted); }
+.buy-line b { font-variant-numeric: tabular-nums; }
+.buy-line b.pos { color: var(--pos); }
+.buy-line b.neg { color: var(--neg); }
+.buy-arrow { display: flex; align-items: center; font-size: 20px; color: var(--accent); opacity: .8; }
+.buy-summary { margin: 12px 0 0; padding: 9px 12px; border-radius: 10px; background: var(--glass-hi); font-size: 12.5px; }
+.buy-summary.pos b { color: var(--pos); }
+.buy-summary.neg b { color: var(--neg); }
+@media (max-width: 700px) { .buy-compare { grid-template-columns: 1fr; } .buy-arrow { justify-content: center; transform: rotate(90deg); } }

@@ -1985,17 +1985,23 @@ app.get('/api/simulate/buy', async (req, res) => {
         cantidad: Number(coin.amount) || 0, invertido: costeBase,
         media: coin.amount > 0 ? costeBase / coin.amount : 0,
         ingreso: ingreso0, ganancia: ganancia0, impuestos: impuestos0, neto: neto0,
+        beneficioNeto: round(neto0 - costeBase, 2),
       },
       despues: {
         cantidad: totalQty, invertido: totalInvertido,
         media: totalQty > 0 ? totalInvertido / totalQty : 0,
         ingreso, ganancia, impuestos, neto,
+        beneficioNeto: round(neto - totalInvertido, 2),
       },
       diferencia: {
+        // lo que de verdad cambia: beneficio neto despues de descontar tambien el dinero aportado
         neto: round(neto - neto0, 2),
         ganancia: round(ganancia - ganancia0, 2),
         invertido: costeCompra,
-        rentabilidad: costeCompra > 0 ? round(((neto - neto0) / costeCompra) * 100, 1) : null,
+        beneficioNeto: round((neto - totalInvertido) - (neto0 - costeBase), 2),
+        rentabilidad: costeCompra > 0
+          ? round((((neto - totalInvertido) - (neto0 - costeBase)) / costeCompra) * 100, 1)
+          : null,
       },
     });
   } catch (e) {
