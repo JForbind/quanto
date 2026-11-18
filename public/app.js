@@ -1262,8 +1262,40 @@ function renderSim() {
       <div><span>Peso en cartera</span><b class="${newWeight > 75 ? 'neg' : ''}">${num(newWeight, 1)} %${newWeight > 75 ? ' ⚠️' : ''}</b></div>
     </div>`;
 
+  renderSimPosicion();
   renderSimExtras(n, r);
   renderSimSaved();
+}
+
+function renderSimPosicion() {
+  const box = $('#sim-posicion');
+  if (!box) return;
+  const n = simNumbers();
+  if (!n) return;
+  const c = n.coin;
+  const invertido = Number(c.invested) || 0;
+  const objetivo = n.newCoinValue;
+  const bruto = objetivo - invertido;
+  const t = simState.tax && simState.tax.ok ? simState.tax : null;
+  const impuestos = t && Number(t.price) === Number(simState.price) ? (Number(t.fifo && t.fifo.tax) || 0) : null;
+  const neto = impuestos === null ? null : bruto - impuestos;
+  const pct = invertido > 0 ? (bruto / invertido) * 100 : null;
+  const fila = (etiqueta, valor, clase) => `<div class="pos-line"><span>${etiqueta}</span><b class="${clase || ''}">${valor}</b></div>`;
+
+  box.innerHTML = `<header class="card-head">
+      <div><h2>Tu ${esc(c.symbol)} a ${priceFmt(n.price)}</h2>
+      <p class="card-sub">Lo que has puesto, lo que valdría y lo que te llevas de verdad.</p></div>
+    </header>
+    <div class="pos-grid">
+      ${fila('Inversión total', invertido ? eur(invertido) : '—')}
+      ${fila('Cantidad', num(c.amount, 8) + ' ' + esc(c.symbol))}
+      ${fila('Precio medio de compra', c.costKnown ? priceFmt(c.avgPrice) : '—')}
+      ${fila('Valdría a ' + priceFmt(n.price), eur(objetivo))}
+      ${fila('Beneficio bruto', (bruto >= 0 ? '+' : '') + eur(bruto) + (pct === null ? '' : ` (${(pct >= 0 ? '+' : '') + num(pct, 1)} %)`), bruto >= 0 ? 'pos' : 'neg')}
+      ${fila('Impuestos estimados', impuestos === null ? 'calculando…' : '−' + eur(impuestos))}
+      ${fila('Beneficio neto', neto === null ? 'calculando…' : (neto >= 0 ? '+' : '') + eur(neto), neto === null ? '' : (neto >= 0 ? 'pos' : 'neg'))}
+    </div>
+    <p class="hint" style="margin:10px 0 0">${bruto >= 0 ? 'Beneficio = valor a ese precio − lo que invertiste. Los impuestos salen del cálculo FIFO de tus compras reales.' : 'A ese precio estarías por debajo de lo invertido: no habría beneficio que declarar.'}</p>`;
 }
 
 function renderSimTax() {
@@ -1273,6 +1305,7 @@ function renderSimTax() {
   if (!t || !t.ok) { body.innerHTML = `<p class="muted tiny">${esc((t && t.message) || 'No se pudo calcular.')}</p>`; return; }
   const fifo = t.fifo || {};
   const gain = Number(fifo.gain) || 0;
+  renderSimPosicion();
   body.innerHTML = `
     <div><span>Ingreso</span><b>${eur(t.proceeds)}</b></div>
     <div><span>Coste FIFO</span><b>${eur(fifo.cost)}</b></div>

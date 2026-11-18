@@ -1072,3 +1072,12 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 #tls-card { align-self: start; }
 #tls-card .form-actions { margin-top: 14px; }
 #tls-card .hint { margin: 0 0 4px; }
+
+/* bloque de posicion en el simulador */
+.pos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+.pos-line { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.pos-line span { color: var(--muted); }
+.pos-line b { font-variant-numeric: tabular-nums; }
+.pos-line b.pos { color: var(--pos); }
+.pos-line b.neg { color: var(--neg); }
+@media (max-width: 860px) { .pos-grid { grid-template-columns: 1fr; } }
