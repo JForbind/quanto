@@ -1946,6 +1946,63 @@ app.get('/api/tax', async (req, res) => {
   }
 });
 
+
+// ---------------- simulador: comprar hoy y vender a un precio objetivo ----------------
+app.get('/api/simulate/buy', async (req, res) => {
+  try {
+    const symbol = String(req.query.symbol || '').toUpperCase();
+    const qty = Number(req.query.qty) || 0;
+    const target = Number(req.query.target) || 0;
+    if (!symbol || qty <= 0 || target <= 0) return res.status(400).json({ error: 'Faltan datos' });
+
+    const coin = ((state.portfolio && state.portfolio.coins) || []).find(c => c.symbol === symbol);
+    if (!coin) return res.status(404).json({ error: 'Esa moneda no está en la cartera' });
+
+    const mercado = Number(coin.price) || Number(state.prices[symbol]) || 0;
+    if (!mercado) return res.status(400).json({ error: 'No hay precio de mercado' });
+
+    const ops = opsForView();
+    const sim = ops.length ? simulateSale(ops, symbol, Number(coin.amount) || 0) : { fifoCost: Number(coin.invested) || 0 };
+    const costeBase = Number(sim.fifoCost) || 0;
+
+    const costeCompra = round(qty * mercado, 2);
+    const totalQty = (Number(coin.amount) || 0) + qty;
+    const totalInvertido = costeBase + costeCompra;
+
+    const ingreso = round(totalQty * target, 2);
+    const ganancia = round(ingreso - totalInvertido, 2);
+    const impuestos = estimateTax(ganancia);
+    const neto = round(ingreso - impuestos, 2);
+
+    const ingreso0 = round((Number(coin.amount) || 0) * target, 2);
+    const ganancia0 = round(ingreso0 - costeBase, 2);
+    const impuestos0 = estimateTax(ganancia0);
+    const neto0 = round(ingreso0 - impuestos0, 2);
+
+    res.json({
+      ok: true, symbol, mercado, target, qty, costeCompra,
+      antes: {
+        cantidad: Number(coin.amount) || 0, invertido: costeBase,
+        media: coin.amount > 0 ? costeBase / coin.amount : 0,
+        ingreso: ingreso0, ganancia: ganancia0, impuestos: impuestos0, neto: neto0,
+      },
+      despues: {
+        cantidad: totalQty, invertido: totalInvertido,
+        media: totalQty > 0 ? totalInvertido / totalQty : 0,
+        ingreso, ganancia, impuestos, neto,
+      },
+      diferencia: {
+        neto: round(neto - neto0, 2),
+        ganancia: round(ganancia - ganancia0, 2),
+        invertido: costeCompra,
+        rentabilidad: costeCompra > 0 ? round(((neto - neto0) / costeCompra) * 100, 1) : null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/tax/simulate', async (req, res) => {
   const ops = opsForView();
   if (!ops.length) return res.json({ ok: false, message: 'Necesitas el historial importado.' });

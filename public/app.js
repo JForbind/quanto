@@ -1116,12 +1116,19 @@ async function showInvite(token) {
 document.addEventListener('change', e => {
   const t = e.target;
   if (!t) return;
-  if (t.id === 'sim-coin') { simState.symbol = t.value; simState.price = Number((state.portfolio.coins.find(c => c.symbol === t.value) || {}).price) || 0; simState.tax = null; renderSim(); }
+  if (t.id === 'sim-coin') { simState.symbol = t.value; simState.buyQty = null; simState.price = Number((state.portfolio.coins.find(c => c.symbol === t.value) || {}).price) || 0; simState.tax = null; renderSim(); }
   if (t.id === 'sim-price') { simState.price = Number(t.value) || 0; simState.tax = null; renderSim(); }
-  if (t.id === 'sim-buy') { simState.buyAmount = t.value; renderSim(); }
+  if (t.id === 'sim-buy-qty') { simState.buyQty = Number(t.value) || 0; renderSim(); }
 });
 document.addEventListener('input', e => {
-  if (e.target && e.target.id === 'sim-buy') { simState.buyAmount = e.target.value; }
+  if (e.target && e.target.id === 'sim-buy-qty') {
+    simState.buyQty = Number(e.target.value) || 0;
+    const coste = $('#sim-buy-cost');
+    const p = simNumbers();
+    if (coste && p) coste.value = p.coin.price > 0 ? priceFmt(simState.buyQty * p.coin.price) : '—';
+    clearTimeout(window.__simBuyT);
+    window.__simBuyT = setTimeout(renderSimBuy, 350);
+  }
 });
 document.addEventListener('click', e => {
   const tfa = e.target.closest ? e.target.closest('#totp-start,#totp-confirm,#totp-cancel,#totp-disable') : null;
@@ -1156,7 +1163,7 @@ document.addEventListener('click', e => {
 
 // ---------------------------------------------------------------- simulador
 const SIM_KEY = 'quanto.sim.escenarios';
-const simState = { symbol: null, price: null, buyAmount: '160', tax: null, taxAt: 0 };
+const simState = { symbol: null, price: null, buyQty: null, tax: null, taxAt: 0 };
 
 function simSaved() {
   try { return JSON.parse(localStorage.getItem(SIM_KEY) || '[]'); } catch { return []; }
@@ -1234,22 +1241,21 @@ function renderSim() {
   $('#sim-vender').innerHTML = `<header class="card-head"><div><h2>¿Y si vendo?</h2><p class="card-sub">Vender toda la posición a ${priceFmt(n.price)}</p></div></header><div id="sim-vender-body" class="sim-lines">Calculando…</div>`;
   if (simState.tax) renderSimTax();
 
-  const buyAmount = Number(simState.buyAmount) || 0;
-  const buyQty = n.price > 0 ? buyAmount / n.price : 0;
-  const newQty = n.coin.amount + buyQty;
-  const newAvg = newQty > 0 ? (n.coin.amount * n.coin.avgPrice + buyAmount) / newQty : n.coin.avgPrice;
-  const newWeight = n.newTotal + buyAmount > 0 ? ((n.coin.amount * n.price + buyAmount) / (n.newTotal + buyAmount)) * 100 : 0;
-  $('#sim-comprar').innerHTML = `<header class="card-head"><div><h2>¿Y si compro más?</h2><p class="card-sub">Comprar a ${priceFmt(n.price)}</p></div></header>
+  // compra a precio de HOY y efecto en la venta al precio objetivo
+  const mercado = Number(n.coin.price) || 0;
+  if (simState.buyQty === null || simState.buyQty === undefined) {
+    simState.buyQty = mercado > 0 ? Math.max(1, Math.round(150 / mercado)) : 0;
+  }
+  $('#sim-comprar').innerHTML = `<header class="card-head"><div><h2>¿Y si compro ahora?</h2>
+      <p class="card-sub">Comprar al precio de hoy (${priceFmt(mercado)}) y vender a ${priceFmt(n.price)}</p></div></header>
     <div class="form-row" style="margin-bottom:10px">
-      <label class="field"><span>Importe (€)</span><input id="sim-buy" type="number" step="any" min="0" inputmode="decimal" value="${esc(simState.buyAmount)}"></label>
+      <label class="field"><span>Cantidad a comprar (${esc(simState.symbol)})</span>
+        <input id="sim-buy-qty" type="number" step="any" min="0" inputmode="decimal" value="${esc(simState.buyQty)}"></label>
+      <label class="field"><span>Coste</span>
+        <input id="sim-buy-cost" readonly value="${mercado > 0 ? priceFmt(Number(simState.buyQty) * mercado) : '—'}"></label>
     </div>
-    <div class="sim-lines">
-      <div><span>Comprarías</span><b>${num(buyQty, 6)} ${esc(simState.symbol)}</b></div>
-      <div><span>Nueva media</span><b>${buyQty > 0 ? priceFmt(newAvg) : '—'}</b></div>
-      <div><span>Tendrías</span><b>${num(newQty, 6)} ${esc(simState.symbol)}</b></div>
-      <div><span>Valoraría</span><b>${eur(newQty * n.price)}</b></div>
-      <div><span>Beneficio a ese precio</span><b class="${(newQty * n.price - n.coin.invested - buyAmount) >= 0 ? 'pos' : 'neg'}">${(newQty * n.price - n.coin.invested - buyAmount) >= 0 ? '+' : ''}${eur(newQty * n.price - n.coin.invested - buyAmount)}</b></div>
-    </div>`;
+    <div id="sim-buy-body" class="sim-lines"><p class="muted tiny">Calculando…</p></div>`;
+  renderSimBuy();
 
   renderSimPosicion();
   renderSimExtras(n, r);
@@ -1285,6 +1291,34 @@ function renderSimPosicion() {
       ${fila('Beneficio neto', neto === null ? 'calculando…' : (neto >= 0 ? '+' : '') + eur(neto), neto === null ? '' : (neto >= 0 ? 'pos' : 'neg'))}
     </div>
     <p class="hint" style="margin:10px 0 0">${bruto >= 0 ? 'Beneficio = valor a ese precio − lo que invertiste. Los impuestos salen del cálculo FIFO de tus compras reales.' : 'A ese precio estarías por debajo de lo invertido: no habría beneficio que declarar.'}</p>`;
+}
+
+async function renderSimBuy() {
+  const body = $('#sim-buy-body');
+  if (!body) return;
+  const n = simNumbers();
+  if (!n) return;
+  const qty = Number(simState.buyQty) || 0;
+  if (qty <= 0) { body.innerHTML = '<p class="muted tiny">Escribe cuántas monedas comprarías.</p>'; return; }
+  try {
+    const d = await api(`/api/simulate/buy?symbol=${encodeURIComponent(simState.symbol)}&qty=${qty}&target=${n.price}`);
+    if (state.view !== 'sim') return;
+    const fila = (etiqueta, a, b, clase) => `<div><span>${etiqueta}</span><b class="${clase || ''}">${a}${b !== undefined ? ` → <b>${b}</b>` : ''}</b></div>`;
+    const o = d.antes, x = d.despues, k = d.diferencia;
+    body.innerHTML = `
+      <div><span>Coste de la compra</span><b>${eur(d.costeCompra)}</b></div>
+      <div><span>Cantidad</span><b>${num(o.cantidad, 6)} → <b>${num(x.cantidad, 6)}</b></b></div>
+      <div><span>Precio medio</span><b>${priceFmt(o.media)} → <b>${priceFmt(x.media)}</b></b></div>
+      <div><span>Invertido</span><b>${eur(o.invertido)} → <b>${eur(x.invertido)}</b></b></div>
+      <div><span>Valdría a ${priceFmt(d.target)}</span><b>${eur(o.ingreso)} → <b>${eur(x.ingreso)}</b></b></div>
+      <div><span>Beneficio bruto</span><b class="${o.ganancia >= 0 ? 'pos' : 'neg'}">${eur(o.ganancia)} → <b class="${x.ganancia >= 0 ? 'pos' : 'neg'}">${eur(x.ganancia)}</b></b></div>
+      <div><span>Impuestos</span><b>${eur(o.impuestos)} → <b>${eur(x.impuestos)}</b></b></div>
+      <div><span>Beneficio neto</span><b class="${o.neto >= 0 ? 'pos' : 'neg'}">${eur(o.neto)} → <b class="${x.neto >= 0 ? 'pos' : 'neg'}">${eur(x.neto)}</b></b></div>
+      <p class="hint" style="margin:12px 0 0">Con esta compra, al vender a ${priceFmt(d.target)} te llevarías
+        <b class="${k.neto >= 0 ? 'pos' : 'neg'}">${k.neto >= 0 ? '+' : ''}${eur(k.neto)}</b> más${k.rentabilidad !== null ? ` (${num(k.rentabilidad, 0)} % sobre los ${eur(k.invertido)} que pones)` : ''}.</p>`;
+  } catch (e) {
+    body.innerHTML = `<p class="muted tiny">${esc(e.message)}</p>`;
+  }
 }
 
 function renderSimTax() {
