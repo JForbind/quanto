@@ -1119,3 +1119,9 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 #sim-comprar { grid-column: auto; }
 .buy-wrap .buy-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
 .buy-wrap .buy-arrow { display: none; }
+
+/* la barra inferior solo con la sesión abierta */
+@media (max-width: 1180px) {
+  .mobile-nav { display: none; }
+  body.is-app .mobile-nav { display: flex; }
+}

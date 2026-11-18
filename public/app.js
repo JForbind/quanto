@@ -338,6 +338,7 @@ document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('cl
 
 /* ------------------------------------------------ login */
 function showLogin() {
+  document.body.classList.remove('is-app');
   pending2fa = null;
   const box2 = $('#login-2fa-box');
   if (box2) box2.classList.add('hidden');
@@ -350,6 +351,7 @@ function showLogin() {
 function showApp() {
   $('#login').classList.add('hidden');
   $('#app').classList.remove('hidden');
+  document.body.classList.add('is-app');
 }
 
 // ---------------------------------------------------------------- orden de pestañas
