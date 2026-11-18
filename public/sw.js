@@ -1,5 +1,5 @@
 // Service worker de Quanto: red primero para la app, datos siempre frescos.
-const CACHE = 'quanto-v7';
+const CACHE = 'quanto-v8';
 const SHELL = ['/', '/index.html', '/app.js', '/style.css', '/echarts.min.js', '/manifest.webmanifest', '/favicon.png', '/fonts/NDLogos.ttf'];
 
 self.addEventListener('install', (e) => {
