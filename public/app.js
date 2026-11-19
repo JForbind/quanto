@@ -302,7 +302,7 @@ function navigate(view) {
     void topText.offsetWidth;
     topText.classList.add('is-entering');
   }
-  if (view === 'dashboard') renderDashboard();
+  if (view === 'dashboard') { renderDashboard(); favRender(); }
   if (view === 'coins') renderCoins();
   if (view === 'tax') loadTax();
   if (view === 'operations') loadTransactions();
@@ -1132,6 +1132,21 @@ document.addEventListener('input', e => {
     window.__simBuyT = setTimeout(() => renderSimBuy(p && p.coin.price > 0 ? simState.buyAmount / p.coin.price : 0), 350);
   }
 });
+// las estrellas se atienden antes que el clic de la fila (fase de captura)
+document.addEventListener('click', e => {
+  const fav = e.target.closest ? e.target.closest('[data-fav],[data-fav-off]') : null;
+  if (fav) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (fav.dataset.favOff) { favToggle(fav.dataset.favOff, false); return; }
+    const sym = fav.dataset.fav;
+    favToggle(sym, !FAVS.includes(sym));
+    return;
+  }
+  const favCard = e.target.closest ? e.target.closest('.fav-item[data-symbol]') : null;
+  if (favCard) { e.stopPropagation(); openCoin(favCard.dataset.symbol); }
+}, true);
+
 document.addEventListener('click', e => {
   const tfa = e.target.closest ? e.target.closest('#totp-start,#totp-confirm,#totp-cancel,#totp-disable') : null;
   if (tfa) {
@@ -1162,6 +1177,60 @@ document.addEventListener('click', e => {
     renderSimSaved();
   }
 });
+
+// ---------------------------------------------------------------- favoritos
+let FAVS = [];
+
+function favRender() {
+  const box = $('#fav-list');
+  if (!box) return;
+  const sub = $('#fav-sub');
+  const coins = ((state.portfolio && state.portfolio.coins) || []);
+  const elegidas = FAVS.map(s => coins.find(c => c.symbol === s)).filter(Boolean);
+  if (sub) sub.textContent = elegidas.length ? `${elegidas.length} monedas marcadas` : 'Las monedas que marcas con la estrella';
+  if (!elegidas.length) {
+    box.innerHTML = '<p class="muted tiny">Todavía no has marcado ninguna. En <b>Monedas</b>, pulsa la ☆ de la que quieras seguir de cerca.</p>';
+    return;
+  }
+  box.innerHTML = elegidas.map(c => {
+    const ch = c.dayChangePct;
+    return `<button class="fav-item" data-symbol="${esc(c.symbol)}">
+      <span class="fav-top">
+        <span class="coin">${coinBadge(c.symbol)}<span class="fav-name">${esc(c.symbol)}</span></span>
+        <span class="fav-star" data-fav-off="${esc(c.symbol)}" title="Quitar de favoritos">★</span>
+      </span>
+      <span class="fav-bottom">
+        <span class="fav-price">${priceFmt(c.price)}</span>
+        <span class="fav-chg ${signed(ch || 0)}">${ch === null || ch === undefined ? '—' : pct(ch)}</span>
+        <span class="fav-val">${eur(c.value)}</span>
+      </span>
+    </button>`;
+  }).join('');
+}
+
+async function loadFavs() {
+  try {
+    const d = await api('/api/favorites');
+    FAVS = d.favorites || [];
+    favRender();
+    if (state.view === 'coins') renderCoins();
+  } catch {}
+}
+
+async function favToggle(symbol, on) {
+  try {
+    const d = await api('/api/favorites', { method: 'POST', body: { symbol, on } });
+    FAVS = d.favorites || [];
+    // refrescar solo la estrella, sin repintar la tabla entera
+    const activo = FAVS.includes(symbol);
+    document.querySelectorAll(`[data-fav="${symbol}"]`).forEach(b => {
+      b.classList.toggle('is-fav', activo);
+      b.textContent = activo ? '★' : '☆';
+      b.title = activo ? 'Quitar de favoritos' : 'Marcar como favorito';
+    });
+    favRender();
+  } catch (e) { toast('No se pudo guardar el favorito', 'err'); }
+}
 
 // ---------------------------------------------------------------- simulador
 const SIM_KEY = 'quanto.sim.escenarios';
@@ -1417,6 +1486,7 @@ async function boot() {
   loadCalendar();
   loadNews();
   loadRanges();
+  loadFavs();
   navigate(location.hash.startsWith('#/') ? location.hash.slice(2) : 'dashboard');
   setTimeout(rollKpiNumbers, 220);
 }
@@ -2332,6 +2402,11 @@ async function loadRanges() {
   } catch {}
 }
 
+function simboloConEstrella(symbol) {
+  const fav = FAVS.includes(symbol);
+  return `<button class="fav-toggle${fav ? ' is-fav' : ''}" data-fav="${esc(symbol)}" title="${fav ? 'Quitar de favoritos' : 'Marcar como favorito'}">${fav ? '★' : '☆'}</button>${esc(symbol)}`;
+}
+
 function rngBlock(symbol) {
   const r = RANGES[symbol];
   if (!r || (!r.high && !r.ath)) return '';
@@ -2355,7 +2430,7 @@ function coinRow(c, index) {
   return `<tr data-symbol="${esc(c.symbol)}" class="clickable">
     <td class="coin-cell" data-label="Moneda">
       <div class="coin">${coinBadge(c.symbol)}
-        <div class="coin-name"><b>${esc(c.symbol)}</b></div>
+        <div class="coin-name"><b>${simboloConEstrella(c.symbol)}</b></div>
         ${rngBlock(c.symbol)}
       </div>
     </td>

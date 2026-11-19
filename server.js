@@ -929,6 +929,30 @@ app.post('/api/login/2fa', (req, res) => {
   res.json({ ok: true, user: userStore.publicUser(userStore.findById(user.id)), mustChange: !!fresh.mustChange, backupUsed: usadoRespaldo });
 });
 
+
+// ---------------- favoritos del usuario ----------------
+app.get('/api/favorites', (req, res) => {
+  const s = getSettings();
+  res.json({ ok: true, favorites: Array.isArray(s.favorites) ? s.favorites : [] });
+});
+
+app.post('/api/favorites', (req, res) => {
+  const b = req.body || {};
+  const symbol = String(b.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
+  const s = getSettings();
+  const lista = Array.isArray(s.favorites) ? s.favorites.slice() : [];
+  const i = lista.indexOf(symbol);
+  if (b.on === false) {
+    if (i >= 0) lista.splice(i, 1);
+  } else if (i < 0) {
+    lista.push(symbol);
+  }
+  s.favorites = lista.slice(0, 30);
+  saveSettings(s);
+  res.json({ ok: true, favorites: s.favorites });
+});
+
 app.get('/api/2fa/status', (req, res) => {
   const u = req.user;
   res.json({ ok: true, enabled: !!u.totpEnabled, since: u.totpSince || null, backups: (u.totpBackup || []).length });

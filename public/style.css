@@ -1125,3 +1125,39 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
   .mobile-nav { display: none; }
   body.is-app .mobile-nav { display: flex; }
 }
+
+/* favoritos */
+.fav-toggle { background: none; border: 0; padding: 0 4px 0 0; font-size: 13px; color: var(--muted); cursor: pointer; line-height: 1; }
+.fav-toggle:hover { color: var(--accent); }
+.fav-toggle.is-fav { color: #f5c451; }
+.fav-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.fav-item {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 6px 10px; align-items: center;
+  padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-hi);
+  color: var(--text); text-align: left; cursor: pointer;
+}
+.fav-item:hover { border-color: var(--accent); }
+.fav-item .fav-name { font-weight: 700; margin-left: 6px; }
+.fav-item .fav-price { font-variant-numeric: tabular-nums; }
+.fav-item .fav-chg { grid-column: 2; grid-row: 2; font-size: 12px; }
+.fav-item .fav-val { grid-column: 3; grid-row: 2; font-size: 12px; color: var(--muted); }
+.fav-star { grid-column: 3; grid-row: 1; color: #f5c451; font-size: 14px; }
+.fav-star:hover { opacity: .7; }
+
+/* favoritos, maquetados en dos filas */
+.fav-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.fav-item {
+  display: flex; flex-direction: column; gap: 7px; text-align: left;
+  padding: 11px 13px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--glass-hi); color: var(--text); cursor: pointer;
+}
+.fav-item:hover { border-color: var(--accent); }
+.fav-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fav-top .coin { gap: 8px; }
+.fav-name { font-weight: 700; font-size: 13px; }
+.fav-star { color: #f5c451; font-size: 14px; line-height: 1; }
+.fav-star:hover { opacity: .65; }
+.fav-bottom { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+.fav-price { font-variant-numeric: tabular-nums; }
+.fav-chg { font-size: 11.5px; }
+.fav-val { color: var(--muted); font-size: 11.5px; }
