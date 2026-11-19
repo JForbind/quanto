@@ -1207,3 +1207,10 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 /* desplegable del buscador con fondo opaco */
 .coin-search-results { background: var(--bg-2); box-shadow: 0 18px 50px rgba(0, 0, 0, .55); }
 [data-theme="light"] .coin-search-results { background: #fff; }
+
+/* etiqueta "cartera" junto al nombre, sin tapar el precio */
+.watch-tag {
+  position: static; margin-left: 6px; font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 6px;
+}
+.watch-bottom { min-height: 18px; }
