@@ -463,6 +463,20 @@ app.get('/api/sparklines', async (req, res) => {
         sparklines[c.symbol] = closes.slice(-8);
       } catch { /* sin par en EUR o sin velas */ }
     }));
+    // monedas extra (lista de vigilancia): no estan en cartera pero queremos su mini-grafico
+    const extra = String(req.query.extra || '')
+      .toUpperCase().split(',').map(s => s.trim()).filter(Boolean).slice(0, 40);
+    const yaEstan = new Set(coins.map(c => c.symbol));
+    const faltan = extra.filter(s => !yaEstan.has(s) && !sparklines[s]);
+    await Promise.all(faltan.map(async (sym) => {
+      try {
+        const candles = await client.candles(`${sym}-EUR`, '1d', 30);
+        if (!Array.isArray(candles) || candles.length < 3) return;
+        const closes = candles.map(k => Number(k && k[4])).filter(n => isFinite(n) && n > 0).reverse();
+        if (closes.length >= 3) sparklines[sym] = closes.slice(-8);
+      } catch {}
+    }));
+
     res.json({ ok: true, sparklines });
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -1207,7 +1207,7 @@ function watchRender() {
   if (!box) return;
   const sub = $('#watch-sub');
   const coins = ((state.portfolio && state.portfolio.coins) || []);
-  if (sub) sub.textContent = WATCH.length ? `${WATCH.length} monedas en vigilancia` : 'Monedas que sigues sin tenerlas en cartera';
+  if (sub) sub.textContent = WATCH.length ? `${WATCH.length} monedas en vigilancia` : 'Las monedas que sigues, con o sin posición';
   if (!WATCH.length) {
     box.innerHTML = '<p class="muted tiny">Busca una moneda en la barra de arriba y pulsa para añadirla aquí.</p>';
     return;
@@ -1226,14 +1226,27 @@ function watchRender() {
         <span class="watch-price">${precio ? priceFmt(precio) : '—'}</span>
         <span class="watch-chg ${signed(cambio || 0)}">${cambio === null || cambio === undefined ? '—' : pct(cambio)}</span>
       </span>
+      ${WSPARK[sym] && WSPARK[sym].length > 2 ? `<span class="watch-spark">${sparklineWide(WSPARK[sym])}</span>` : ''}
     </div>`;
   }).join('');
 }
+
+let WSPARK = {};
 
 async function loadWatch() {
   try {
     const d = await api('/api/watchlist');
     WATCH = d.watchlist || [];
+    watchRender();
+    loadWatchSpark();
+  } catch {}
+}
+
+async function loadWatchSpark() {
+  if (!WATCH.length) { WSPARK = {}; return; }
+  try {
+    const d = await api('/api/sparklines?extra=' + encodeURIComponent(WATCH.join(',')));
+    WSPARK = d.sparklines || {};
     watchRender();
   } catch {}
 }
@@ -1906,6 +1919,22 @@ async function loadRadar() {
 }
 
 /* Minigráfico de 7 días (una sola línea, verde si sube y roja si baja) */
+function sparklineWide(values) {
+  if (!Array.isArray(values) || values.length < 2) return '';
+  const w = 160, h = 36, pad = 2;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = pad + (i * (w - pad * 2)) / (values.length - 1);
+    const y = pad + (h - pad * 2) * (1 - (v - min) / span);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const up = values[values.length - 1] >= values[0];
+  const color = up ? 'var(--pos)' : 'var(--neg)';
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
 function sparklineSvg(values) {
   if (!Array.isArray(values) || values.length < 2) return '<span class="muted">—</span>';
   const w = 72, h = 26, pad = 3;
