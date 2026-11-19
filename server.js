@@ -930,6 +930,49 @@ app.post('/api/login/2fa', (req, res) => {
 });
 
 
+
+// ---------------- mercados y lista de vigilancia ----------------
+let marketsCache = { at: 0, data: [] };
+
+app.get('/api/markets', async (req, res) => {
+  try {
+    if (Date.now() - marketsCache.at < 60e3 && marketsCache.data.length) {
+      return res.json({ ok: true, markets: marketsCache.data, cached: true });
+    }
+    const m = await fetchMarket();
+    const lista = Object.entries(m.prices || {})
+      .map(([symbol, price]) => ({ symbol, price, change: m.dayChange[symbol] }))
+      .filter(x => x.price > 0)
+      .sort((a, b) => a.symbol.localeCompare(b.symbol));
+    marketsCache = { at: Date.now(), data: lista };
+    res.json({ ok: true, markets: lista, cached: false });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/watchlist', (req, res) => {
+  const s = getSettings();
+  res.json({ ok: true, watchlist: Array.isArray(s.watchlist) ? s.watchlist : [] });
+});
+
+app.post('/api/watchlist', (req, res) => {
+  const b = req.body || {};
+  const symbol = String(b.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
+  const s = getSettings();
+  const lista = Array.isArray(s.watchlist) ? s.watchlist.slice() : [];
+  const i = lista.indexOf(symbol);
+  if (b.on === false) {
+    if (i >= 0) lista.splice(i, 1);
+  } else if (i < 0) {
+    lista.push(symbol);
+  }
+  s.watchlist = lista.slice(0, 40);
+  saveSettings(s);
+  res.json({ ok: true, watchlist: s.watchlist });
+});
+
 // ---------------- favoritos del usuario ----------------
 app.get('/api/favorites', (req, res) => {
   const s = getSettings();

@@ -302,7 +302,7 @@ function navigate(view) {
     void topText.offsetWidth;
     topText.classList.add('is-entering');
   }
-  if (view === 'dashboard') { renderDashboard(); favRender(); }
+  if (view === 'dashboard') { renderDashboard(); favRender(); watchRender(); }
   if (view === 'coins') renderCoins();
   if (view === 'tax') loadTax();
   if (view === 'operations') loadTransactions();
@@ -1132,6 +1132,37 @@ document.addEventListener('input', e => {
     window.__simBuyT = setTimeout(() => renderSimBuy(p && p.coin.price > 0 ? simState.buyAmount / p.coin.price : 0), 350);
   }
 });
+// buscador de monedas
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'coin-search') {
+    clearTimeout(window.__csT);
+    window.__csT = setTimeout(() => buscadorMonedas(e.target.value), 180);
+  }
+});
+document.addEventListener('focusin', e => {
+  if (e.target && e.target.id === 'coin-search' && e.target.value) buscadorMonedas(e.target.value);
+});
+document.addEventListener('click', (e) => {
+  const add = e.target.closest ? e.target.closest('[data-watch-add]') : null;
+  if (add) {
+    e.preventDefault();
+    const sym = add.dataset.watchAdd;
+    if (WATCH.includes(sym)) { watchToggle(sym, false); }
+    else { watchToggle(sym, true); }
+    const inp = $('#coin-search');
+    if (inp) inp.value = '';
+    const box = $('#coin-search-results');
+    if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+    return;
+  }
+  const off = e.target.closest ? e.target.closest('[data-watch-off]') : null;
+  if (off) { e.preventDefault(); watchToggle(off.dataset.watchOff, false); return; }
+  // clic fuera: cerrar resultados
+  const box = $('#coin-search-results');
+  const inp = $('#coin-search');
+  if (box && inp && !box.contains(e.target) && e.target !== inp) box.classList.add('hidden');
+}, true);
+
 // las estrellas se atienden antes que el clic de la fila (fase de captura)
 document.addEventListener('click', e => {
   const fav = e.target.closest ? e.target.closest('[data-fav],[data-fav-off]') : null;
@@ -1177,6 +1208,90 @@ document.addEventListener('click', e => {
     renderSimSaved();
   }
 });
+
+// ---------------------------------------------------------------- lista de vigilancia
+let WATCH = [];
+let MERCADOS = [];
+
+function watchRender() {
+  const box = $('#watch-list');
+  if (!box) return;
+  const sub = $('#watch-sub');
+  const coins = ((state.portfolio && state.portfolio.coins) || []);
+  if (sub) sub.textContent = WATCH.length ? `${WATCH.length} monedas en vigilancia` : 'Monedas que sigues sin tenerlas en cartera';
+  if (!WATCH.length) {
+    box.innerHTML = '<p class="muted tiny">Busca una moneda en la barra de arriba y pulsa para añadirla aquí.</p>';
+    return;
+  }
+  box.innerHTML = WATCH.map(sym => {
+    const enCartera = coins.find(c => c.symbol === sym);
+    const m = MERCADOS.find(x => x.symbol === sym) || {};
+    const precio = enCartera ? enCartera.price : m.price;
+    const cambio = enCartera ? enCartera.dayChangePct : m.change;
+    return `<div class="watch-item" data-symbol="${esc(sym)}">
+      <span class="watch-top">
+        <span class="coin">${coinBadge(sym)}<span class="watch-name">${esc(sym)}</span></span>
+        <button class="watch-del" data-watch-off="${esc(sym)}" title="Quitar de vigilancia">×</button>
+      </span>
+      <span class="watch-bottom">
+        <span class="watch-price">${precio ? priceFmt(precio) : '—'}</span>
+        <span class="watch-chg ${signed(cambio || 0)}">${cambio === null || cambio === undefined ? '—' : pct(cambio)}</span>
+      </span>
+      ${enCartera ? '<span class="watch-tag">en cartera</span>' : ''}
+    </div>`;
+  }).join('');
+}
+
+async function loadWatch() {
+  try {
+    const d = await api('/api/watchlist');
+    WATCH = d.watchlist || [];
+    watchRender();
+  } catch {}
+}
+
+async function loadMercados(force) {
+  if (!force && MERCADOS.length) return MERCADOS;
+  try {
+    const d = await api('/api/markets');
+    MERCADOS = d.markets || [];
+  } catch {}
+  return MERCADOS;
+}
+
+async function watchToggle(symbol, on) {
+  try {
+    const d = await api('/api/watchlist', { method: 'POST', body: { symbol, on } });
+    WATCH = d.watchlist || [];
+    watchRender();
+  } catch (e) { toast('No se pudo guardar', 'err'); }
+}
+
+// buscador de la barra superior
+async function buscadorMonedas(texto) {
+  const box = $('#coin-search-results');
+  if (!box) return;
+  const q = String(texto || '').trim().toUpperCase();
+  if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  await loadMercados();
+  const hits = MERCADOS.filter(m => m.symbol.includes(q)).slice(0, 8);
+  if (!hits.length) {
+    box.innerHTML = '<p class="muted tiny" style="padding:8px 10px;margin:0">Sin resultados en Bitvavo</p>';
+    box.classList.remove('hidden');
+    return;
+  }
+  box.innerHTML = hits.map(m => {
+    const dentro = WATCH.includes(m.symbol);
+    const cartera = ((state.portfolio && state.portfolio.coins) || []).some(c => c.symbol === m.symbol);
+    return `<button class="cs-row" data-watch-add="${esc(m.symbol)}">
+      <span class="cs-sym">${esc(m.symbol)}</span>
+      <span class="cs-price">${priceFmt(m.price)}</span>
+      <span class="cs-chg ${signed(m.change || 0)}">${m.change === null || m.change === undefined ? '—' : pct(m.change)}</span>
+      <span class="cs-add">${dentro ? '✓ en vigilancia' : cartera ? 'en cartera' : '+ vigilar'}</span>
+    </button>`;
+  }).join('');
+  box.classList.remove('hidden');
+}
 
 // ---------------------------------------------------------------- favoritos
 let FAVS = [];
@@ -1487,6 +1602,8 @@ async function boot() {
   loadNews();
   loadRanges();
   loadFavs();
+  loadWatch();
+  loadMercados();
   navigate(location.hash.startsWith('#/') ? location.hash.slice(2) : 'dashboard');
   setTimeout(rollKpiNumbers, 220);
 }

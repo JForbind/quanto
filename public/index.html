@@ -159,6 +159,10 @@
         <h1 id="page-title">Resumen</h1>
         <p id="page-sub" class="muted">Cargando…</p>
       </div>
+      <div class="coin-search" id="coin-search-wrap">
+        <input id="coin-search" type="search" placeholder="Buscar moneda de Bitvavo…" autocomplete="off" spellcheck="false" aria-label="Buscar moneda">
+        <div id="coin-search-results" class="coin-search-results hidden"></div>
+      </div>
       <div class="topbar-actions">
         <button id="privacy-btn" class="btn btn-ghost" title="Ocultar importes" aria-label="Modo privacidad">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -223,6 +227,14 @@
           <header class="card-head"><h2>Reparto</h2><span class="card-sub" id="alloc-sub">—</span></header>
           <div id="chart-allocation" class="chart chart-md"></div>
           <ul id="alloc-legend" class="legend"></ul>
+        </article>
+
+        <article class="card glass span-12" id="watch-card">
+          <header class="card-head">
+            <div><h2>Vigilancia</h2><p class="card-sub" id="watch-sub">Monedas que sigues sin tenerlas en cartera</p></div>
+            <span class="muted tiny">usa el buscador de arriba</span>
+          </header>
+          <div id="watch-list" class="watch-list"></div>
         </article>
 
         <article class="card glass span-12" id="fav-card">
