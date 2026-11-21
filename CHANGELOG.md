@@ -3,6 +3,18 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.4.2] — 2026-11-21
+
+### Corregido
+
+- Los **planes de Bitvavo** ya no se quedan colgados: al quitar una orden en Bitvavo su tramo
+  desaparece del plan (antes se marcaba como «cancelado» y se quedaba ahí), y los planes
+  importados que se quedan sin tramos se eliminan solos.
+- En **móvil**, la barra inferior respeta el **orden del menú** que elige el usuario (las cuatro
+  primeras pestañas), igual que el resto del menú.
+- El **simulador** pide los rangos también para las monedas en **Seguimiento**, así que al
+  añadir una moneda a la lista ya aparecen su máximo histórico y los del año.
+
 ## [3.4.1] — 2026-11-21
 
 ### Añadido
