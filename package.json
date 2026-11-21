@@ -1,21 +1,25 @@
 {
   "name": "quanto",
-  "version": "3.8.1",
+  "version": "3.9.0",
   "private": true,
   "type": "commonjs",
   "main": "server.js",
-  "description": "Quanto — cartera cripto (Bitvavo) con informe fiscal FIFO, índice miedo y codicia y wallet fría",
+  "description": "Quanto \u2014 cartera cripto (Bitvavo) con informe fiscal FIFO, \u00edndice miedo y codicia y wallet fr\u00eda",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/quanto.test.js && node tests/auth.test.js && node tests/import.test.js && node tests/totp.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:ui": "node scripts/ui-smoke.js"
   },
   "dependencies": {
     "exceljs": "4.4.0",
     "express": "4.22.3",
     "nodemailer": "^6.9.16",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
   }
 }
