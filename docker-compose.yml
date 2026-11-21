@@ -21,6 +21,10 @@ services:
       - COOKIE_SECRET=${COOKIE_SECRET:-}
       # URL pública: se usa en los enlaces de los mensajes y correos
       - PUBLIC_URL=${PUBLIC_URL:-}
+    # DNS explícito: el resolv.conf del host puede apuntar a servidores caídos
+    dns:
+      - ${DNS_1:-9.9.9.9}
+      - ${DNS_2:-149.112.112.112}
     volumes:
       - ./data:/app/data
     healthcheck:
