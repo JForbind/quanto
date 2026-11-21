@@ -3,6 +3,40 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.4.0] — 2026-11-21
+
+### Añadido
+
+- **Rangos de precio** por moneda: máximo histórico, máximo del año y mínimo del año, en la
+  tabla de Monedas y en la ficha. El histórico se busca por símbolo en CoinGecko (con Binance
+  de respaldo) y el año sale de las velas de Bitvavo.
+- **Simulador**: escenario por moneda (valor, beneficio bruto y neto con impuestos), venta
+  con FIFO, compra al precio de hoy con comparativa antes/después, equilibrio y escenarios
+  guardados.
+- **Órdenes de Bitvavo → Planes**: botón «Traer órdenes de Bitvavo» y sincronización
+  automática cada 10 minutos; los tramos se cierran solos al ejecutarse o cancelarse.
+- **Doble factor (TOTP)** con QR, 10 códigos de respaldo, login en dos pasos y reset desde
+  el panel de administrador.
+- **Pestañas arrastrables**: orden del menú guardado por usuario.
+- **Noticias** con pestaña propia y **Seguimiento**: buscador de monedas de Bitvavo, tarjeta
+  con precio, variación y mini-gráfico de 8 días.
+- **Alertas automáticas por porcentaje**: bajada y subida con umbral y **ventana de tiempo**
+  configurables, anti-spam y aviso por Telegram y correo en HTML.
+
+### Cambiado
+
+- Tabla de Monedas en **tarjetas** para móvil (sin scroll horizontal).
+- Simulador con datos solo de la moneda elegida y comparativa en dos columnas.
+- Avisos y correos con el **estilo de los informes** (cabecera, tablas y botón «Abrir Quanto»).
+- Repaso general de la interfaz: `/api/session` sin 401, iconos inexistentes con marcador,
+  velas con caché y Bitvavo con reintentos e IPv4 primero.
+
+### Corregido
+
+- El zoom de Trading movía el eje de precio y dejaba el gráfico fuera de vista.
+- Los precios de la lista de seguimiento no se pintaban al cargar la página.
+- La barra inferior del móvil aparecía en la pantalla de login.
+
 ## [3.3.0] — 2026-11-15
 
 ### Añadido
