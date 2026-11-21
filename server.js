@@ -723,22 +723,31 @@ async function syncBitvavoPlans() {
         });
         nuevos++;
       }
-      // 2) tramos cuya orden ya no está abierta
-      for (const tr of plan.tranches) {
-        if (tr.status !== 'pending' || !tr.orderId) continue;
-        if (abiertas.has(tr.orderId)) continue;
-        tr.status = 'cancelled';
-        tr.cancelledAt = Date.now();
-        tr.note = 'La orden ya no está abierta en Bitvavo';
+      // 2) tramos cuya orden ya no está abierta en Bitvavo: si no se ejecutó, se borra
+      //    (antes se quedaba como «cancelado» y el plan nunca desaparecía)
+      plan.tranches = plan.tranches.filter(tr => {
+        if (!tr.orderId) return true;
+        if (abiertas.has(tr.orderId)) return true;
+        if (tr.status === 'done') return true;          // se ejecutó: se conserva como histórico
         removePlanAlert(plan.id, tr.id);
         cerrados++;
-      }
+        return false;                                    // la quitaron de Bitvavo: fuera
+      });
       plan.tranches.sort((a, b) => b.price - a.price);
       plan.budget = round(plan.tranches.filter(x => x.status === 'pending').reduce((a, x) => a + x.amount, 0), 2);
     }
 
+    // 3) planes importados que se han quedado sin tramos: se eliminan
+    let planesBorrados = 0;
+    store.plans = store.plans.filter(p => {
+      if (p.source !== 'bitvavo') return true;
+      if ((p.tranches || []).length) return true;
+      planesBorrados++;
+      return false;
+    });
+
     savePlanStore(store);
-    return { ok: true, planesCreados: creados, tramosNuevos: nuevos, tramosCerrados: cerrados, errores, planes: store.plans };
+    return { ok: true, planesCreados: creados, tramosNuevos: nuevos, tramosCerrados: cerrados, planesBorrados, errores, planes: store.plans };
   }
 }
 

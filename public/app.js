@@ -425,7 +425,6 @@ function navApplyOrder(order) {
   enOrden.forEach(it => contenedor.appendChild(it));
 
   // la hoja «Más» del móvil, con el mismo criterio
-  const hoja = document.querySelector('.more-menu') || document;
   const mas = Array.from(document.querySelectorAll(NAV_MORE_SEL));
   if (mas.length) {
     const cont = mas[0].parentNode;
@@ -433,6 +432,29 @@ function navApplyOrder(order) {
     const ordenMas = order.map(v => mapa.get(v)).filter(Boolean);
     mas.forEach(it => { if (!ordenMas.includes(it)) ordenMas.push(it); });
     ordenMas.forEach(it => cont.appendChild(it));
+  }
+
+  // la barra inferior del móvil: las 4 primeras del orden del usuario
+  const dock = document.querySelector('.mobile-nav');
+  const btnMas = dock && dock.querySelector('#more-btn');
+  if (dock && btnMas) {
+    const ordenFinal = enOrden.map(it => it.dataset.view).filter(Boolean);
+    const cuatro = ordenFinal.slice(0, 4);
+    // guardar los botones actuales y vaciar la barra (dejando «Más»)
+    const existentes = new Map();
+    dock.querySelectorAll('[data-view]').forEach(b => { existentes.set(b.dataset.view, b); b.remove(); });
+    cuatro.forEach(v => {
+      let btn = existentes.get(v);
+      if (!btn) {
+        const src = porVista.get(v);
+        if (!src) return;
+        btn = src.cloneNode(true);
+        btn.classList.remove('is-active');
+        btn.draggable = false;
+        btn.addEventListener('click', () => { if (btn.dataset.view) navigate(btn.dataset.view); });
+      }
+      dock.insertBefore(btn, btnMas);
+    });
   }
 }
 
