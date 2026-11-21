@@ -2157,6 +2157,7 @@ async function loadTradeChart() {
     const r = await api(`/api/candles?symbol=${encodeURIComponent(sym)}&interval=${iv}&limit=${limite}`);
     renderCandles(sym, iv, r.candles || []);
     loadRegime(sym);
+    loadRegimeWatch();
     // Análisis automático la primera vez para cada moneda e intervalo
     if (state.analystKey !== analystKeyFor(sym, iv) && $('#analyst-btn')) runAnalyst();
   } catch (e) {
@@ -4301,6 +4302,57 @@ function renderReality(d) {
   const note = $('#reality-note');
   if (note) note.textContent = `${d.symbol} · ${d.days} días · coste ${d.costBps} pb · ${d.note}`;
 }
+
+let REGIME_WATCH = null;
+
+async function loadRegimeWatch() {
+  const btn = $('#regime-watch-toggle');
+  if (!btn) return;
+  try {
+    const d = await api('/api/regime-watch');
+    REGIME_WATCH = { cfg: d.cfg, channels: d.channels, at: d.at };
+    renderRegimeWatch();
+  } catch { /* el panel sigue funcionando sin avisos */ }
+}
+
+function renderRegimeWatch() {
+  const btn = $('#regime-watch-toggle');
+  const note = $('#regime-watch-state');
+  if (!btn || !REGIME_WATCH) return;
+  const { cfg, channels } = REGIME_WATCH;
+  const on = !!cfg.enabled;
+  btn.classList.toggle('is-active', on);
+  btn.textContent = on ? 'Avisos activos' : 'Avisarme';
+  btn.title = on ? `Revisa cada ${cfg.intervalH} h. Pulsa para desactivar.` : 'Avisarme cuando cambie la tendencia o la volatilidad';
+  if (!note) return;
+  const canals = [];
+  if (channels.telegram) canals.push('Telegram');
+  if (channels.email) canals.push('email');
+  if (on && canals.length) note.textContent = `Vigilante activo: revisa cada ${cfg.intervalH} h y avisa por ${canals.join(' y ')} (máx. un aviso cada ${cfg.cooldownH} h por moneda).`;
+  else if (on) note.textContent = 'Vigilante activo, pero no hay Telegram ni email configurado: los avisos no llegarán. Configúralo en Ajustes → Avisos.';
+  else note.textContent = 'El vigilante está apagado. Actívalo para recibir un aviso cuando una moneda cambie de tendencia o de volatilidad.';
+}
+
+$('#regime-watch-toggle')?.addEventListener('click', async () => {
+  const btn = $('#regime-watch-toggle');
+  if (btn) btn.disabled = true;
+  try {
+    const enabled = !(REGIME_WATCH && REGIME_WATCH.cfg && REGIME_WATCH.cfg.enabled);
+    const d = await api('/api/regime-watch', { method: 'POST', body: { enabled } });
+    REGIME_WATCH = { cfg: d.cfg, channels: d.channels, at: REGIME_WATCH ? REGIME_WATCH.at : 0 };
+    renderRegimeWatch();
+    const note = $('#regime-watch-state');
+    if (note) {
+      const base = note.textContent;
+      note.textContent = (enabled ? 'Activado. ' : 'Desactivado. ') + base;
+    }
+  } catch (e) {
+    const note = $('#regime-watch-state');
+    if (note) note.textContent = 'No se pudo cambiar: ' + e.message;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
 
 $('#regime-refresh')?.addEventListener('click', () => loadRegime(state.tradeSymbol, true));
 $('#reality-run')?.addEventListener('click', () => loadReality(state.tradeSymbol));

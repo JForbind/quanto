@@ -29,6 +29,7 @@ const { getCalendar } = require('./lib/calendar');
 const { analyze: analyzeMarket } = require('./lib/analyst');
 const ranges = require('./lib/ranges');
 const { detectRegime } = require('./lib/regime');
+const regimeWatch = require('./lib/regime-watch');
 const { sizePortfolio } = require('./lib/sizing');
 const { realityCheck, STRATEGIES } = require('./lib/reality');
 const totp = require('./lib/totp');
@@ -36,7 +37,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '3.5.1';
+const VERSION = '3.6.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -3548,6 +3549,114 @@ app.get('/api/reality', async (req, res) => {
     res.status(502).json({ error: 'No se pudo evaluar: ' + e.message });
   }
 });
+
+// ---------------- vigilante de régimen (avisos proactivos) ----------------
+const regimeWatchFile = () => path.join(tenant.ctx().files.dir, 'regime-watch.json');
+
+function getRegimeWatchStore() {
+  const raw = readJson(regimeWatchFile(), null);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { at: 0, items: {} };
+  if (!raw.items || typeof raw.items !== 'object') raw.items = {};
+  return raw;
+}
+function saveRegimeWatchStore(v) { writeJson(regimeWatchFile(), v); }
+
+const REGIME_WATCH_DEFAULTS = { enabled: false, intervalH: 6, cooldownH: 12 };
+function regimeWatchCfg() {
+  const c = (getSettings() || {}).regimeWatch || {};
+  const num = (v, def, lo, hi) => (isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Math.round(Number(v)))) : def);
+  return {
+    enabled: c.enabled === true,
+    intervalH: num(c.intervalH, REGIME_WATCH_DEFAULTS.intervalH, 1, 72),
+    cooldownH: num(c.cooldownH, REGIME_WATCH_DEFAULTS.cooldownH, 1, 168),
+  };
+}
+
+let regimeWatchBusy = false;
+
+async function runRegimeWatch({ force = false } = {}) {
+  const cfg = regimeWatchCfg();
+  const store = getRegimeWatchStore();
+  if (!cfg.enabled && !force) return { skipped: 'desactivado' };
+  if (!force && !regimeWatch.due(store, cfg.intervalH)) return { skipped: 'no toca todavía' };
+  if (regimeWatchBusy) return { skipped: 'ocupado' };
+  const p = state.portfolio;
+  if (!p || !Array.isArray(p.coins) || !p.coins.length) return { skipped: 'sin cartera' };
+  regimeWatchBusy = true;
+  const fired = [];
+  const errors = [];
+  try {
+    const coins = p.coins.filter(c => Number(c.value) > 0).slice(0, 6);
+    for (const coin of coins) {
+      try {
+        const rows = await dailyCandles(coin.symbol, 400);
+        const regime = detectRegime(rows);
+        if (!regime.ok) continue;
+        const next = regimeWatch.summarize(regime);
+        const prev = store.items[coin.symbol] || null;
+        const { changed, reasons } = regimeWatch.diff(prev, next);
+        const cooled = regimeWatch.cooled(store.items[coin.symbol], cfg.cooldownH);
+        const soloInicial = reasons.length > 0 && reasons.every(r => r.kind === 'inicial');
+        if (changed && !soloInicial && (cooled || force)) {
+          const text = regimeWatch.message(coin.symbol, prev, next, reasons);
+          await notifyUser(text, regimeWatch.subject(coin.symbol, reasons));
+          next.sentAt = Date.now();
+          store.items[coin.symbol] = next;
+          fired.push({ symbol: coin.symbol, reasons });
+        } else if (!changed || soloInicial) {
+          store.items[coin.symbol] = next;
+        }
+      } catch (e) {
+        errors.push(coin.symbol + ': ' + e.message);
+      }
+    }
+    store.at = Date.now();
+    saveRegimeWatchStore(store);
+    if (fired.length) console.log('[régimen] avisos:', fired.map(f => f.symbol).join(', '));
+    return { checked: coins.length, fired, errors };
+  } finally {
+    regimeWatchBusy = false;
+  }
+}
+
+function notifyChannels() {
+  const cfg = notifyConfig();
+  const tg = telegramConfig();
+  return { telegram: !!(tg.token && tg.chatId), email: !!(cfg.emailEnabled && cfg.email) };
+}
+
+app.get('/api/regime-watch', (req, res) => {
+  const store = getRegimeWatchStore();
+  res.json({ ok: true, cfg: regimeWatchCfg(), at: store.at || 0, items: store.items, channels: notifyChannels() });
+});
+
+app.post('/api/regime-watch', async (req, res) => {
+  const b = req.body || {};
+  const settings = getSettings();
+  const actual = regimeWatchCfg();
+  if (b.test === true) {
+    const results = await notifyUser(
+      '🔔 Prueba del vigilante de régimen.\nSi ves este mensaje, los avisos llegarán cuando una moneda cambie de tendencia o de volatilidad.',
+      'Quanto · prueba del vigilante',
+    );
+    return res.json({ ok: true, test: true, results });
+  }
+  settings.regimeWatch = {
+    enabled: b.enabled != null ? b.enabled === true : actual.enabled,
+    intervalH: isFinite(b.intervalH) ? Math.min(72, Math.max(1, Math.round(Number(b.intervalH)))) : actual.intervalH,
+    cooldownH: isFinite(b.cooldownH) ? Math.min(168, Math.max(1, Math.round(Number(b.cooldownH)))) : actual.cooldownH,
+  };
+  saveSettings(settings);
+  const cfg = regimeWatchCfg();
+  if (cfg.enabled && b.force !== false) {
+    runRegimeWatch({ force: false }).catch(() => {});
+  }
+  res.json({ ok: true, cfg, channels: notifyChannels() });
+});
+
+// cada 30 minutos se comprueba si toca revisar (el intervalo real manda)
+setInterval(() => { tenant.forEachUser(() => runRegimeWatch().catch(() => {})); }, 30 * 60e3);
+setTimeout(() => { tenant.forEachUser(() => runRegimeWatch().catch(() => {})); }, 4 * 60e3);
 
 let levCache = { at: 0, data: null };
 const LEV_TTL = 6 * 3600e3;
