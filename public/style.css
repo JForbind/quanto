@@ -1330,3 +1330,19 @@ html[data-theme="dark"] .auto-btn.is-active { color: #060b14; }
 
 /* mientras se recalcula, se atenúa lo que ya está en pantalla en vez de vaciarlo */
 .is-loading { opacity: .5; transition: opacity .15s ease; pointer-events: none; }
+
+/* los campos de formulario miden lo mismo: mismo tamaño de letra y sitio para la flecha */
+.field select {
+  font-size: 15px;
+  line-height: 1.5;
+  padding-right: 34px;
+  background-position: right 12px center;
+}
+
+/* el select del navegador ignora line-height: se iguala con altura explícita */
+.field select {
+  height: 47px;
+  padding-top: 0;
+  padding-bottom: 0;
+  background-position: right 12px center;
+}
