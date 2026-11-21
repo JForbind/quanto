@@ -3,6 +3,16 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.4.3] — 2026-11-21
+
+### Corregido
+
+- **DNS explícito** en el contenedor: `docker-compose.yml` usa ahora **Quad9** (9.9.9.9 y
+  149.112.112.112, configurables con `DNS_1` y `DNS_2`). Los «fetch failed» intermitentes de
+  Bitvavo venían de ahí: el `resolv.conf` del host apuntaba a servidores DNS caídos.
+- Arreglado el `<p>` mal cerrado del subtítulo de **Seguimiento** (`posición/p>`), que dejaba
+  mal la línea y el HTML de la tarjeta.
+
 ## [3.4.2] — 2026-11-21
 
 ### Corregido
