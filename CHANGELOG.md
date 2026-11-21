@@ -3,6 +3,19 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.4.1] — 2026-11-21
+
+### Añadido
+
+- El **simulador** incluye ahora las monedas en **Seguimiento** (marcadas como «· seguimiento»).
+  Sin posición se puede simular una compra a precio de hoy y ver el resultado al precio
+  objetivo; las tarjetas de posición y venta avisan de que no hay nada invertido.
+
+### Corregido
+
+- «Precio medio» y «si hubieras vendido en máximos» muestran «—» en vez de 0 cuando la
+  moneda no está en cartera.
+
 ## [3.4.0] — 2026-11-21
 
 ### Añadido

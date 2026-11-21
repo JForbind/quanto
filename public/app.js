@@ -1119,7 +1119,7 @@ async function showInvite(token) {
 document.addEventListener('change', e => {
   const t = e.target;
   if (!t) return;
-  if (t.id === 'sim-coin') { simState.symbol = t.value; simState.price = Number((state.portfolio.coins.find(c => c.symbol === t.value) || {}).price) || 0; simState.tax = null; renderSim(); }
+  if (t.id === 'sim-coin') { simState.symbol = t.value; simState.price = Number(simCoinObject(t.value).price) || 0; simState.tax = null; renderSim(); }
   if (t.id === 'sim-price') { simState.price = Number(t.value) || 0; simState.tax = null; renderSim(); }
   if (t.id === 'sim-buy-eur') { simState.buyAmount = Number(t.value) || 0; renderSim(); }
 });
@@ -1367,17 +1367,42 @@ function simSaved() {
 function simSave(list) { try { localStorage.setItem(SIM_KEY, JSON.stringify(list)); } catch {} }
 
 function simDefaults() {
-  const coins = (state.portfolio && state.portfolio.coins) || [];
-  if (!coins.length) return;
-  if (!simState.symbol || !coins.some(c => c.symbol === simState.symbol)) {
-    simState.symbol = coins[0].symbol;
-    simState.price = Number(coins[0].price);
+  const p = state.portfolio;
+  const cartera = ((p && p.coins) || []).filter(c => c.amount > 0);
+  const seguidas = (typeof WATCH !== 'undefined' && Array.isArray(WATCH)) ? WATCH : [];
+  const lista = [...new Set([...cartera.map(c => c.symbol), ...seguidas])];
+  if (!lista.length) return;
+  if (!simState.symbol || !lista.includes(simState.symbol)) {
+    simState.symbol = lista[0];
+    const c = simCoinObject(lista[0]);
+    simState.price = Number(c.price) || 0;
   }
+}
+
+function simCoinObject(symbol) {
+  const p = state.portfolio;
+  const enCartera = ((p && p.coins) || []).find(c => c.symbol === symbol);
+  if (enCartera) return enCartera;
+  // moneda en seguimiento: sin posición, con el precio de mercado
+  const m = (typeof MERCADOS !== 'undefined' ? MERCADOS : []).find(x => x.symbol === symbol) || {};
+  return {
+    symbol,
+    amount: 0,
+    price: Number(m.price) || 0,
+    dayChangePct: m.change === undefined ? null : m.change,
+    avgPrice: 0,
+    value: 0,
+    invested: 0,
+    costKnown: false,
+    onExchange: 0,
+    inCold: 0,
+    enCartera: false,
+  };
 }
 
 function simNumbers() {
   const p = state.portfolio;
-  const coin = ((p && p.coins) || []).find(c => c.symbol === simState.symbol);
+  const coin = simCoinObject(simState.symbol);
   if (!p || !coin) return null;
   const price = Number(simState.price) || 0;
   const cash = Number(p.cash) || 0;
@@ -1398,8 +1423,13 @@ function renderSim() {
   const box = $('#sim-coin');
   if (!box || !p) return;
 
-  const coins = (p.coins || []).filter(c => c.amount > 0);
-  box.innerHTML = coins.map(c => `<option value="${esc(c.symbol)}"${c.symbol === simState.symbol ? ' selected' : ''}>${esc(c.symbol)}</option>`).join('');
+  const cartera = (p.coins || []).filter(c => c.amount > 0).map(c => c.symbol);
+  const seguidas = (typeof WATCH !== 'undefined' && Array.isArray(WATCH)) ? WATCH : [];
+  const lista = [...new Set([...cartera, ...seguidas])].sort();
+  box.innerHTML = lista.map(s => {
+    const marca = cartera.includes(s) ? '' : ' · seguimiento';
+    return `<option value="${esc(s)}"${s === simState.symbol ? ' selected' : ''}>${esc(s)}${marca}</option>`;
+  }).join('');
   const priceInput = $('#sim-price');
   if (priceInput && document.activeElement !== priceInput) priceInput.value = simState.price;
 
@@ -1424,18 +1454,26 @@ function renderSim() {
     return `<button class="btn btn-ghost btn-xs${activo ? ' is-active' : ''}" data-sim-price="${value.toFixed(6)}" title="${esc(title)}">${label}</button>`;
   }).join('');
 
-  $('#sim-now').innerHTML = `Precio ahora de ${esc(simState.symbol)}: <b>${priceFmt(n.coin.price)}</b> · tu media: <b>${n.coin.costKnown ? priceFmt(n.coin.avgPrice) : 'n/d'}</b> · ${num(n.coin.amount, 8)} ${esc(simState.symbol)}`;
+  $('#sim-now').innerHTML = n.coin.amount > 0
+    ? `Precio ahora de ${esc(simState.symbol)}: <b>${priceFmt(n.coin.price)}</b> · tu media: <b>${n.coin.costKnown ? priceFmt(n.coin.avgPrice) : 'n/d'}</b> · ${num(n.coin.amount, 8)} ${esc(simState.symbol)}`
+    : `Precio ahora de ${esc(simState.symbol)}: <b>${priceFmt(n.coin.price)}</b> · <span class="muted">sin posición (en seguimiento)</span>`;
 
 
-  if (simState.taxAt !== n.price || !simState.tax) {
+  if (!(Number(n.coin.amount) > 0)) {
+    $('#sim-vender').innerHTML = `<header class="card-head"><div><h2>¿Y si vendo?</h2>
+        <p class="card-sub">Sin posición en ${esc(simState.symbol)}</p></div></header>
+      <p class="hint" style="margin:0">No tienes ${esc(simState.symbol)} en cartera, así que no hay nada que vender. Prueba la compra simulada de abajo.</p>`;
+  } else if (simState.taxAt !== n.price || !simState.tax) {
     simState.tax = null;
     simState.taxAt = n.price;
     api(`/api/tax/simulate?symbol=${encodeURIComponent(simState.symbol)}&amount=${n.coin.amount}&price=${n.price}`)
       .then(d => { simState.tax = d; if (state.view === 'sim') renderSimTax(); })
       .catch(() => {});
   }
-  $('#sim-vender').innerHTML = `<header class="card-head"><div><h2>¿Y si vendo?</h2><p class="card-sub">Vender toda la posición a ${priceFmt(n.price)}</p></div></header><div id="sim-vender-body" class="sim-lines">Calculando…</div>`;
-  if (simState.tax) renderSimTax();
+  if (Number(n.coin.amount) > 0) {
+    $('#sim-vender').innerHTML = `<header class="card-head"><div><h2>¿Y si vendo?</h2><p class="card-sub">Vender toda la posición a ${priceFmt(n.price)}</p></div></header><div id="sim-vender-body" class="sim-lines">Calculando…</div>`;
+    if (simState.tax) renderSimTax();
+  }
 
   // compra a precio de HOY y efecto en la venta al precio objetivo
   const mercado = Number(n.coin.price) || 0;
@@ -1463,6 +1501,14 @@ function renderSimPosicion() {
   const n = simNumbers();
   if (!n) return;
   const c = n.coin;
+  if (!(Number(c.amount) > 0)) {
+    box.innerHTML = `<header class="card-head">
+        <div><h2>${esc(c.symbol)} a ${priceFmt(n.price)}</h2>
+        <p class="card-sub">No tienes posición en esta moneda</p></div>
+      </header>
+      <p class="hint" style="margin:0">Está en <b>Seguimiento</b>. Usa la tarjeta <b>«¿Y si invierto más?»</b> para simular una compra a precio de hoy y ver cuánto ganarías si vendes a ${priceFmt(n.price)}.</p>`;
+    return;
+  }
   const invertido = Number(c.invested) || 0;
   const objetivo = n.newCoinValue;
   const bruto = objetivo - invertido;
@@ -1512,7 +1558,7 @@ async function renderSimBuy(unidades) {
       <div class="buy-compare">
         ${tarjeta('Ahora', 'tu cartera real', [
           ['Cantidad', num(o.cantidad, 6)],
-          ['Precio medio', priceFmt(o.media)],
+          ['Precio medio', o.cantidad > 0 ? priceFmt(o.media) : '—'],
           ['Invertido', eur(o.invertido)],
           ['Valdría a ' + priceFmt(d.target), eur(o.ingreso)],
           ['Impuestos', eur(o.impuestos)],
@@ -1569,7 +1615,7 @@ function renderSimExtras(n, r) {
       <div class="stat"><span>Precio actual</span><strong>${priceFmt(hoy)}</strong><small>${n.coin.dayChangePct === null || n.coin.dayChangePct === undefined ? 'ahora mismo' : `hoy ${n.coin.dayChangePct >= 0 ? '+' : ''}${num(n.coin.dayChangePct, 2)} %`}</small></div>
       <div class="stat"><span>Máximo histórico</span><strong>${r.ath ? priceFmt(r.ath) : '—'}</strong><small>${veces ? `${num(veces, 1)}× el precio de hoy` : 'sin dato histórico'}</small></div>
       <div class="stat"><span>Precio de equilibrio</span><strong>${avg ? priceFmt(avg) : '—'}</strong><small>${need === null ? '' : `estás ${need >= 0 ? '+' : ''}${num(need, 1)} % de ahí`}</small></div>
-      <div class="stat"><span>Si hubieras vendido en máx. histórico</span><strong>${r.ath ? eur(n.coin.amount * r.ath) : '—'}</strong><small>${r.ath ? 'bruto, antes de impuestos' : 'sin dato histórico'}</small></div>
+      <div class="stat"><span>Si hubieras vendido en máx. histórico</span><strong>${r.ath && n.coin.amount > 0 ? eur(n.coin.amount * r.ath) : '—'}</strong><small>${n.coin.amount > 0 ? (r.ath ? 'bruto, antes de impuestos' : 'sin dato histórico') : 'sin posición'}</small></div>
       <div class="stat"><span>Para bajar tu media un 10 %</span><strong>${b > 0 ? eur(b) : '—'}</strong><small>${bText}</small></div>
       <div class="stat"><span>Diferencia con tu media</span><strong>${n.vsAvg === null ? '—' : (n.vsAvg >= 0 ? '+' : '') + num(n.vsAvg, 1) + ' %'}</strong><small>precio frente a ${avg ? priceFmt(avg) : '—'}</small></div>
     </div>`;

@@ -33,7 +33,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '3.4.0';
+const VERSION = '3.4.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -2316,14 +2316,22 @@ app.get('/api/simulate/buy', async (req, res) => {
     const target = Number(req.query.target) || 0;
     if (!symbol || qty <= 0 || target <= 0) return res.status(400).json({ error: 'Faltan datos' });
 
-    const coin = ((state.portfolio && state.portfolio.coins) || []).find(c => c.symbol === symbol);
-    if (!coin) return res.status(404).json({ error: 'Esa moneda no está en la cartera' });
+    let coin = ((state.portfolio && state.portfolio.coins) || []).find(c => c.symbol === symbol);
+    if (!coin) {
+      // moneda en seguimiento (sin posición): se simula desde cero
+      try { if (!state.prices || !state.prices[symbol]) await fetchMarket(); } catch {}
+      const precioMercado = Number(state.prices && state.prices[symbol]) || 0;
+      if (!precioMercado) return res.status(400).json({ error: 'No hay precio de mercado para esa moneda' });
+      coin = { symbol, amount: 0, price: precioMercado, avgPrice: 0, invested: 0, value: 0, costKnown: false };
+    }
 
     const mercado = Number(coin.price) || Number(state.prices[symbol]) || 0;
     if (!mercado) return res.status(400).json({ error: 'No hay precio de mercado' });
 
     const ops = opsForView();
-    const sim = ops.length ? simulateSale(ops, symbol, Number(coin.amount) || 0) : { fifoCost: Number(coin.invested) || 0 };
+    const sim = (Number(coin.amount) > 0 && ops.length)
+      ? simulateSale(ops, symbol, Number(coin.amount) || 0)
+      : { fifoCost: Number(coin.invested) || 0 };
     const costeBase = Number(sim.fifoCost) || 0;
 
     const costeCompra = round(qty * mercado, 2);
