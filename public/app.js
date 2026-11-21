@@ -1348,6 +1348,8 @@ async function watchToggle(symbol, on) {
     const d = await api('/api/watchlist', { method: 'POST', body: { symbol, on } });
     WATCH = d.watchlist || [];
     watchRender();
+    loadRanges();
+    if (state.view === 'sim') renderSim();
     const sel = $('#trade-symbol');
     if (sel) sel.dataset.ready = '';
   } catch (e) { toast('No se pudo guardar', 'err'); }
@@ -2579,7 +2581,9 @@ function rangeFmt(v) {
 
 let RANGES = {};
 async function loadRanges() {
-  const syms = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol);
+  const cartera = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol);
+  const seguidas = (typeof WATCH !== 'undefined' && Array.isArray(WATCH)) ? WATCH : [];
+  const syms = [...new Set([...cartera, ...seguidas])].slice(0, 30);
   if (!syms.length) return;
   try {
     const d = await api('/api/ranges?symbols=' + encodeURIComponent(syms.join(',')));
