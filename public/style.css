@@ -1248,3 +1248,8 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 /* tarjeta de alertas automáticas más compacta */
 #auto-card .auto-row { max-width: 640px; }
 #auto-card .auto-hint, #auto-card .hint { max-width: 720px; }
+
+/* botones de alerta automática (en vez de casillas) */
+.auto-btn { min-width: 190px; justify-content: flex-start; border-radius: 999px; padding: 9px 16px; font-size: 13.5px; }
+.auto-btn.is-active { background: var(--accent); color: #08111f; border-color: transparent; font-weight: 700; }
+.auto-btn.is-active:hover { filter: brightness(1.05); }

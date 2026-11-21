@@ -1133,11 +1133,21 @@ document.addEventListener('input', e => {
     window.__simBuyT = setTimeout(() => renderSimBuy(p && p.coin.price > 0 ? simState.buyAmount / p.coin.price : 0), 350);
   }
 });
-// alertas automáticas: guardar al cambiar
+// alertas automáticas: botones de encendido y porcentajes
+document.addEventListener('click', e => {
+  const b = e.target.closest ? e.target.closest('#auto-drop-btn,#auto-rise-btn') : null;
+  if (!b) return;
+  e.preventDefault();
+  const dir = b.id === 'auto-drop-btn' ? 'drop' : 'rise';
+  AUTO[dir].on = !AUTO[dir].on;
+  autoPintar();
+  saveAutoAlerts();
+}, true);
 document.addEventListener('change', e => {
   const t2 = e.target;
   if (!t2) return;
-  if (['auto-drop-on', 'auto-drop-pct', 'auto-rise-on', 'auto-rise-pct'].includes(t2.id)) saveAutoAlerts();
+  if (t2.id === 'auto-drop-pct') { AUTO.drop.pct = Number(t2.value) || 6; saveAutoAlerts(); }
+  if (t2.id === 'auto-rise-pct') { AUTO.rise.pct = Number(t2.value) || 5; saveAutoAlerts(); }
 });
 
 // buscador de monedas
@@ -1207,37 +1217,39 @@ document.addEventListener('click', e => {
 });
 
 // ---------------------------------------------------------------- alertas automáticas
+let AUTO = { drop: { on: false, pct: 6 }, rise: { on: false, pct: 5 } };
+
+function autoPintar() {
+  const dBtn = $('#auto-drop-btn');
+  const rBtn = $('#auto-rise-btn');
+  if (dBtn) { dBtn.classList.toggle('is-active', !!AUTO.drop.on); dBtn.setAttribute('aria-pressed', AUTO.drop.on ? 'true' : 'false'); }
+  if (rBtn) { rBtn.classList.toggle('is-active', !!AUTO.rise.on); rBtn.setAttribute('aria-pressed', AUTO.rise.on ? 'true' : 'false'); }
+  const chip = $('#auto-status');
+  if (chip) {
+    const activas = [];
+    if (AUTO.drop.on) activas.push('bajada ' + AUTO.drop.pct + ' %');
+    if (AUTO.rise.on) activas.push('subida ' + AUTO.rise.pct + ' %');
+    chip.textContent = activas.length ? activas.join(' · ') : 'desactivadas';
+    chip.classList.toggle('chip-ok', activas.length > 0);
+  }
+}
+
 async function loadAutoAlerts() {
   try {
     const d = await api('/api/auto-alerts');
-    const dOn = $('#auto-drop-on'), dPct = $('#auto-drop-pct');
-    const rOn = $('#auto-rise-on'), rPct = $('#auto-rise-pct');
-    if (dOn) dOn.checked = !!d.drop.on;
-    if (dPct) dPct.value = d.drop.pct;
-    if (rOn) rOn.checked = !!d.rise.on;
-    if (rPct) rPct.value = d.rise.pct;
-    autoPintarEstado(d);
+    AUTO = { drop: { on: !!d.drop.on, pct: Number(d.drop.pct) || 6 }, rise: { on: !!d.rise.on, pct: Number(d.rise.pct) || 5 } };
+    const dPct = $('#auto-drop-pct'), rPct = $('#auto-rise-pct');
+    if (dPct) dPct.value = AUTO.drop.pct;
+    if (rPct) rPct.value = AUTO.rise.pct;
+    autoPintar();
   } catch {}
 }
 
-function autoPintarEstado(d) {
-  const chip = $('#auto-status');
-  if (!chip) return;
-  const activas = [];
-  if (d.drop && d.drop.on) activas.push('bajada ' + d.drop.pct + ' %');
-  if (d.rise && d.rise.on) activas.push('subida ' + d.rise.pct + ' %');
-  chip.textContent = activas.length ? activas.join(' · ') : 'desactivadas';
-  chip.classList.toggle('chip-ok', activas.length > 0);
-}
-
 async function saveAutoAlerts() {
-  const cuerpo = {
-    drop: { on: !!($('#auto-drop-on') && $('#auto-drop-on').checked), pct: Number($('#auto-drop-pct') && $('#auto-drop-pct').value) },
-    rise: { on: !!($('#auto-rise-on') && $('#auto-rise-on').checked), pct: Number($('#auto-rise-pct') && $('#auto-rise-pct').value) },
-  };
   try {
-    const d = await api('/api/auto-alerts', { method: 'POST', body: cuerpo });
-    autoPintarEstado(d);
+    const d = await api('/api/auto-alerts', { method: 'POST', body: AUTO });
+    AUTO = { drop: { on: !!d.drop.on, pct: Number(d.drop.pct) || 6 }, rise: { on: !!d.rise.on, pct: Number(d.rise.pct) || 5 } };
+    autoPintar();
     toast('Alertas automáticas guardadas', 'ok');
   } catch (e) {
     toast('No se pudieron guardar: ' + e.message, 'err');
@@ -1311,6 +1323,8 @@ async function watchToggle(symbol, on) {
     const d = await api('/api/watchlist', { method: 'POST', body: { symbol, on } });
     WATCH = d.watchlist || [];
     watchRender();
+    const sel = $('#trade-symbol');
+    if (sel) sel.dataset.ready = '';
   } catch (e) { toast('No se pudo guardar', 'err'); }
 }
 
@@ -2000,7 +2014,10 @@ function sparklineSvg(values) {
 /* ------------------------------------------------ trading */
 function tradeSymbols() {
   const p = state.portfolio;
-  return (p && Array.isArray(p.coins) ? p.coins.map(c => c.symbol) : []).slice().sort();
+  const cartera = (p && Array.isArray(p.coins) ? p.coins.map(c => c.symbol) : []);
+  const seguidas = (typeof WATCH !== 'undefined' && Array.isArray(WATCH)) ? WATCH : [];
+  const todos = [...new Set([...cartera, ...seguidas])];
+  return todos.sort();
 }
 
 function initTradeControls() {
