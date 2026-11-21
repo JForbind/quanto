@@ -1250,6 +1250,12 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 #auto-card .auto-hint, #auto-card .hint { max-width: 720px; }
 
 /* botones de alerta automática (en vez de casillas) */
-.auto-btn { min-width: 190px; justify-content: flex-start; border-radius: 999px; padding: 9px 16px; font-size: 13.5px; }
-.auto-btn.is-active { background: var(--accent); color: #08111f; border-color: transparent; font-weight: 700; }
-.auto-btn.is-active:hover { filter: brightness(1.05); }
+/* botones de alerta: mismo aspecto que los .btn de la tarjeta de avisos */
+.auto-btn { min-width: 180px; justify-content: center; font-size: 13px; }
+.auto-btn.is-active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #081020; border: 0; font-weight: 650;
+  box-shadow: 0 12px 28px -16px rgba(100, 140, 255, .9);
+}
+html[data-theme="dark"] .auto-btn.is-active { color: #060b14; }
+.auto-btn.is-active:hover { filter: brightness(1.06); }
