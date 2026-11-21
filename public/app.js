@@ -287,7 +287,7 @@ function navigate(view) {
   const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
-  if (view === 'settings') loadTotp();
+  if (view === 'settings') { loadTotp(); loadBackups(); }
   if (view === 'alerts') loadAutoAlerts();
   if (view === 'sim') {
     renderSim();
@@ -4414,3 +4414,88 @@ document.querySelectorAll('#twr-range button').forEach(b => b.addEventListener('
   document.querySelectorAll('#twr-range button').forEach(x => x.classList.toggle('is-active', x === b));
   loadTwr(true);
 }));
+
+/* ------------------------------------------------ copias automáticas */
+async function loadBackups() {
+  const box = $('#backups-body');
+  if (!box) return;
+  try {
+    const d = await api('/api/backups');
+    renderBackups(d);
+  } catch (e) {
+    box.innerHTML = `<p class="muted tiny" style="padding:12px">${esc(e.message)}</p>`;
+  }
+}
+
+function renderBackups(d) {
+  const box = $('#backups-body');
+  const sub = $('#backups-sub');
+  const toggle = $('#backup-auto-toggle');
+  if (!box) return;
+  if (sub) {
+    sub.textContent = d.items.length
+      ? `${d.items.length} copia(s) guardadas · se conservan las ${d.cfg.keep} más recientes · una al día`
+      : 'Todavía no hay copias. Se creará una al día automáticamente.';
+  }
+  if (toggle) {
+    toggle.classList.toggle('is-active', !!d.cfg.auto);
+    toggle.textContent = d.cfg.auto ? 'Automáticas activas' : 'Automáticas';
+    toggle.title = d.cfg.auto ? 'Pulsa para desactivar la copia diaria' : 'Pulsa para activar la copia diaria';
+  }
+  if (!d.items.length) {
+    box.innerHTML = '<p class="muted tiny" style="padding:12px">Sin copias todavía. Pulsa «Crear copia ahora» para la primera.</p>';
+    return;
+  }
+  box.innerHTML = `<div class="table-wrap"><table class="table">
+      <thead><tr><th>Fecha</th><th class="num">Tamaño</th><th></th></tr></thead>
+      <tbody>${d.items.map(it => `<tr>
+        <td>${esc(new Date(it.at).toLocaleString('es-ES'))}</td>
+        <td class="num">${(it.size / 1024).toFixed(0)} kB</td>
+        <td style="text-align:right"><button class="btn btn-ghost btn-xs" type="button" data-restore="${esc(it.file)}">Restaurar</button></td>
+      </tr>`).join('')}</tbody></table></div>`;
+}
+
+$('#backup-now')?.addEventListener('click', async () => {
+  const btn = $('#backup-now');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api('/api/backups', { method: 'POST', body: {} });
+    const sub = $('#backups-sub');
+    if (sub) sub.textContent = `Copia creada (${(r.size / 1024).toFixed(0)} kB).`;
+    await loadBackups();
+  } catch (e) {
+    toast('No se pudo crear la copia: ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
+$('#backup-auto-toggle')?.addEventListener('click', async () => {
+  const on = !($('#backup-auto-toggle')?.classList.contains('is-active'));
+  try {
+    await api('/api/backups/config', { method: 'POST', body: { auto: on } });
+    await loadBackups();
+    toast(on ? 'Copia automática activada' : 'Copia automática desactivada');
+  } catch (e) {
+    toast('No se pudo cambiar: ' + e.message);
+  }
+});
+
+$('#backups-body')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-restore]');
+  if (!btn) return;
+  const file = btn.dataset.restore;
+  const when = new Date(Number(String(file).replace(/^quanto-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})\.json$/, (m, y, mo, d, h, mi, s) => Date.UTC(+y, +mo - 1, +d, +h, +mi, +s)))).toLocaleString('es-ES');
+  if (!confirm(`¿Restaurar la copia del ${when}?\n\nSe sobrescriben los datos actuales. Antes se guarda una copia .bak de cada fichero.`)) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/api/backups/restore', { method: 'POST', body: { file } });
+    toast('Restaurado: ' + r.restored.join(', '));
+    await loadOverview(true);
+    await loadBackups();
+  } catch (err) {
+    toast('Error al restaurar: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});

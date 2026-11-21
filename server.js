@@ -17,6 +17,7 @@ const { buildPortfolio, demoPortfolio, demoOps, demoEvolution, FALLBACK_PRICES }
 const { taxReport, simulateSale, estimateTax } = require('./lib/tax');
 const { evolutionSeries } = require('./lib/evolution');
 const { computeTwr } = require('./lib/twr');
+const backupUtil = require('./lib/backup');
 const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createSessionToken, verifySessionToken, createLimiter } = require('./lib/auth');
 const { createUserStore, passwordProblems, randomPassword } = require('./lib/users');
@@ -38,7 +39,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '3.7.0';
+const VERSION = '3.8.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -3015,13 +3016,43 @@ app.post('/api/overrides', (req, res) => {
 });
 
 // ---------------- copias y mantenimiento ----------------
-const BACKUP_FILES = { ops: FILES.ops, history: FILES.history, holdings: FILES.holdings, overrides: FILES.overrides };
+// Las rutas se resuelven en cada acceso: si no, se leen las del usuario base.
+function backupFiles() {
+  const f = tenant.ctx().files;
+  return {
+    ops: f.ops, history: f.history, holdings: f.holdings, overrides: f.overrides,
+    settings: f.settings, alerts: f.alerts, plans: f.plans,
+  };
+}
+
+function backupPayload() {
+  const out = { app: 'quanto', version: VERSION, exportedAt: new Date().toISOString(), files: {} };
+  for (const [key, file] of Object.entries(backupFiles())) out.files[key] = readJson(file, null);
+  out.files.regimeWatch = getRegimeWatchStore();
+  return out;
+}
+
+function applyBackupFiles(files) {
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const restored = [];
+  const vacios = { ops: [], history: [], holdings: {}, overrides: {}, settings: {}, alerts: { rules: [] }, plans: { plans: [] } };
+  for (const [key, file] of Object.entries(backupFiles())) {
+    // Si la clave no está en la copia, no se toca. Si está pero vacía, se restaura vacía:
+    // una copia debe devolver el estado exacto que tenía, no solo sobrescribir lo que trae.
+    if (!Object.prototype.hasOwnProperty.call(files, key)) continue;
+    const value = files[key] === null ? (vacios[key] || {}) : files[key];
+    try { if (exists(file)) fs.copyFileSync(file, file + '.bak-' + stamp); } catch {}
+    writeJson(file, value);
+    restored.push(path.basename(file));
+  }
+  if (files.regimeWatch && typeof files.regimeWatch === 'object') {
+    saveRegimeWatchStore(files.regimeWatch);
+  }
+  return restored;
+}
 
 app.get('/api/backup', limitHeavy, (req, res) => {
-  const out = { app: 'quanto', version: VERSION, exportedAt: new Date().toISOString(), files: {} };
-  for (const [key, file] of Object.entries(BACKUP_FILES)) {
-    out.files[key] = readJson(file, null);
-  }
+  const out = backupPayload();
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="quanto-copia-${new Date().toISOString().slice(0, 10)}.json"`);
   res.send(JSON.stringify(out, null, 1));
@@ -3031,20 +3062,98 @@ app.post('/api/restore', limitHeavy, (req, res) => {
   const backup = (req.body || {}).backup;
   const files = backup && backup.files;
   if (!files || typeof files !== 'object') return res.status(400).json({ error: 'Ese archivo no es una copia de Quanto.' });
-  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-  const restored = [];
-  for (const [key, file] of Object.entries(BACKUP_FILES)) {
-    if (files[key] === undefined || files[key] === null) continue;
-    try { if (exists(file)) fs.copyFileSync(file, file + '.bak-' + stamp); } catch {}
-    writeJson(file, files[key]);
-    restored.push(path.basename(file));
-  }
+  const restored = applyBackupFiles(files);
   if (!restored.length) return res.status(400).json({ error: 'La copia no contiene datos que restaurar.' });
   loadOps();
   state.portfolioAt = 0;
   state.evolutionCache = { at: 0, day: '', data: null };
   res.json({ ok: true, restored });
 });
+
+// ---- copias automáticas en el servidor ----
+const backupsDir = () => path.join(tenant.ctx().files.dir, 'backups');
+
+function backupCfg() {
+  const b = (getSettings() || {}).backups || {};
+  return {
+    auto: b.auto !== false,
+    keep: isFinite(Number(b.keep)) ? Math.min(60, Math.max(3, Math.round(Number(b.keep)))) : 14,
+  };
+}
+
+function listBackupNames() {
+  try { return fs.readdirSync(backupsDir()).filter(backupUtil.isValidName); } catch { return []; }
+}
+
+function createBackup(kind = 'auto') {
+  const dir = backupsDir();
+  ensureDir(dir);
+  const name = backupUtil.backupName();
+  writeJson(path.join(dir, name), backupPayload());
+  const keep = backupCfg().keep;
+  for (const old of backupUtil.planPrune(listBackupNames(), keep)) {
+    try { fs.unlinkSync(path.join(dir, old)); } catch {}
+  }
+  let size = 0;
+  try { size = fs.statSync(path.join(dir, name)).size; } catch {}
+  console.log(`[copias] ${kind}: ${name} (${Math.round(size / 1024)} kB, quedan ${keep})`);
+  return { file: name, at: backupUtil.parseName(name), size, kind };
+}
+
+function ensureAutoBackup() {
+  if (!backupCfg().auto) return { skipped: 'desactivado' };
+  if (!backupUtil.isDue(listBackupNames())) return { skipped: 'reciente' };
+  return createBackup('auto');
+}
+
+app.get('/api/backups', (req, res) => {
+  const dir = backupsDir();
+  const items = backupUtil.sortNames(listBackupNames()).reverse().map(name => {
+    let size = 0;
+    try { size = fs.statSync(path.join(dir, name)).size; } catch {}
+    return { file: name, at: backupUtil.parseName(name), size };
+  });
+  res.json({ ok: true, cfg: backupCfg(), items });
+});
+
+app.post('/api/backups', (req, res) => {
+  try {
+    const out = createBackup('manual');
+    res.json({ ok: true, ...out, cfg: backupCfg() });
+  } catch (e) {
+    res.status(500).json({ error: 'No se pudo crear la copia: ' + e.message });
+  }
+});
+
+app.post('/api/backups/restore', (req, res) => {
+  const name = String((req.body || {}).file || '');
+  if (!backupUtil.isValidName(name)) return res.status(400).json({ error: 'Copia no válida.' });
+  const data = readJson(path.join(backupsDir(), name), null);
+  if (!data || !data.files) return res.status(400).json({ error: 'La copia está vacía o dañada.' });
+  const restored = applyBackupFiles(data.files);
+  if (!restored.length) return res.status(400).json({ error: 'La copia no contiene datos.' });
+  loadOps();
+  state.portfolioAt = 0;
+  state.evolutionCache = { at: 0, day: '', data: null };
+  console.log(`[copias] restaurada ${name}: ${restored.join(', ')}`);
+  res.json({ ok: true, restored, file: name });
+});
+
+app.post('/api/backups/config', (req, res) => {
+  const s = getSettings();
+  const b = req.body || {};
+  const actual = backupCfg();
+  s.backups = {
+    auto: b.auto != null ? b.auto === true : actual.auto,
+    keep: isFinite(Number(b.keep)) ? Math.min(60, Math.max(3, Math.round(Number(b.keep)))) : actual.keep,
+  };
+  saveSettings(s);
+  res.json({ ok: true, cfg: backupCfg() });
+});
+
+// una copia al día; se revisa cada hora y al arrancar
+setInterval(() => { tenant.forEachUser(() => { try { ensureAutoBackup(); } catch {} }); }, 3600e3);
+setTimeout(() => { tenant.forEachUser(() => { try { ensureAutoBackup(); } catch {} }); }, 90e3);
 
 app.post('/api/wipe', (req, res) => {
   if (String((req.body || {}).confirm || '') !== 'BORRAR') {
