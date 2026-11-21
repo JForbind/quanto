@@ -1316,3 +1316,14 @@ html[data-theme="dark"] .auto-btn.is-active { color: #060b14; }
   #reality-body .table td:first-child { width: 46%; }
   #reality-body .table tbody td { vertical-align: middle; }
 }
+
+/* simulador en móvil: botones compactos y sin desbordes de texto */
+.sim-presets { min-width: 0; }
+.sim-presets .btn { min-width: 0; }
+@media (max-width: 520px) {
+  .sim-presets { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .sim-presets .btn { font-size: 11px; padding: 7px 5px; min-height: 34px; border-radius: 9px; }
+}
+@media (max-width: 360px) {
+  .sim-presets .btn { font-size: 10px; padding: 6px 4px; }
+}
