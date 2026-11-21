@@ -28,12 +28,15 @@ const { getPulse } = require('./lib/pulse');
 const { getCalendar } = require('./lib/calendar');
 const { analyze: analyzeMarket } = require('./lib/analyst');
 const ranges = require('./lib/ranges');
+const { detectRegime } = require('./lib/regime');
+const { sizePortfolio } = require('./lib/sizing');
+const { realityCheck, STRATEGIES } = require('./lib/reality');
 const totp = require('./lib/totp');
 let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '3.4.4';
+const VERSION = '3.5.0';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -3449,6 +3452,100 @@ app.get('/api/analyze', async (req, res) => {
     res.json({ ok: true, ...out, interval, at: Date.now() });
   } catch (e) {
     res.status(502).json({ error: 'No se pudo analizar: ' + e.message });
+  }
+});
+
+// ---------------- régimen, tamaño de posiciones y reality check ----------------
+const regimeCache = new Map();
+const CACHE_10M = 10 * 60e3;
+
+function cacheGet(map, key, ttl = CACHE_10M) {
+  const hit = map.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > ttl) { map.delete(key); return null; }
+  return hit.data;
+}
+function cacheSet(map, key, data) {
+  map.set(key, { at: Date.now(), data });
+  if (map.size > 200) {
+    const first = map.keys().next().value;
+    map.delete(first);
+  }
+}
+
+async function dailyCandles(symbol, limit) {
+  const raw = await client.candles(`${symbol}-EUR`, '1d', limit);
+  return (Array.isArray(raw) ? raw : [])
+    .map(k => [Number(k[0]), Number(k[1]), Number(k[2]), Number(k[3]), Number(k[4]), Number(k[5])])
+    .filter(r => r.every(n => isFinite(n)))
+    .reverse();
+}
+
+app.get('/api/regime', async (req, res) => {
+  const symbol = String(req.query.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
+  const limit = Math.min(1000, Math.max(120, Number(req.query.days) || 400));
+  const key = `${symbol}:${limit}`;
+  const cached = cacheGet(regimeCache, key);
+  if (cached) return res.json({ ok: true, symbol, at: Date.now(), cached: true, ...cached });
+  try {
+    const rows = await dailyCandles(symbol, limit);
+    const out = detectRegime(rows);
+    if (!out.ok) return res.status(400).json({ error: out.error });
+    cacheSet(regimeCache, key, out);
+    res.json({ ok: true, symbol, at: Date.now(), cached: false, ...out });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo leer el régimen: ' + e.message });
+  }
+});
+
+app.get('/api/sizing', async (req, res) => {
+  const portfolio = state.portfolio;
+  if (!portfolio || !Array.isArray(portfolio.coins) || !portfolio.coins.length) {
+    return res.status(400).json({ error: 'Sin cartera: conecta Bitvavo o importa el histórico.' });
+  }
+  const maxWeight = Math.min(0.8, Math.max(0.1, (Number(req.query.max) || 35) / 100));
+  const days = Math.min(365, Math.max(60, Number(req.query.days) || 120));
+  const coins = portfolio.coins.filter(c => Number(c.value) > 0).slice(0, 8);
+  const positions = coins.map(c => ({ symbol: c.symbol, value: Number(c.value), name: c.symbol }));
+  const returns = {};
+  const failed = [];
+  const results = await Promise.allSettled(coins.map(c => dailyCandles(c.symbol, Math.min(365, days + 40))));
+  results.forEach((r, i) => {
+    const sym = coins[i].symbol;
+    if (r.status !== 'fulfilled' || r.value.length < 40) { failed.push(sym); return; }
+    const closes = r.value.map(row => row[4]);
+    const rets = [];
+    for (let k = 1; k < closes.length; k++) if (closes[k - 1] > 0 && closes[k] > 0) rets.push(Math.log(closes[k] / closes[k - 1]));
+    returns[sym] = rets;
+  });
+  const minWeight = Math.min(0.2, Math.max(0, (Number(req.query.min) || 5) / 100));
+  const out = sizePortfolio(positions, returns, { maxWeight, minWeight, alignDays: days });
+  if (!out.ok) return res.status(400).json({ error: out.error, failed });
+  res.json({
+    ok: true, at: Date.now(),
+    ...out,
+    failed,
+    total: portfolio.totalValue,
+  });
+});
+
+app.get('/api/reality', async (req, res) => {
+  const symbol = String(req.query.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
+  const cost = Math.min(100, Math.max(0, Number(req.query.cost) || 5));
+  const limit = Math.min(1000, Math.max(400, Number(req.query.days) || 1000));
+  const key = `${symbol}:${limit}:${cost}`;
+  const cached = cacheGet(regimeCache, 'r:' + key);
+  if (cached) return res.json({ ok: true, symbol, at: Date.now(), cached: true, ...cached });
+  try {
+    const rows = await dailyCandles(symbol, limit);
+    const out = realityCheck(rows, { costBps: cost });
+    if (!out.ok) return res.status(400).json({ error: out.error });
+    cacheSet(regimeCache, 'r:' + key, out);
+    res.json({ ok: true, symbol, at: Date.now(), cached: false, strategies: STRATEGIES, ...out });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo evaluar: ' + e.message });
   }
 });
 

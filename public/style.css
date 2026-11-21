@@ -1265,3 +1265,54 @@ html[data-theme="dark"] .auto-btn.is-active { color: #060b14; }
 
 /* botones de alerta más estrechos */
 .auto-btn { min-width: 112px; justify-content: center; }
+
+/* --- régimen, tamaño de posición y reality check --- */
+.regime-body { display: flex; flex-direction: column; gap: 14px; }
+.regime-badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.badge {
+  font-size: 12px; font-weight: 600; letter-spacing: .01em;
+  padding: 5px 11px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--glass-hi); color: var(--text-2);
+}
+.badge.up { color: var(--pos); border-color: rgba(52, 224, 161, .35); background: rgba(52, 224, 161, .10); }
+.badge.down { color: var(--neg); border-color: rgba(255, 115, 135, .35); background: rgba(255, 115, 135, .10); }
+.badge.flat { color: var(--muted); }
+.regime-text { font-size: 14px; line-height: 1.5; color: var(--text-2); margin: 0; }
+.regime-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 18px; }
+.regime-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.regime-fact span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.regime-fact strong { font-size: 13.5px; font-weight: 600; }
+.regime-fact strong.up { color: var(--pos); }
+.regime-fact strong.down { color: var(--neg); }
+.regime-advice { font-size: 13px; color: var(--text-2); border-left: 2px solid var(--accent); padding-left: 10px; }
+.bar { position: relative; height: 6px; border-radius: 4px; background: var(--glass-hi); overflow: hidden; min-width: 70px; }
+.bar > i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 4px; }
+.bar.ghost > i { background: var(--muted); opacity: .55; }
+.delta-up { color: var(--pos); }
+.delta-down { color: var(--neg); }
+.reality-bad { color: var(--neg); font-weight: 600; }
+.reality-ok { color: var(--pos); font-weight: 600; }
+
+@media (max-width: 720px) {
+  .regime-facts { grid-template-columns: 1fr 1fr; }
+}
+
+/* tablas densas en pantallas pequeñas: se ocultan columnas secundarias */
+@media (max-width: 720px) {
+  #sizing-body .table th:nth-child(5), #sizing-body .table td:nth-child(5),
+  #sizing-body .table th:nth-child(6), #sizing-body .table td:nth-child(6) { display: none; }
+  #sizing-body .table th, #sizing-body .table td { padding: 10px 8px; white-space: nowrap; font-size: 12.5px; }
+  #reality-body .table th:nth-child(3), #reality-body .table td:nth-child(3),
+  #reality-body .table th:nth-child(5), #reality-body .table td:nth-child(5),
+  #reality-body .table th:nth-child(7), #reality-body .table td:nth-child(7),
+  #reality-body .table th:nth-child(8), #reality-body .table td:nth-child(8) { display: none; }
+  #reality-body .table th, #reality-body .table td { padding: 10px 8px; white-space: nowrap; font-size: 12.5px; }
+  #reality-body .table td:first-child { white-space: normal; }
+}
+
+@media (max-width: 720px) {
+  /* en la tabla de estrategias, la descripción estorba: se oculta y la fila respira */
+  #reality-body .table td:first-child .tiny { display: none; }
+  #reality-body .table td:first-child { width: 46%; }
+  #reality-body .table tbody td { vertical-align: middle; }
+}

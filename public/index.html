@@ -273,6 +273,20 @@
           </div>
         </article>
 
+        <article class="card glass span-12" id="sizing-card">
+          <header class="card-head">
+            <div>
+              <h2>Riesgo y tamaño de posición</h2>
+              <p class="card-sub" id="sizing-sub">Reparte el capital por volatilidad y correlación, no por importe.</p>
+            </div>
+            <div class="chips" id="sizing-max">
+              <button data-max="25">Máx 25 %</button>
+              <button data-max="35" class="is-active">Máx 35 %</button>
+              <button data-max="50">Máx 50 %</button>
+            </div>
+          </header>
+          <div id="sizing-body"></div>
+        </article>
 
       </div>
     </section>
@@ -727,6 +741,39 @@
           </div>
 
       </div>
+
+      <article class="card glass" id="regime-card">
+        <header class="card-head">
+          <div>
+            <h2>Régimen y volatilidad</h2>
+            <p class="card-sub" id="regime-sub">Leyendo el mercado…</p>
+          </div>
+          <div class="chips" id="regime-actions">
+            <button type="button" id="regime-refresh" title="Volver a calcular">Actualizar</button>
+          </div>
+        </header>
+        <div id="regime-body" class="regime-body"><p class="muted tiny">Calculando…</p></div>
+      </article>
+
+      <article class="card glass" id="reality-card">
+        <header class="card-head">
+          <div>
+            <h2>Reality check</h2>
+            <p class="card-sub">Evalúa reglas fijas sobre velas diarias, con costes y contra comprar y mantener.</p>
+          </div>
+          <div class="chips" id="reality-cost">
+            <button data-cost="0">0 pb</button>
+            <button data-cost="5" class="is-active">5 pb</button>
+            <button data-cost="10">10 pb</button>
+            <button data-cost="25">25 pb</button>
+          </div>
+        </header>
+        <div id="reality-body" class="table-wrap"><p class="muted tiny" style="padding:12px">Pulsa evaluar para analizar esta moneda.</p></div>
+        <div class="form-actions" style="margin-top:10px">
+          <button class="btn btn-primary btn-sm" type="button" id="reality-run">Evaluar estrategias</button>
+          <span class="tiny muted" id="reality-note"></span>
+        </div>
+      </article>
     </section>
 
 

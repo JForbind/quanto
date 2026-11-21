@@ -303,7 +303,7 @@ function navigate(view) {
     void topText.offsetWidth;
     topText.classList.add('is-entering');
   }
-  if (view === 'dashboard') { renderDashboard(); watchRender(); }
+  if (view === 'dashboard') { renderDashboard(); watchRender(); loadSizing(); }
   if (view === 'coins') renderCoins();
   if (view === 'tax') loadTax();
   if (view === 'operations') loadTransactions();
@@ -2149,6 +2149,7 @@ async function loadTradeChart() {
     const limite = state.tradeAll ? 1000 : 300;
     const r = await api(`/api/candles?symbol=${encodeURIComponent(sym)}&interval=${iv}&limit=${limite}`);
     renderCandles(sym, iv, r.candles || []);
+    loadRegime(sym);
     // Análisis automático la primera vez para cada moneda e intervalo
     if (state.analystKey !== analystKeyFor(sym, iv) && $('#analyst-btn')) runAnalyst();
   } catch (e) {
@@ -4141,3 +4142,137 @@ document.addEventListener('click', async (e) => {
     navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
   }
 })();
+
+
+/* ------------------------------------------------ régimen, riesgo y reality check */
+const RISK = { regimeKey: null, regime: null, sizing: null, sizingMax: 35, realityCost: 5 };
+
+function toneClass(t) { return t === 'up' ? 'up' : t === 'down' ? 'down' : 'flat'; }
+
+async function loadRegime(sym, force) {
+  const box = $('#regime-body');
+  if (!box || !sym) return;
+  if (!force && RISK.regimeKey === sym && RISK.regime) { renderRegime(RISK.regime); return; }
+  const sub = $('#regime-sub');
+  if (sub) sub.textContent = sym + ' · calculando…';
+  try {
+    const d = await api('/api/regime?symbol=' + encodeURIComponent(sym) + '&days=400');
+    RISK.regimeKey = sym;
+    RISK.regime = d;
+    if (sub) sub.textContent = `${sym} · ${d.candles} velas diarias · ${new Date(d.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+    renderRegime(d);
+  } catch (e) {
+    box.innerHTML = `<p class="muted tiny">No disponible: ${esc(e.message)}</p>`;
+    if (sub) sub.textContent = sym;
+  }
+}
+
+function renderRegime(d) {
+  const box = $('#regime-body');
+  if (!box) return;
+  const tone = d.trend === 'alcista' ? 'up' : d.trend === 'bajista' ? 'down' : 'flat';
+  const volTone = d.volState === 'alta' ? 'down' : d.volState === 'baja' ? 'up' : 'flat';
+  const badges = [
+    `<span class="badge ${tone}">${d.trend === 'alcista' ? 'Tendencia alcista' : d.trend === 'bajista' ? 'Tendencia bajista' : 'Sin dirección'}</span>`,
+    d.strength ? `<span class="badge flat">Fuerza ${esc(d.strength)}</span>` : '',
+    d.volState ? `<span class="badge ${volTone}">Volatilidad ${esc(d.volState)}</span>` : '',
+    `<span class="badge flat">Confianza ${d.confidence} %</span>`,
+    `<span class="badge flat">Tamaño sugerido ${Math.round(d.riskMultiplier * 100)} %</span>`,
+  ].join('');
+  const facts = (d.factors || []).map(f =>
+    `<div class="regime-fact"><span>${esc(f.label)}</span><strong class="${toneClass(f.tone)}">${esc(String(f.value))}</strong></div>`).join('');
+  box.innerHTML = `
+    <div class="regime-badges">${badges}</div>
+    <p class="regime-text">${esc(d.text)}</p>
+    <div class="regime-facts">${facts}</div>
+    <p class="regime-advice">${esc(d.advice)}</p>`;
+}
+
+async function loadSizing(force) {
+  const box = $('#sizing-body');
+  if (!box) return;
+  if (!force && RISK.sizing && RISK.sizing.maxWeight === RISK.sizingMax / 100) { renderSizing(RISK.sizing); return; }
+  box.innerHTML = '<p class="muted tiny" style="padding:12px">Calculando reparto por riesgo…</p>';
+  try {
+    const d = await api('/api/sizing?max=' + RISK.sizingMax);
+    RISK.sizing = d;
+    renderSizing(d);
+  } catch (e) {
+    box.innerHTML = `<p class="muted tiny" style="padding:12px">${esc(e.message)}</p>`;
+  }
+}
+
+function renderSizing(d) {
+  const sub = $('#sizing-sub');
+  if (sub) {
+    sub.textContent = `Volatilidad anual de la cartera: ${(d.portfolioVol * 100).toFixed(1)} % con el reparto sugerido (ahora ${(d.portfolioVolNow * 100).toFixed(1)} %). Riesgo al 95 % a un año: ${(d.risk95 * 100).toFixed(1)} %.`;
+  }
+  const rows = d.rows.map(r => {
+    const delta = r.delta * 100;
+    const cls = delta > 0.5 ? 'delta-up' : delta < -0.5 ? 'delta-down' : '';
+    const sign = delta > 0 ? '+' : '';
+    return `<tr>
+      <td><b>${esc(r.symbol)}</b>${r.cash ? ' <span class="tiny muted">efectivo</span>' : ''}</td>
+      <td class="num">${(r.current * 100).toFixed(1)} %</td>
+      <td class="num">${(r.target * 100).toFixed(1)} %</td>
+      <td class="num ${cls}">${sign}${delta.toFixed(1)} pp</td>
+      <td class="num">${r.vol ? (r.vol * 100).toFixed(0) + ' %' : '—'}</td>
+      <td style="width:130px;padding-right:16px"><div class="bar"><i style="width:${Math.min(100, r.target * 200)}%"></i></div></td>
+    </tr>`;
+  }).join('');
+  $('#sizing-body').innerHTML = `<div class="table-wrap"><table class="table">
+      <thead><tr><th>Moneda</th><th class="num">Ahora</th><th class="num">Objetivo</th><th class="num">Cambio</th><th class="num">Vol</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    ${(d.notes || []).map(n => `<p class="tiny muted" style="margin:8px 0 0">${esc(n)}</p>`).join('')}
+    <p class="tiny muted" style="margin:8px 0 0">Reparto por mínima varianza con el tope elegido. Es aritmética sobre tu cartera, no una recomendación de inversión.</p>`;
+}
+
+async function loadReality(sym) {
+  const box = $('#reality-body');
+  if (!box || !sym) return;
+  box.innerHTML = '<p class="muted tiny" style="padding:12px">Evaluando estrategias…</p>';
+  const note = $('#reality-note');
+  if (note) note.textContent = '';
+  try {
+    const d = await api(`/api/reality?symbol=${encodeURIComponent(sym)}&cost=${RISK.realityCost}`);
+    renderReality(d);
+  } catch (e) {
+    box.innerHTML = `<p class="muted tiny" style="padding:12px">${esc(e.message)}</p>`;
+  }
+}
+
+function renderReality(d) {
+  const rows = d.rows.map(r => {
+    const isBh = r.id === 'hold';
+    const beats = !isBh && r.sharpe > d.bh.sharpe && r.total > d.bh.total;
+    const cls = r.total > 0 ? 'reality-ok' : 'reality-bad';
+    return `<tr>
+      <td><b>${esc(r.name)}</b><div class="tiny muted">${esc(r.desc || '')}</div></td>
+      <td class="num ${cls}">${r.total.toFixed(0)} %</td>
+      <td class="num">${r.cagr.toFixed(1)} %</td>
+      <td class="num">${r.sharpe.toFixed(2)}</td>
+      <td class="num">${r.mdd.toFixed(0)} %</td>
+      <td class="num">${r.trades || '—'}</td>
+      <td class="num">${r.acc != null ? r.acc.toFixed(1) + ' %' : '—'}</td>
+      <td class="num">${r.pvalue != null ? r.pvalue.toFixed(2) : '—'}</td>
+      <td>${isBh ? '<span class="tiny muted">referencia</span>' : beats ? '<span class="reality-ok" title="Supera a comprar y mantener en retorno y Sharpe">bate</span>' : '<span class="tiny muted" title="No supera a comprar y mantener">no bate</span>'}</td>
+    </tr>`;
+  }).join('');
+  $('#reality-body').innerHTML = `<table class="table">
+      <thead><tr><th>Estrategia</th><th class="num">Total</th><th class="num">CAGR</th><th class="num">Sharpe</th><th class="num">MaxDD</th><th class="num">Ops</th><th class="num">Acierto</th><th class="num">p</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+  const note = $('#reality-note');
+  if (note) note.textContent = `${d.symbol} · ${d.days} días · coste ${d.costBps} pb · ${d.note}`;
+}
+
+$('#regime-refresh')?.addEventListener('click', () => loadRegime(state.tradeSymbol, true));
+$('#reality-run')?.addEventListener('click', () => loadReality(state.tradeSymbol));
+document.querySelectorAll('#reality-cost button').forEach(b => b.addEventListener('click', () => {
+  RISK.realityCost = Number(b.dataset.cost);
+  document.querySelectorAll('#reality-cost button').forEach(x => x.classList.toggle('is-active', x === b));
+}));
+document.querySelectorAll('#sizing-max button').forEach(b => b.addEventListener('click', () => {
+  RISK.sizingMax = Number(b.dataset.max);
+  document.querySelectorAll('#sizing-max button').forEach(x => x.classList.toggle('is-active', x === b));
+  loadSizing(true);
+}));
