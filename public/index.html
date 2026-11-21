@@ -588,18 +588,31 @@
 
       <article class="card glass" id="auto-card">
         <header class="card-head">
-          <div><h2>Alertas automáticas</h2><p class="card-sub">Avisos cuando una moneda se mueve rápido (ventana de 1 hora)</p></div>
+          <div><h2>Alertas automáticas</h2><p class="card-sub">Avisos cuando una moneda se mueve rápido en la ventana que elijas</p></div>
           <span class="chip" id="auto-status">—</span>
         </header>
         <div class="auto-row">
-          <button type="button" class="btn btn-ghost auto-btn" id="auto-drop-btn">📉 Bajada rápida</button>
+          <button type="button" class="btn btn-ghost auto-btn" id="auto-drop-btn">Bajada</button>
           <label class="field auto-pct"><span>% de caída</span><input id="auto-drop-pct" type="number" min="0.5" max="90" step="0.5" value="6"></label>
         </div>
         <div class="auto-row">
-          <button type="button" class="btn btn-ghost auto-btn" id="auto-rise-btn">📈 Subida rápida</button>
+          <button type="button" class="btn btn-ghost auto-btn" id="auto-rise-btn">Subida</button>
           <label class="field auto-pct"><span>% de subida</span><input id="auto-rise-pct" type="number" min="0.5" max="90" step="0.5" value="5"></label>
         </div>
-        <p class="hint" id="auto-hint">Se revisan cada 5 minutos, comparando el precio de ahora con el de hace una hora. Como máximo un aviso por moneda y sentido cada 3 horas.</p>
+        <div class="auto-row auto-window-row">
+          <label class="field auto-window"><span>Ventana de tiempo</span>
+            <select id="auto-window">
+              <option value="15">15 minutos</option>
+              <option value="30">30 minutos</option>
+              <option value="60" selected>1 hora</option>
+              <option value="120">2 horas</option>
+              <option value="240">4 horas</option>
+              <option value="720">12 horas</option>
+              <option value="1440">24 horas</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint" id="auto-hint">Se revisan cada 5 minutos, comparando el precio de ahora con el de hace una ventana. Como máximo un aviso por moneda y sentido cada 3 horas (o la ventana elegida, si es mayor).</p>
       </article>
 
       <article class="card glass">

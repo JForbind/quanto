@@ -1148,6 +1148,7 @@ document.addEventListener('change', e => {
   if (!t2) return;
   if (t2.id === 'auto-drop-pct') { AUTO.drop.pct = Number(t2.value) || 6; saveAutoAlerts(); }
   if (t2.id === 'auto-rise-pct') { AUTO.rise.pct = Number(t2.value) || 5; saveAutoAlerts(); }
+  if (t2.id === 'auto-window') { AUTO.windowMin = Number(t2.value) || 60; saveAutoAlerts(); }
 });
 
 // buscador de monedas
@@ -1217,7 +1218,7 @@ document.addEventListener('click', e => {
 });
 
 // ---------------------------------------------------------------- alertas automáticas
-let AUTO = { drop: { on: false, pct: 6 }, rise: { on: false, pct: 5 } };
+let AUTO = { drop: { on: false, pct: 6 }, rise: { on: false, pct: 5 }, windowMin: 60 };
 
 function autoPintar() {
   const dBtn = $('#auto-drop-btn');
@@ -1226,10 +1227,11 @@ function autoPintar() {
   if (rBtn) { rBtn.classList.toggle('is-active', !!AUTO.rise.on); rBtn.setAttribute('aria-pressed', AUTO.rise.on ? 'true' : 'false'); }
   const chip = $('#auto-status');
   if (chip) {
+    const ventana = AUTO.windowMin < 60 ? AUTO.windowMin + ' min' : (AUTO.windowMin / 60) + ' h';
     const activas = [];
     if (AUTO.drop.on) activas.push('bajada ' + AUTO.drop.pct + ' %');
     if (AUTO.rise.on) activas.push('subida ' + AUTO.rise.pct + ' %');
-    chip.textContent = activas.length ? activas.join(' · ') : 'desactivadas';
+    chip.textContent = activas.length ? activas.join(' · ') + ' · ' + ventana : 'desactivadas';
     chip.classList.toggle('chip-ok', activas.length > 0);
   }
 }
@@ -1237,10 +1239,11 @@ function autoPintar() {
 async function loadAutoAlerts() {
   try {
     const d = await api('/api/auto-alerts');
-    AUTO = { drop: { on: !!d.drop.on, pct: Number(d.drop.pct) || 6 }, rise: { on: !!d.rise.on, pct: Number(d.rise.pct) || 5 } };
-    const dPct = $('#auto-drop-pct'), rPct = $('#auto-rise-pct');
+    AUTO = { drop: { on: !!d.drop.on, pct: Number(d.drop.pct) || 6 }, rise: { on: !!d.rise.on, pct: Number(d.rise.pct) || 5 }, windowMin: Number(d.windowMin) || 60 };
+    const dPct = $('#auto-drop-pct'), rPct = $('#auto-rise-pct'), win = $('#auto-window');
     if (dPct) dPct.value = AUTO.drop.pct;
     if (rPct) rPct.value = AUTO.rise.pct;
+    if (win) win.value = String(AUTO.windowMin);
     autoPintar();
   } catch {}
 }
@@ -1248,7 +1251,7 @@ async function loadAutoAlerts() {
 async function saveAutoAlerts() {
   try {
     const d = await api('/api/auto-alerts', { method: 'POST', body: AUTO });
-    AUTO = { drop: { on: !!d.drop.on, pct: Number(d.drop.pct) || 6 }, rise: { on: !!d.rise.on, pct: Number(d.rise.pct) || 5 } };
+    AUTO = { drop: { on: !!d.drop.on, pct: Number(d.drop.pct) || 6 }, rise: { on: !!d.rise.on, pct: Number(d.rise.pct) || 5 }, windowMin: Number(d.windowMin) || 60 };
     autoPintar();
     toast('Alertas automáticas guardadas', 'ok');
   } catch (e) {

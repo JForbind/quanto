@@ -1259,3 +1259,6 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 }
 html[data-theme="dark"] .auto-btn.is-active { color: #060b14; }
 .auto-btn.is-active:hover { filter: brightness(1.06); }
+
+.auto-window { max-width: 240px; }
+.auto-window select { width: 100%; }

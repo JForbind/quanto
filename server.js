@@ -1001,16 +1001,34 @@ function autoAlertCfg(s) {
     const n = Number(v);
     return isFinite(n) && n > 0 && n <= 90 ? n : d;
   };
+  const win = Number(a.windowMin);
+  const ventana = isFinite(win) && win >= 5 && win <= 1440 ? Math.round(win) : AUTO_WINDOW_MIN;
   return {
     drop: { on: !!(a.drop && a.drop.on), pct: num(a.drop && a.drop.pct, 6) },
     rise: { on: !!(a.rise && a.rise.on), pct: num(a.rise && a.rise.pct, 5) },
+    windowMin: ventana,
   };
+}
+
+/** intervalo y número de velas para cubrir la ventana pedida */
+function ventanaCandles(ventanaMin) {
+  if (ventanaMin <= 60) return { intervalo: '5m', velas: Math.round(ventanaMin / 5) + 1 };
+  if (ventanaMin <= 240) return { intervalo: '15m', velas: Math.round(ventanaMin / 15) + 1 };
+  return { intervalo: '1h', velas: Math.round(ventanaMin / 60) + 1 };
+}
+
+function ventanaTexto(ventanaMin) {
+  if (ventanaMin < 60) return `${ventanaMin} min`;
+  const h = ventanaMin / 60;
+  return h === 1 ? '1 hora' : `${h % 1 === 0 ? h : h.toFixed(1)} horas`;
 }
 
 async function sendAutoAlert(user, coin, dir, pct, umbral) {
   const clave = `${user.id}:${coin.symbol}:${dir}`;
   const ahora = Date.now();
-  if (ahora - (autoLast.get(clave) || 0) < AUTO_COOLDOWN_MS) return false;
+  const cfg = autoAlertCfg(getSettings());
+  const espera = Math.max(AUTO_COOLDOWN_MS, cfg.windowMin * 60e3);
+  if (ahora - (autoLast.get(clave) || 0) < espera) return false;
   const precio = Number(coin.price) || 0;
   const media = coin.costKnown && coin.avgPrice ? Number(coin.avgPrice) : null;
   const diffMedia = media && media > 0 ? ((precio - media) / media) * 100 : null;
@@ -1018,17 +1036,18 @@ async function sendAutoAlert(user, coin, dir, pct, umbral) {
   const emoji = sube ? '📈' : '📉';
   const mov = sube ? 'sube' : 'cae';
 
+  const ventana = ventanaTexto(cfg.windowMin);
   const texto = [
-    `${emoji} <b>${escHtml(coin.symbol)}</b> ${mov} un <b>${nfPct.format(Math.abs(pct))} %</b> en la última hora`,
+    `${emoji} <b>${escHtml(coin.symbol)}</b> ${mov} un <b>${nfPct.format(Math.abs(pct))} %</b> en ${ventana}`,
     '',
     `Precio ahora: <b>${moneySmart(precio)}</b>`,
     media ? `Tu precio medio: ${moneySmart(media)}${diffMedia === null ? '' : ` (${pctFmt(diffMedia)})`}` : 'Sin precio medio',
-    `Aviso configurado: ${sube ? '+' : '−'}${nfPct.format(umbral)} % en 1 h`,
+    `Aviso configurado: ${sube ? '+' : '−'}${nfPct.format(umbral)} % en ${ventana}`,
     '',
     tgLink(),
   ].filter(Boolean).join('\n');
 
-  const asunto = `Quanto · ${coin.symbol} ${mov} ${nfPct.format(Math.abs(pct))} % en 1 h`;
+  const asunto = `Quanto · ${coin.symbol} ${mov} ${nfPct.format(Math.abs(pct))} % en ${ventana}`;
   await notifyUser(texto, asunto);
   autoLast.set(clave, ahora);
   console.log(`[auto] ${user.username}: ${coin.symbol} ${mov} ${pct.toFixed(2)} % en 1 h`);
@@ -1045,7 +1064,8 @@ async function checkAutoAlerts(user) {
   for (const c of p.coins) {
     if (!(Number(c.amount) > 0)) continue;
     try {
-      const raw = await client.candles(`${c.symbol}-EUR`, '5m', 13);
+      const vc = ventanaCandles(cfg.windowMin);
+      const raw = await client.candles(`${c.symbol}-EUR`, vc.intervalo, vc.velas);
       if (!Array.isArray(raw) || raw.length < 3) continue;
       const closes = raw
         .map(k => Number(k && k[4]))
@@ -1072,7 +1092,8 @@ app.get('/api/auto-alerts/check', async (req, res) => {
     const filas = [];
     for (const c of coins) {
       try {
-        const raw = await client.candles(`${c.symbol}-EUR`, '5m', 13);
+        const vc = ventanaCandles(cfg.windowMin);
+        const raw = await client.candles(`${c.symbol}-EUR`, vc.intervalo, vc.velas);
         if (!Array.isArray(raw) || raw.length < 3) continue;
         const closes = raw.map(k => Number(k && k[4])).filter(n => isFinite(n) && n > 0).reverse();
         if (closes.length < 2) continue;
@@ -1094,7 +1115,7 @@ app.get('/api/auto-alerts/check', async (req, res) => {
       await checkAutoAlerts(req.user);
       enviados = [...autoLast.keys()].filter(k => !antes.has(k)).length;
     }
-    res.json({ ok: true, ventanaMin: AUTO_WINDOW_MIN, cfg, filas, enviados });
+    res.json({ ok: true, ventanaMin: cfg.windowMin, cfg, filas, enviados });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1102,7 +1123,7 @@ app.get('/api/auto-alerts/check', async (req, res) => {
 
 app.get('/api/auto-alerts', (req, res) => {
   const cfg = autoAlertCfg(getSettings());
-  res.json({ ok: true, ...cfg, ventanaMin: AUTO_WINDOW_MIN });
+  res.json({ ok: true, ...cfg, ventanaMin: cfg.windowMin });
 });
 
 app.post('/api/auto-alerts', (req, res) => {
@@ -1117,9 +1138,15 @@ app.post('/api/auto-alerts', (req, res) => {
     drop: { on: b.drop && b.drop.on !== undefined ? !!b.drop.on : actual.drop.on, pct: b.drop && b.drop.pct !== undefined ? limpiar(b.drop.pct, actual.drop.pct) : actual.drop.pct },
     rise: { on: b.rise && b.rise.on !== undefined ? !!b.rise.on : actual.rise.on, pct: b.rise && b.rise.pct !== undefined ? limpiar(b.rise.pct, actual.rise.pct) : actual.rise.pct },
   };
+  if (b.windowMin !== undefined) {
+    const w = Number(b.windowMin);
+    s.autoAlerts.windowMin = isFinite(w) ? Math.min(1440, Math.max(5, Math.round(w))) : AUTO_WINDOW_MIN;
+  } else if (!s.autoAlerts.windowMin) {
+    s.autoAlerts.windowMin = AUTO_WINDOW_MIN;
+  }
   s.autoAlerts.updatedAt = Date.now();
   saveSettings(s);
-  res.json({ ok: true, ...s.autoAlerts, ventanaMin: AUTO_WINDOW_MIN });
+  res.json({ ok: true, ...s.autoAlerts, ventanaMin: s.autoAlerts.windowMin });
 });
 
 // ---------------- favoritos del usuario ----------------
