@@ -288,6 +288,7 @@ function navigate(view) {
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
   if (view === 'settings') loadTotp();
+  if (view === 'alerts') loadAutoAlerts();
   if (view === 'sim') {
     renderSim();
     if (!Object.keys(RANGES).length) {
@@ -1132,6 +1133,13 @@ document.addEventListener('input', e => {
     window.__simBuyT = setTimeout(() => renderSimBuy(p && p.coin.price > 0 ? simState.buyAmount / p.coin.price : 0), 350);
   }
 });
+// alertas automáticas: guardar al cambiar
+document.addEventListener('change', e => {
+  const t2 = e.target;
+  if (!t2) return;
+  if (['auto-drop-on', 'auto-drop-pct', 'auto-rise-on', 'auto-rise-pct'].includes(t2.id)) saveAutoAlerts();
+});
+
 // buscador de monedas
 document.addEventListener('input', e => {
   if (e.target && e.target.id === 'coin-search') {
@@ -1197,6 +1205,44 @@ document.addEventListener('click', e => {
     renderSimSaved();
   }
 });
+
+// ---------------------------------------------------------------- alertas automáticas
+async function loadAutoAlerts() {
+  try {
+    const d = await api('/api/auto-alerts');
+    const dOn = $('#auto-drop-on'), dPct = $('#auto-drop-pct');
+    const rOn = $('#auto-rise-on'), rPct = $('#auto-rise-pct');
+    if (dOn) dOn.checked = !!d.drop.on;
+    if (dPct) dPct.value = d.drop.pct;
+    if (rOn) rOn.checked = !!d.rise.on;
+    if (rPct) rPct.value = d.rise.pct;
+    autoPintarEstado(d);
+  } catch {}
+}
+
+function autoPintarEstado(d) {
+  const chip = $('#auto-status');
+  if (!chip) return;
+  const activas = [];
+  if (d.drop && d.drop.on) activas.push('bajada ' + d.drop.pct + ' %');
+  if (d.rise && d.rise.on) activas.push('subida ' + d.rise.pct + ' %');
+  chip.textContent = activas.length ? activas.join(' · ') : 'desactivadas';
+  chip.classList.toggle('chip-ok', activas.length > 0);
+}
+
+async function saveAutoAlerts() {
+  const cuerpo = {
+    drop: { on: !!($('#auto-drop-on') && $('#auto-drop-on').checked), pct: Number($('#auto-drop-pct') && $('#auto-drop-pct').value) },
+    rise: { on: !!($('#auto-rise-on') && $('#auto-rise-on').checked), pct: Number($('#auto-rise-pct') && $('#auto-rise-pct').value) },
+  };
+  try {
+    const d = await api('/api/auto-alerts', { method: 'POST', body: cuerpo });
+    autoPintarEstado(d);
+    toast('Alertas automáticas guardadas', 'ok');
+  } catch (e) {
+    toast('No se pudieron guardar: ' + e.message, 'err');
+  }
+}
 
 // ---------------------------------------------------------------- lista de vigilancia
 let WATCH = [];
@@ -4007,7 +4053,8 @@ document.addEventListener('click', async (e) => {
     const status = await (await fetch('/api/status')).json();
     if (!status.hasPassword) { $('#login-error').textContent = 'Sin contraseña configurada: revisa el log del contenedor.'; }
     const probe = await fetch('/api/session', { credentials: 'same-origin' });
-    if (probe.ok) {
+    const probeJson = probe.ok ? await probe.json().catch(() => ({})) : {};
+    if (probe.ok && probeJson.ok) {
       showApp();
       await boot();
     } else {

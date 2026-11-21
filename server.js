@@ -1,6 +1,8 @@
 'use strict';
 // Quanto — servidor Express.
 // Modo live (claves de Bitvavo de solo lectura) o demo (datos de ejemplo).
+const dns = require('dns');
+try { dns.setDefaultResultOrder('ipv4first'); } catch {}
 const express = require('express');
 const ExcelJS = require('exceljs');
 const crypto = require('crypto');
@@ -353,7 +355,7 @@ app.use((req, res, next) => {
 // ---------------- control de acceso global ----------------
 // Todo /api exige sesión salvo la lista pública. Se registra ANTES de las rutas
 // para que ninguna pueda quedarse sin proteger.
-const PUBLIC_API = new Set(['/api/health', '/api/status', '/api/setup', '/api/login', '/api/login/2fa', '/api/forgot', '/api/ca.crt']);
+const PUBLIC_API = new Set(['/api/health', '/api/status', '/api/setup', '/api/login', '/api/login/2fa', '/api/forgot', '/api/ca.crt', '/api/session']);
 const ADMIN_OK = new Set(['/api/me', '/api/password', '/api/logout', '/api/status']);
 
 function isPublicApi(full) {
@@ -985,6 +987,139 @@ app.post('/api/watchlist', (req, res) => {
   s.watchlist = lista.slice(0, 40);
   saveSettings(s);
   res.json({ ok: true, watchlist: s.watchlist });
+});
+
+
+// ---------------- alertas automáticas por porcentaje ----------------
+const AUTO_WINDOW_MIN = 60;                 // ventana de 1 hora (13 velas de 5 min)
+const AUTO_COOLDOWN_MS = 3 * 3600e3;        // no repetir el mismo aviso en 3 h
+const autoLast = new Map();
+
+function autoAlertCfg(s) {
+  const a = (s && s.autoAlerts) || {};
+  const num = (v, d) => {
+    const n = Number(v);
+    return isFinite(n) && n > 0 && n <= 90 ? n : d;
+  };
+  return {
+    drop: { on: !!(a.drop && a.drop.on), pct: num(a.drop && a.drop.pct, 6) },
+    rise: { on: !!(a.rise && a.rise.on), pct: num(a.rise && a.rise.pct, 5) },
+  };
+}
+
+async function sendAutoAlert(user, coin, dir, pct, umbral) {
+  const clave = `${user.id}:${coin.symbol}:${dir}`;
+  const ahora = Date.now();
+  if (ahora - (autoLast.get(clave) || 0) < AUTO_COOLDOWN_MS) return false;
+  const precio = Number(coin.price) || 0;
+  const media = coin.costKnown && coin.avgPrice ? Number(coin.avgPrice) : null;
+  const diffMedia = media && media > 0 ? ((precio - media) / media) * 100 : null;
+  const sube = dir === 'rise';
+  const emoji = sube ? '📈' : '📉';
+  const mov = sube ? 'sube' : 'cae';
+
+  const texto = [
+    `${emoji} <b>${escHtml(coin.symbol)}</b> ${mov} un <b>${nfPct.format(Math.abs(pct))} %</b> en la última hora`,
+    '',
+    `Precio ahora: <b>${moneySmart(precio)}</b>`,
+    media ? `Tu precio medio: ${moneySmart(media)}${diffMedia === null ? '' : ` (${pctFmt(diffMedia)})`}` : 'Sin precio medio',
+    `Aviso configurado: ${sube ? '+' : '−'}${nfPct.format(umbral)} % en 1 h`,
+    '',
+    tgLink(),
+  ].filter(Boolean).join('\n');
+
+  const asunto = `Quanto · ${coin.symbol} ${mov} ${nfPct.format(Math.abs(pct))} % en 1 h`;
+  await notifyUser(texto, asunto);
+  autoLast.set(clave, ahora);
+  console.log(`[auto] ${user.username}: ${coin.symbol} ${mov} ${pct.toFixed(2)} % en 1 h`);
+  return true;
+}
+
+async function checkAutoAlerts(user) {
+  const s = getSettings();
+  const cfg = autoAlertCfg(s);
+  if (!cfg.drop.on && !cfg.rise.on) return;
+  const p = state.portfolio;
+  if (!p || !Array.isArray(p.coins) || !p.coins.length) return;
+
+  for (const c of p.coins) {
+    if (!(Number(c.amount) > 0)) continue;
+    try {
+      const raw = await client.candles(`${c.symbol}-EUR`, '5m', 13);
+      if (!Array.isArray(raw) || raw.length < 3) continue;
+      const closes = raw
+        .map(k => Number(k && k[4]))
+        .filter(n => isFinite(n) && n > 0)
+        .reverse();
+      if (closes.length < 2) continue;
+      const primero = closes[0];
+      const ultimo = closes[closes.length - 1];
+      if (!(primero > 0)) continue;
+      const pct = ((ultimo - primero) / primero) * 100;
+      if (cfg.drop.on && pct <= -cfg.drop.pct) await sendAutoAlert(user, c, 'drop', pct, cfg.drop.pct);
+      if (cfg.rise.on && pct >= cfg.rise.pct) await sendAutoAlert(user, c, 'rise', pct, cfg.rise.pct);
+    } catch (e) { /* moneda sin velas de 5 min */ }
+  }
+}
+
+
+// comprobación manual: devuelve cuánto se ha movido cada moneda en la última hora
+app.get('/api/auto-alerts/check', async (req, res) => {
+  try {
+    const cfg = autoAlertCfg(getSettings());
+    const p = state.portfolio || (await refreshPortfolio(false));
+    const coins = (p && Array.isArray(p.coins)) ? p.coins.filter(c => Number(c.amount) > 0) : [];
+    const filas = [];
+    for (const c of coins) {
+      try {
+        const raw = await client.candles(`${c.symbol}-EUR`, '5m', 13);
+        if (!Array.isArray(raw) || raw.length < 3) continue;
+        const closes = raw.map(k => Number(k && k[4])).filter(n => isFinite(n) && n > 0).reverse();
+        if (closes.length < 2) continue;
+        const pct = ((closes[closes.length - 1] - closes[0]) / closes[0]) * 100;
+        filas.push({
+          symbol: c.symbol,
+          pct: Math.round(pct * 100) / 100,
+          precio: Number(c.price) || null,
+          disparaBajada: cfg.drop.on && pct <= -cfg.drop.pct,
+          disparaSubida: cfg.rise.on && pct >= cfg.rise.pct,
+        });
+      } catch { /* sin velas */ }
+    }
+    filas.sort((a, b) => a.pct - b.pct);
+    const enviar = String(req.query.send || '') === '1';
+    let enviados = 0;
+    if (enviar && (cfg.drop.on || cfg.rise.on)) {
+      const antes = new Map(autoLast);
+      await checkAutoAlerts(req.user);
+      enviados = [...autoLast.keys()].filter(k => !antes.has(k)).length;
+    }
+    res.json({ ok: true, ventanaMin: AUTO_WINDOW_MIN, cfg, filas, enviados });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/auto-alerts', (req, res) => {
+  const cfg = autoAlertCfg(getSettings());
+  res.json({ ok: true, ...cfg, ventanaMin: AUTO_WINDOW_MIN });
+});
+
+app.post('/api/auto-alerts', (req, res) => {
+  const b = req.body || {};
+  const s = getSettings();
+  const actual = autoAlertCfg(s);
+  const limpiar = (v, def) => {
+    const n = Number(v);
+    return isFinite(n) ? Math.min(90, Math.max(0.5, Math.round(n * 10) / 10)) : def;
+  };
+  s.autoAlerts = {
+    drop: { on: b.drop && b.drop.on !== undefined ? !!b.drop.on : actual.drop.on, pct: b.drop && b.drop.pct !== undefined ? limpiar(b.drop.pct, actual.drop.pct) : actual.drop.pct },
+    rise: { on: b.rise && b.rise.on !== undefined ? !!b.rise.on : actual.rise.on, pct: b.rise && b.rise.pct !== undefined ? limpiar(b.rise.pct, actual.rise.pct) : actual.rise.pct },
+  };
+  s.autoAlerts.updatedAt = Date.now();
+  saveSettings(s);
+  res.json({ ok: true, ...s.autoAlerts, ventanaMin: AUTO_WINDOW_MIN });
 });
 
 // ---------------- favoritos del usuario ----------------
@@ -1844,7 +1979,11 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/session', (req, res) => res.json({ ok: true }));
+app.get('/api/session', (req, res) => {
+  let ok = false;
+  try { ok = !!sessionPayload(req); } catch {}
+  res.json({ ok });
+});
 
 app.get('/api/overview', async (req, res) => {
   const portfolio = await refreshPortfolio(false);
@@ -3206,7 +3345,14 @@ app.get('/api/icon/:symbol', limitHeavy, async (req, res) => {
       return res.sendFile(file);
     }
   } catch {}
-  if (iconMisses.has(sym)) return res.status(404).end();
+  const letraSvg = (s) => {
+    const c = (s || '?').slice(0, 1);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1b2230"/><text x="32" y="42" font-family="system-ui,Arial" font-size="30" font-weight="700" fill="#9fb0c9" text-anchor="middle">${c}</text></svg>`;
+  };
+  if (iconMisses.has(sym)) {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.type('svg').send(letraSvg(sym));
+  }
   const sources = [
     `https://assets.coincap.io/assets/icons/${sym.toLowerCase()}@2x.png`,
     `https://bin.bnbstatic.com/static/assets/logos/${sym}.png`,
@@ -3225,7 +3371,8 @@ app.get('/api/icon/:symbol', limitHeavy, async (req, res) => {
   }
   iconMisses.add(sym);
   if (iconMisses.size > 4000) iconMisses.clear();
-  res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.type('svg').send(letraSvg(sym));
 });
 
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
@@ -3300,6 +3447,13 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 });
 
 setInterval(() => { tenant.forEachUser(() => refreshPortfolio(true).catch(() => {})); }, SNAP_MS);
+
+// Alertas automáticas por porcentaje: cada 5 minutos, sobre las monedas en cartera.
+setInterval(() => {
+  tenant.forEachUser(async (u) => {
+    try { await checkAutoAlerts(u); } catch (e) { console.log('[auto] ' + u.username + ':', e.message); }
+  });
+}, 5 * 60e3);
 
 // Cada 10 minutos trae las órdenes abiertas de Bitvavo a Planes.
 setInterval(() => {

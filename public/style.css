@@ -1223,3 +1223,28 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 .watch-spark { display: block; margin-top: 4px; }
 .watch-spark svg { width: 100%; height: 34px; display: block; }
 .watch-item { padding-bottom: 9px; }
+
+/* móvil: comparativa de compra en una columna y sitio para el dock */
+@media (max-width: 700px) {
+  .buy-wrap .buy-compare { grid-template-columns: 1fr; gap: 10px; }
+  .buy-wrap .buy-card { padding: 12px 12px; }
+  .buy-line { font-size: 12px; }
+  .buy-line:last-child { font-size: 13.5px; }
+}
+@media (max-width: 1180px) {
+  .main { padding-bottom: 96px; }
+  .sim-top, .sim-2 { gap: 12px; }
+}
+
+/* alertas automáticas */
+.auto-row { display: flex; align-items: end; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.auto-row:last-of-type { border-bottom: 0; }
+.auto-toggle { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+.auto-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+.auto-label { font-size: 14px; }
+.auto-pct { max-width: 140px; }
+@media (max-width: 520px) { .auto-row { flex-direction: column; align-items: stretch; gap: 8px; } .auto-pct { max-width: none; } }
+
+/* tarjeta de alertas automáticas más compacta */
+#auto-card .auto-row { max-width: 640px; }
+#auto-card .auto-hint, #auto-card .hint { max-width: 720px; }
