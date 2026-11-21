@@ -287,7 +287,7 @@ function navigate(view) {
   const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
   $('#page-title').textContent = title;
   $('#page-sub').textContent = sub;
-  if (view === 'settings') { loadTotp(); loadBackups(); }
+  if (view === 'settings') { loadTotp(); loadBackups(); loadCoherence(); }
   if (view === 'alerts') loadAutoAlerts();
   if (view === 'sim') {
     renderSim();
@@ -4497,5 +4497,76 @@ $('#backups-body')?.addEventListener('click', async (e) => {
     toast('Error al restaurar: ' + err.message);
   } finally {
     btn.disabled = false;
+  }
+});
+
+/* ------------------------------------------------ informe de coherencia */
+let COHERENCE = null;
+
+async function loadCoherence() {
+  try {
+    const d = await api('/api/coherence');
+    COHERENCE = d;
+    renderCoherence();
+  } catch { /* sin informe disponible */ }
+}
+
+function renderCoherence() {
+  const toggle = $('#coherence-toggle');
+  const sub = $('#coherence-sub');
+  if (!toggle || !COHERENCE) return;
+  const on = COHERENCE.cfg.enabled !== false;
+  toggle.classList.toggle('is-active', on);
+  toggle.textContent = on ? 'Semanal activo' : 'Semanal';
+  const canales = [];
+  if (COHERENCE.channels && COHERENCE.channels.telegram) canales.push('Telegram');
+  if (COHERENCE.channels && COHERENCE.channels.email) canales.push('email');
+  if (sub) {
+    const ultimo = COHERENCE.cfg.lastSentAt ? ` Último envío: ${new Date(COHERENCE.cfg.lastSentAt).toLocaleDateString('es-ES')}.` : '';
+    sub.textContent = `Cada lunes a las ${String(COHERENCE.cfg.hour).padStart(2, '0')}:00` +
+      (canales.length ? ` por ${canales.join(' y ')}` : ' (sin canal configurado)') + '.' + ultimo;
+  }
+}
+
+$('#coherence-toggle')?.addEventListener('click', async () => {
+  const on = !($('#coherence-toggle')?.classList.contains('is-active'));
+  try {
+    const d = await api('/api/coherence/config', { method: 'POST', body: { enabled: on } });
+    COHERENCE = { ...COHERENCE, cfg: d.cfg };
+    renderCoherence();
+    toast(on ? 'Informe semanal activado' : 'Informe semanal desactivado');
+  } catch (e) { toast('No se pudo cambiar: ' + e.message); }
+});
+
+$('#coherence-preview')?.addEventListener('click', async () => {
+  const box = $('#coherence-body');
+  const btn = $('#coherence-preview');
+  if (!box) return;
+  if (btn) btn.disabled = true;
+  box.hidden = false;
+  box.textContent = 'Calculando… (unas llamadas a Bitvavo)';
+  try {
+    const d = await api('/api/coherence?preview=1');
+    box.textContent = d.ok ? d.preview.text : ('No disponible: ' + (d.error || ''));
+  } catch (e) {
+    box.textContent = 'No disponible: ' + e.message;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
+$('#coherence-send')?.addEventListener('click', async () => {
+  const btn = $('#coherence-send');
+  if (btn) btn.disabled = true;
+  try {
+    const d = await api('/api/coherence/send', { method: 'POST', body: {} });
+    const t = d.results && d.results.telegram === 'ok';
+    const e = d.results && d.results.email === 'ok';
+    toast(t || e ? 'Enviado por ' + [t && 'Telegram', e && 'email'].filter(Boolean).join(' y ') : 'No hay canal configurado');
+    await loadCoherence();
+  } catch (err) {
+    toast('No se pudo enviar: ' + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 });

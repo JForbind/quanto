@@ -18,6 +18,7 @@ const { taxReport, simulateSale, estimateTax } = require('./lib/tax');
 const { evolutionSeries } = require('./lib/evolution');
 const { computeTwr } = require('./lib/twr');
 const backupUtil = require('./lib/backup');
+const coherence = require('./lib/coherence');
 const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createSessionToken, verifySessionToken, createLimiter } = require('./lib/auth');
 const { createUserStore, passwordProblems, randomPassword } = require('./lib/users');
@@ -39,7 +40,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '3.9.0';
+const VERSION = '4.0.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -1413,6 +1414,12 @@ app.post('/api/users/:id/invite', requireAdmin, (req, res) => {
 });
 
 // ---------------- canales de aviso por usuario ----------------
+function notifyChannels() {
+  const cfg = notifyConfig();
+  const tg = telegramConfig();
+  return { telegram: !!(tg.token && tg.chatId), email: !!(cfg.emailEnabled && cfg.email) };
+}
+
 function notifyConfig() {
   const s = getSettings();
   const n = s.notify || {};
@@ -3150,6 +3157,120 @@ app.post('/api/backups/config', (req, res) => {
   saveSettings(s);
   res.json({ ok: true, cfg: backupCfg() });
 });
+
+// ---------------- informe semanal de coherencia ----------------
+function coherenceCfg() {
+  const c = (getSettings() || {}).coherence || {};
+  return {
+    enabled: c.enabled !== false,
+    weekday: 1,                     // lunes
+    hour: isFinite(Number(c.hour)) ? Math.min(23, Math.max(0, Math.round(Number(c.hour)))) : 9,
+    lastSentAt: Number(c.lastSentAt) || 0,
+  };
+}
+
+async function buildCoherenceData() {
+  const p = state.portfolio;
+  if (!p || !Array.isArray(p.coins) || !p.coins.length) return { ok: false, error: 'Sin cartera.' };
+  const coins = p.coins.filter(c => Number(c.value) > 0).slice(0, 6);
+  const regimes = [];
+  const rets = {};
+  for (const c of coins) {
+    try {
+      const rows = await riskRoutes.dailyCandles(c.symbol, 400);
+      const r = detectRegime(rows);
+      if (r.ok) regimes.push({ symbol: c.symbol, ...r });
+      const closes = rows.map(x => Number(x[4]));
+      const rr = [];
+      for (let i = 1; i < closes.length; i++) {
+        if (closes[i - 1] > 0 && closes[i] > 0) rr.push(Math.log(closes[i] / closes[i - 1]));
+      }
+      rets[c.symbol] = rr;
+    } catch { /* esa moneda se queda fuera */ }
+  }
+  const positions = coins.map(c => ({ symbol: c.symbol, value: Number(c.value) }));
+  const sizing = sizePortfolio(positions, rets, { maxWeight: 0.35, minWeight: 0.05, alignDays: 120 });
+  let twr = null;
+  try {
+    const evo = await buildEvolution();
+    let btc = [];
+    try {
+      const raw = await client.candles('BTC-EUR', '1d', 1000);
+      btc = (Array.isArray(raw) ? raw : [])
+        .map(c => ({ t: Number(c[0]), close: parseFloat(c[4]) }))
+        .filter(x => isFinite(x.close))
+        .sort((a, b) => a.t - b.t);
+    } catch { /* sin benchmark */ }
+    twr = computeTwr({ points: evo.points || [], ops: opsForView(), btc, days: 30 });
+  } catch { /* sin TWR */ }
+  return { ok: true, regimes, sizing, twr, total: p.totalValue };
+}
+
+async function sendCoherence(kind = 'manual') {
+  const data = await buildCoherenceData();
+  if (!data.ok) return { ok: false, error: data.error };
+  const report = coherence.build({ ...data, now: Date.now() });
+  const results = await notifyUser(report.text, report.subject, report.html);
+  const settings = getSettings();
+  settings.coherence = {
+    ...(settings.coherence || {}),
+    enabled: coherenceCfg().enabled,
+    lastSentAt: Date.now(),
+    lastKind: kind,
+  };
+  saveSettings(settings);
+  console.log(`[coherencia] informe ${kind} enviado (${results.telegram === 'ok' ? 'telegram' : 'sin telegram'}/${results.email === 'ok' ? 'email' : 'sin email'})`);
+  return { ok: true, results, report };
+}
+
+app.get('/api/coherence', async (req, res) => {
+  const cfg = coherenceCfg();
+  if (req.query.preview === '1') {
+    try {
+      const data = await buildCoherenceData();
+      if (!data.ok) return res.json({ ok: false, error: data.error, cfg });
+      const report = coherence.build({ ...data, now: Date.now() });
+      return res.json({ ok: true, cfg, preview: { text: report.text, subject: report.subject } });
+    } catch (e) {
+      return res.status(502).json({ ok: false, error: e.message, cfg });
+    }
+  }
+  res.json({ ok: true, cfg, channels: notifyChannels() });
+});
+
+app.post('/api/coherence/send', async (req, res) => {
+  try {
+    const out = await sendCoherence('manual');
+    if (!out.ok) return res.status(400).json({ error: out.error });
+    res.json({ ok: true, results: out.results, cfg: coherenceCfg() });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo enviar: ' + e.message });
+  }
+});
+
+app.post('/api/coherence/config', (req, res) => {
+  const s = getSettings();
+  const b = req.body || {};
+  s.coherence = {
+    ...(s.coherence || {}),
+    enabled: b.enabled != null ? b.enabled === true : coherenceCfg().enabled,
+    hour: isFinite(Number(b.hour)) ? Math.min(23, Math.max(0, Math.round(Number(b.hour)))) : coherenceCfg().hour,
+  };
+  saveSettings(s);
+  res.json({ ok: true, cfg: coherenceCfg() });
+});
+
+async function maybeSendWeeklyCoherence() {
+  const cfg = coherenceCfg();
+  if (!cfg.enabled) return;
+  const now = new Date();
+  if (now.getDay() !== cfg.weekday || now.getHours() < cfg.hour) return;
+  if (Date.now() - cfg.lastSentAt < 6 * 86400e3) return;
+  try { await sendCoherence('auto'); } catch (e) { console.log('[coherencia] fallo:', e.message); }
+}
+
+setInterval(() => { tenant.forEachUser(() => maybeSendWeeklyCoherence().catch(() => {})); }, 3600e3);
+setTimeout(() => { tenant.forEachUser(() => maybeSendWeeklyCoherence().catch(() => {})); }, 5 * 60e3);
 
 // una copia al día; se revisa cada hora y al arrancar
 setInterval(() => { tenant.forEachUser(() => { try { ensureAutoBackup(); } catch {} }); }, 3600e3);
