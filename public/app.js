@@ -2415,8 +2415,6 @@ function renderCandles(symbol, interval, rows) {
     },
     dataZoom: [
       { type: 'inside', xAxisIndex: xAxes.map((_, i) => i), start: state.tradeAll ? 0 : 55, end: 100, moveOnMouseMove: true, zoomOnMouseWheel: true, zoomOnPinch: true },
-      // Precio: Shift + rueda para escalar, Shift + arrastrar para mover el eje vertical
-      { type: 'inside', yAxisIndex: 0, zoomOnMouseWheel: 'shift', moveOnMouseWheel: false, moveOnMouseMove: 'shift', zoomOnPinch: false, filterMode: 'none' },
       {
         type: 'slider', xAxisIndex: xAxes.map((_, i) => i), height: 16, bottom: 6, borderColor: 'transparent',
         backgroundColor: 'rgba(255,255,255,.03)', fillerColor: 'rgba(139,164,255,.12)',
@@ -2427,33 +2425,10 @@ function renderCandles(symbol, interval, rows) {
     series: seriesList,
   });
 
-  // Arrastrar sobre el eje de precio (derecha) para escalar, como en TradingView.
-  if (!inst.__axisDrag) {
-    inst.__axisDrag = true;
-    inst.getZr().on('mousedown', (e) => {
-      const rect = inst.getModel().getComponent('grid', 0).coordinateSystem.getRect();
-      if (e.offsetX < rect.x + rect.width) return;
-      const y0 = e.offsetY;
-      const base = inst.getOption().yAxis[0];
-      const model = inst.getModel().getComponent('yAxis', 0);
-      const ext = model && model.axis ? model.axis.scale.getExtent() : null;
-      const lo0 = base.min != null ? base.min : (ext ? ext[0] : null);
-      const hi0 = base.max != null ? base.max : (ext ? ext[1] : null);
-      if (lo0 == null || hi0 == null) return;
-      const move = (ev) => {
-        const factor = Math.exp((ev.offsetY - y0) / 220);
-        const mid = (lo0 + hi0) / 2;
-        const half = ((hi0 - lo0) / 2) * factor;
-        inst.__manualY = true;
-        inst.setOption({ yAxis: [{ ...base, min: mid - half, max: mid + half }] }, { lazyUpdate: true });
-      };
-      const up = () => { inst.getZr().off('mousemove', move); inst.getZr().off('mouseup', up); };
-      inst.getZr().on('mousemove', move);
-      inst.getZr().on('mouseup', up);
-    });
-    // doble clic: volver a la escala automática
+  // doble clic: volver al zoom inicial
+  if (!inst.__dblReset) {
+    inst.__dblReset = true;
     inst.getZr().on('dblclick', () => {
-      inst.__manualY = false;
       inst.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: state.tradeAll ? 0 : 55, end: 100 });
     });
   }

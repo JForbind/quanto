@@ -512,6 +512,8 @@ app.get('/api/radar', async (req, res) => {
 });
 
 // Velas para el panel de trading
+const candleCache = new Map();
+
 app.get('/api/candles', async (req, res) => {
   const symbol = String(req.query.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
@@ -519,15 +521,27 @@ app.get('/api/candles', async (req, res) => {
   const allowed = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '1d'];
   if (!allowed.includes(interval)) return res.status(400).json({ error: 'Intervalo no válido' });
   const limit = Math.min(1000, Math.max(50, Number(req.query.limit) || 300));
+  const clave = `${symbol}:${interval}:${limit}`;
+  const previa = candleCache.get(clave);
   try {
     const raw = await client.candles(`${symbol}-EUR`, interval, limit);
     const candles = (Array.isArray(raw) ? raw : [])
       .map(k => [Number(k[0]), Number(k[1]), Number(k[2]), Number(k[3]), Number(k[4]), Number(k[5])])
       .filter(r => r.every(n => isFinite(n)))
       .reverse();
+    if (candles.length) {
+      candleCache.set(clave, { at: Date.now(), candles });
+      if (candleCache.size > 300) {
+        for (const [k, v] of candleCache) if (Date.now() - v.at > 10 * 60e3) candleCache.delete(k);
+      }
+    }
     res.json({ ok: true, symbol, interval, candles });
   } catch (e) {
-    res.status(400).json({ error: e.message });
+    // si Bitvavo no responde, servimos la última copia buena (marcada como tal)
+    if (previa && previa.candles.length) {
+      return res.json({ ok: true, symbol, interval, candles: previa.candles, stale: true, ageMs: Date.now() - previa.at });
+    }
+    res.status(503).json({ error: 'Bitvavo no responde ahora mismo. Reintenta en unos segundos.' });
   }
 });
 
@@ -1048,7 +1062,19 @@ async function sendAutoAlert(user, coin, dir, pct, umbral) {
   ].filter(Boolean).join('\n');
 
   const asunto = `Quanto · ${coin.symbol} ${mov} ${nfPct.format(Math.abs(pct))} % en ${ventana}`;
-  await notifyUser(texto, asunto);
+  const html = buildAlertEmailHtml({
+    simbolo: coin.symbol,
+    sube,
+    pct,
+    precio,
+    media,
+    diff: diffMedia,
+    umbral,
+    ventana,
+    efectivo: coin.amount > 0 ? Number(coin.amount) * precio : null,
+    fecha: new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+  });
+  await notifyUser(texto, asunto, html);
   autoLast.set(clave, ahora);
   console.log(`[auto] ${user.username}: ${coin.symbol} ${mov} ${pct.toFixed(2)} % en 1 h`);
   return true;
@@ -1084,6 +1110,35 @@ async function checkAutoAlerts(user) {
 
 
 // comprobación manual: devuelve cuánto se ha movido cada moneda en la última hora
+
+// vista previa del correo de aviso (para revisarlo sin enviarlo)
+app.get('/api/auto-alerts/preview', async (req, res) => {
+  try {
+    const cfg = autoAlertCfg(getSettings());
+    const sym = String(req.query.symbol || '').toUpperCase();
+    const p = state.portfolio || (await refreshPortfolio(false));
+    const coins = (p && Array.isArray(p.coins)) ? p.coins : [];
+    const coin = coins.find(c => c.symbol === sym) || coins[0];
+    if (!coin) return res.status(404).send('Sin monedas en cartera');
+    const html = buildAlertEmailHtml({
+      simbolo: coin.symbol,
+      sube: String(req.query.dir || 'drop') === 'rise',
+      pct: Number(req.query.pct) || cfg.drop.pct,
+      precio: Number(coin.price) || 0,
+      media: coin.costKnown ? Number(coin.avgPrice) : null,
+      diff: coin.costKnown && coin.avgPrice > 0 ? ((Number(coin.price) - Number(coin.avgPrice)) / Number(coin.avgPrice)) * 100 : null,
+      umbral: cfg.drop.pct,
+      ventana: ventanaTexto(cfg.windowMin),
+      efectivo: Number(coin.amount) * Number(coin.price),
+      fecha: new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (e) {
+    res.status(500).send(e.message);
+  }
+});
+
 app.get('/api/auto-alerts/check', async (req, res) => {
   try {
     const cfg = autoAlertCfg(getSettings());
@@ -1589,6 +1644,65 @@ function emailButton() {
   const base = publicUrl();
   if (!base) return '';
   return `<a href="${base}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:700">Abrir Quanto</a>`;
+}
+
+
+/** Correo HTML bonito para los avisos automáticos de movimiento. */
+function buildAlertEmailHtml(d) {
+  const f = (v, dec = 2) => {
+    if (!isFinite(v)) return '—';
+    const neg = v < 0;
+    const s = Math.abs(v).toFixed(dec);
+    const [en, fr] = s.split('.');
+    return (neg ? '\u2212' : '') + en.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (fr ? ',' + fr : '');
+  };
+  const px = (v) => {
+    const a = Math.abs(Number(v) || 0);
+    return f(v, a < 1 ? 4 : a < 10 ? 3 : 2) + ' €';
+  };
+  const color = d.sube ? '#0f9d58' : '#d93025';
+  const flecha = d.sube ? '▲' : '▼';
+  const base = publicUrl();
+  return `<!doctype html><html><body style="margin:0;padding:24px 12px;background:#f2f5fa;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 14px 40px -20px rgba(16,30,54,.35)">
+    <div style="background:#0b1220;padding:20px 24px">
+      <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:.14em">QUANTO</div>
+      <div style="color:#8fa3bf;font-size:12.5px;margin-top:2px">Aviso de movimiento · ${d.fecha}</div>
+    </div>
+    <div style="padding:24px">
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a97ab">${d.sube ? 'Subida rápida' : 'Bajada rápida'}</div>
+      <h1 style="margin:6px 0 2px;font-size:24px;color:#0b1220">${d.simbolo} ${d.sube ? 'sube' : 'cae'} un ${f(Math.abs(d.pct), 2)} %</h1>
+      <div style="color:#5b6b82;font-size:13px">en ${d.ventana}</div>
+
+      <div style="margin:18px 0 4px;font-size:30px;font-weight:800;color:${color}">${flecha} ${px(d.precio)}</div>
+      <div style="color:#8a97ab;font-size:13px">precio ahora mismo</div>
+
+      <table style="width:100%;border-collapse:collapse;margin-top:18px">
+        <tr>
+          <td style="padding:10px 0;border-top:1px solid #eef1f7;color:#8a97ab;font-size:12.5px">Tu precio medio</td>
+          <td style="padding:10px 0;border-top:1px solid #eef1f7;text-align:right;font-weight:700;color:#0b1220">${d.media ? px(d.media) : '—'}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0;border-top:1px solid #eef1f7;color:#8a97ab;font-size:12.5px">Respecto a tu media</td>
+          <td style="padding:10px 0;border-top:1px solid #eef1f7;text-align:right;font-weight:700;color:${d.diff === null ? '#0b1220' : d.diff >= 0 ? '#0f9d58' : '#d93025'}">${d.diff === null ? '—' : (d.diff >= 0 ? '+' : '') + f(d.diff, 2) + ' %'}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0;border-top:1px solid #eef1f7;color:#8a97ab;font-size:12.5px">Aviso configurado</td>
+          <td style="padding:10px 0;border-top:1px solid #eef1f7;text-align:right;font-weight:700;color:#0b1220">${d.sube ? '+' : '−'}${f(d.umbral, 2)} % en ${d.ventana}</td>
+        </tr>
+        ${d.efectivo !== null ? `<tr>
+          <td style="padding:10px 0;border-top:1px solid #eef1f7;color:#8a97ab;font-size:12.5px">Tu posición valdría</td>
+          <td style="padding:10px 0;border-top:1px solid #eef1f7;text-align:right;font-weight:700;color:#0b1220">${px(d.efectivo)}</td>
+        </tr>` : ''}
+      </table>
+
+      ${base ? `<div style="margin-top:22px;text-align:center"><a href="${base}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:700">Abrir Quanto</a></div>` : ''}
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid #eef1f7;font-size:11px;color:#8a97ab">
+        Quanto · aviso automático de precio. Puedes desactivarlo en Alertas → Alertas automáticas.
+      </div>
+    </div>
+  </div>
+</body></html>`;
 }
 
 function buildPlanReportHtml(plan, kind) {

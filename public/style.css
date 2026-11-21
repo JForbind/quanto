@@ -1262,3 +1262,6 @@ html[data-theme="dark"] .auto-btn.is-active { color: #060b14; }
 
 .auto-window { max-width: 240px; }
 .auto-window select { width: 100%; }
+
+/* botones de alerta más estrechos */
+.auto-btn { min-width: 112px; justify-content: center; }
