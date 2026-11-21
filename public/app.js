@@ -1469,6 +1469,9 @@ function renderSim() {
 
   const r = RANGES[simState.symbol] || {};
   const base = Number(n.coin.price) || 0;
+  // Siempre los mismos nueve botones: los que no aplican salen deshabilitados,
+  // así la rejilla no cambia de forma entre monedas en cartera y en seguimiento.
+  const tienePosicion = Number(n.coin.amount) > 0;
   const presets = [
     ['Precio actual', base, 'El precio de ahora mismo'],
     ['−50 %', base * 0.5, 'La mitad del precio actual'],
@@ -1476,13 +1479,17 @@ function renderSim() {
     ['+25 %', base * 1.25, 'Un 25 % por encima'],
     ['+50 %', base * 1.5, 'Un 50 % por encima'],
     ['×2', base * 2, 'El doble del precio actual'],
-    ['Tu precio medio', n.coin.avgPrice, 'Tu precio medio de compra'],
+    ['Tu precio medio', n.coin.avgPrice, tienePosicion ? 'Tu precio medio de compra' : 'Sin posición: no hay precio medio'],
     ['Máximo del año', r.high, 'Precio más alto de este año'],
     ['Máx. histórico', r.ath, 'Precio más alto de la historia'],
-  ].filter(x => x[1] > 0);
+  ];
   $('#sim-presets').innerHTML = presets.map(([label, value, title]) => {
+    const ok = Number(value) > 0;
+    if (!ok) {
+      return `<button class="btn btn-ghost btn-xs" type="button" disabled title="${esc(title)}">${label}</button>`;
+    }
     const activo = Math.abs(value - n.price) <= Math.abs(value) * 0.0005;
-    return `<button class="btn btn-ghost btn-xs${activo ? ' is-active' : ''}" data-sim-price="${value.toFixed(6)}" title="${esc(title)}">${label}</button>`;
+    return `<button class="btn btn-ghost btn-xs${activo ? ' is-active' : ''}" type="button" data-sim-price="${value.toFixed(6)}" title="${esc(title)}">${label}</button>`;
   }).join('');
 
   $('#sim-now').innerHTML = n.coin.amount > 0
