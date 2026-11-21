@@ -303,7 +303,7 @@ function navigate(view) {
     void topText.offsetWidth;
     topText.classList.add('is-entering');
   }
-  if (view === 'dashboard') { renderDashboard(); watchRender(); loadSizing(); }
+  if (view === 'dashboard') { renderDashboard(); watchRender(); loadSizing(); loadTwr(); }
   if (view === 'coins') renderCoins();
   if (view === 'tax') loadTax();
   if (view === 'operations') loadTransactions();
@@ -4364,4 +4364,53 @@ document.querySelectorAll('#sizing-max button').forEach(b => b.addEventListener(
   RISK.sizingMax = Number(b.dataset.max);
   document.querySelectorAll('#sizing-max button').forEach(x => x.classList.toggle('is-active', x === b));
   loadSizing(true);
+}));
+
+/* ------------------------------------------------ rentabilidad (TWR) */
+let TWR_DAYS = '365';
+
+async function loadTwr(force) {
+  const box = $('#twr-body');
+  if (!box) return;
+  const card = $('#twr-card');
+  const keep = anchorTop(card);
+  if (!box.querySelector('.twr-item')) box.innerHTML = '<p class="muted tiny" style="padding:12px">Calculando…</p>';
+  else box.classList.add('is-loading');
+  try {
+    const d = await api('/api/twr?days=' + encodeURIComponent(TWR_DAYS) + (force ? '&t=' + Date.now() : ''));
+    renderTwr(d);
+  } catch (e) {
+    box.innerHTML = `<p class="muted tiny" style="padding:12px">${esc(e.message)}</p>`;
+  } finally {
+    box.classList.remove('is-loading');
+    keepAnchor(card, keep);
+  }
+}
+
+function renderTwr(d) {
+  const box = $('#twr-body');
+  const sub = $('#twr-sub');
+  if (!box) return;
+  if (!d || d.ok === false) {
+    box.innerHTML = `<p class="muted tiny" style="padding:12px">${esc((d && d.error) || 'Sin datos.')}</p>`;
+    if (sub) sub.textContent = 'Sin histórico suficiente todavía.';
+    return;
+  }
+  const cls = v => v > 0.0005 ? 'up' : v < -0.0005 ? 'down' : 'flat';
+  const pc = v => (v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(1) + ' %');
+  const desde = new Date(d.from).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+  const hasta = new Date(d.to).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (sub) sub.textContent = `${desde} → ${hasta} · ${d.days} días · flujo neto ${eur0(d.flows)}`;
+  const diffTxt = d.diff == null ? '—' : (d.diff > 0 ? '+' : '') + (d.diff * 100).toFixed(1) + ' pp';
+  box.innerHTML = `
+    <div class="twr-item"><span>Tu TWR</span><strong class="${cls(d.total)}">${pc(d.total)}</strong><small>${pc(d.annual)} anualizado</small></div>
+    <div class="twr-item"><span>Mantener BTC</span><strong class="${cls(d.benchmark == null ? 0 : d.benchmark)}">${pc(d.benchmark)}</strong><small>mismo periodo</small></div>
+    <div class="twr-item"><span>Diferencia</span><strong class="${cls(d.diff == null ? 0 : d.diff)}">${diffTxt}</strong><small>${d.diff == null ? 'sin benchmark' : d.diff >= 0 ? 'por delante de BTC' : 'por detrás de BTC'}</small></div>
+    <div class="twr-item"><span>Cartera</span><strong>${eur0(d.endValue)}</strong><small>empezó en ${eur0(d.startValue)}</small></div>`;
+}
+
+document.querySelectorAll('#twr-range button').forEach(b => b.addEventListener('click', () => {
+  TWR_DAYS = b.dataset.days;
+  document.querySelectorAll('#twr-range button').forEach(x => x.classList.toggle('is-active', x === b));
+  loadTwr(true);
 }));

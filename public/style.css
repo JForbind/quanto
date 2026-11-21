@@ -1346,3 +1346,15 @@ html[data-theme="dark"] .auto-btn.is-active { color: #060b14; }
   padding-bottom: 0;
   background-position: right 12px center;
 }
+
+/* --- rentabilidad (TWR) --- */
+.twr-body { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.twr-item { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 12px; background: var(--glass-hi); border: 1px solid var(--line); }
+.twr-item span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.twr-item strong { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.twr-item small { font-size: 11.5px; color: var(--muted); }
+.twr-item strong.up { color: var(--pos); }
+.twr-item strong.down { color: var(--neg); }
+.twr-item strong.flat { color: var(--text-2); }
+@media (max-width: 900px) { .twr-body { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .twr-body { grid-template-columns: 1fr 1fr; } .twr-item strong { font-size: 18px; } }

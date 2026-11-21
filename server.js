@@ -16,6 +16,7 @@ const { mergeOps, analyze, opFromAccountHistory } = require('./lib/history');
 const { buildPortfolio, demoPortfolio, demoOps, demoEvolution, FALLBACK_PRICES } = require('./lib/portfolio');
 const { taxReport, simulateSale, estimateTax } = require('./lib/tax');
 const { evolutionSeries } = require('./lib/evolution');
+const { computeTwr } = require('./lib/twr');
 const { getFearGreed } = require('./lib/feargreed');
 const { hashPassword, verifyPassword, safeEqual, createToken, verifyToken, createSessionToken, verifySessionToken, createLimiter } = require('./lib/auth');
 const { createUserStore, passwordProblems, randomPassword } = require('./lib/users');
@@ -37,7 +38,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '3.6.1';
+const VERSION = '3.7.0';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -2178,38 +2179,65 @@ app.get('/api/history', (req, res) => {
   res.json({ points: state.snapshots.slice(-limit), intervalMin: SNAP_MIN });
 });
 
-app.get('/api/evolution', async (req, res) => {
+async function buildEvolution(until) {
   const ops = opsForView();
-  if (!ops.length) return res.json({ ok: false, points: [] });
+  if (!ops.length) return { ok: false, points: [] };
+  if (state.mode === 'demo' && !state.ops.length) {
+    const points = demoEvolution(state.prices);
+    return { ok: true, points, demo: true, from: points.length ? points[0].t : null, to: points.length ? points[points.length - 1].t : null };
+  }
+  const symbols = [...new Set(ops.filter(o => o.currency && o.currency !== 'EUR').map(o => o.currency))];
+  const today = new Date().toISOString().slice(0, 10);
+  if (!until && state.evolutionCache.data && state.evolutionCache.day === today) {
+    return state.evolutionCache.data;
+  }
+  const prices = {};
+  for (const s of symbols) {
+    try {
+      const candles = await client.candles(`${s}-EUR`, '1d', 1000);
+      prices[s] = (Array.isArray(candles) ? candles : [])
+        .map(c => ({ t: c[0], close: parseFloat(c[4]) }))
+        .filter(p => isFinite(p.close))
+        .sort((a, b) => a.t - b.t);
+    } catch {
+      prices[s] = [];
+    }
+    await new Promise(r => setTimeout(r, 60));
+  }
+  const points = evolutionSeries(ops, prices, { until });
+  const payload = { ok: true, points, symbols, from: points.length ? points[0].t : null, to: points.length ? points[points.length - 1].t : null };
+  if (!until) state.evolutionCache = { at: Date.now(), day: today, data: payload };
+  return payload;
+}
+
+app.get('/api/evolution', async (req, res) => {
   try {
-    if (state.mode === 'demo' && !state.ops.length) {
-      const points = demoEvolution(state.prices);
-      return res.json({ ok: true, points, demo: true, from: points.length ? points[0].t : null, to: points.length ? points[points.length - 1].t : null });
-    }
-    const symbols = [...new Set(ops.filter(o => o.currency && o.currency !== 'EUR').map(o => o.currency))];
-    const today = new Date().toISOString().slice(0, 10);
-    if (state.evolutionCache.data && state.evolutionCache.day === today) {
-      return res.json(state.evolutionCache.data);
-    }
-    const prices = {};
-    for (const s of symbols) {
-      try {
-        const candles = await client.candles(`${s}-EUR`, '1d', 1000);
-        prices[s] = (Array.isArray(candles) ? candles : [])
-          .map(c => ({ t: c[0], close: parseFloat(c[4]) }))
-          .filter(p => isFinite(p.close))
-          .sort((a, b) => a.t - b.t);
-      } catch {
-        prices[s] = [];
-      }
-      await new Promise(r => setTimeout(r, 60));
-    }
-    const points = evolutionSeries(ops, prices, { until: req.query.until });
-    const payload = { ok: true, points, symbols, from: points.length ? points[0].t : null, to: points.length ? points[points.length - 1].t : null };
-    state.evolutionCache = { at: Date.now(), day: today, data: payload };
-    res.json(payload);
+    res.json(await buildEvolution(req.query.until));
   } catch (e) {
     res.status(502).json({ error: e.message });
+  }
+});
+
+// TWR: rentabilidad limpia (sin contar aportaciones) frente a mantener BTC.
+app.get('/api/twr', async (req, res) => {
+  const raw = String(req.query.days || '').toLowerCase();
+  const days = raw === 'all' ? null : Math.min(3650, Math.max(7, Number(req.query.days) || 365));
+  try {
+    const evo = await buildEvolution();
+    const points = evo.points || [];
+    if (!points.length) return res.json({ ok: false, error: 'Sin histórico de cartera todavía.' });
+    let btc = [];
+    try {
+      const candles = await client.candles('BTC-EUR', '1d', 1000);
+      btc = (Array.isArray(candles) ? candles : [])
+        .map(c => ({ t: Number(c[0]), close: parseFloat(c[4]) }))
+        .filter(p => isFinite(p.close))
+        .sort((a, b) => a.t - b.t);
+    } catch { /* sin benchmark */ }
+    const out = computeTwr({ points, ops: opsForView(), btc, days });
+    res.json({ ...out, symbol: 'BTC', daysParam: raw || '365', mode: state.mode });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo calcular: ' + e.message });
   }
 });
 
