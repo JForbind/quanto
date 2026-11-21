@@ -33,7 +33,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '3.4.3';
+const VERSION = '3.4.4';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -3472,21 +3472,30 @@ app.get('/api/leverage', async (req, res) => {
 let newsCache = { at: 0, key: '', data: null };
 const NEWS_TTL = 15 * 60e3;
 
+// La traducción de titulares va en segundo plano: el número de pendientes se recalcula.
+function newsPending(data) {
+  const items = (data && data.items) || [];
+  return items.filter(i => i.lang && i.lang !== 'es' && !i.translated).length;
+}
+
 app.get('/api/news', async (req, res) => {
   const coins = String(req.query.coins || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean).slice(0, 40);
   const key = coins.join(',');
   if (newsCache.data && newsCache.key === key && Date.now() - newsCache.at < NEWS_TTL) {
-    return res.json({ ok: true, ...newsCache.data, cached: true });
+    return res.json({ ok: true, ...newsCache.data, pending: newsPending(newsCache.data), cached: true });
   }
   try {
     const data = await getNews({ coins, limit: 60 });
     newsCache = { at: Date.now(), key, data };
-    res.json({ ok: true, ...data, cached: false });
+    res.json({ ok: true, ...data, pending: newsPending(data), cached: false });
   } catch (e) {
-    if (newsCache.data) return res.json({ ok: true, ...newsCache.data, cached: true, stale: true });
+    if (newsCache.data) return res.json({ ok: true, ...newsCache.data, pending: newsPending(newsCache.data), cached: true, stale: true });
     res.status(502).json({ error: 'No se pudieron leer las noticias: ' + e.message });
   }
 });
+
+// Precalienta los titulares (y sus traducciones) para que el primer acceso sea rápido.
+setTimeout(() => { getNews({ coins: [], limit: 60 }).catch(() => {}); }, 12e3).unref?.();
 
 // ---------------- iconos de monedas (con caché en disco) ----------------
 const ICON_DIR = path.join(DATA_DIR, 'icons');

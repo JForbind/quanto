@@ -1034,7 +1034,7 @@ function renderNewsMini(list) {
   if (!box) return;
   if (!list.length) { box.innerHTML = '<p class="muted tiny">Sin noticias ahora mismo.</p>'; return; }
   box.innerHTML = list.slice(0, 4).map(n => `
-    <a class="news-item" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">
+    <a class="news-item" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer"${n.titleEn ? ` title="${esc(n.titleEn)}"` : ''}>
       <span class="news-meta">${esc(n.source)} · ${timeAgo(n.ts)}</span>
       <span class="news-title">${esc(n.title)}</span>
     </a>`).join('');
@@ -1047,15 +1047,17 @@ function renderNewsList() {
   const sub = $('#news-sub');
   if (sub) sub.textContent = `${list.length} noticias · ${newsFilter === 'mine' ? 'relacionadas con tus monedas' : 'de todas las fuentes'}`;
   if (!list.length) { box.innerHTML = '<p class="muted">Sin noticias.</p>'; return; }
+  const enTag = n => (n.lang && n.lang !== 'es' && !n.translated) ? ' · EN' : '';
   box.innerHTML = list.map(n => `
-    <a class="news-item" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">
-      <span class="news-meta">${esc(n.source)} · ${timeAgo(n.ts)}${n.coins.length ? ' · ' + n.coins.map(c => esc(c)).join(', ') : ''}</span>
+    <a class="news-item" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer"${n.titleEn ? ` title="${esc(n.titleEn)}"` : ''}>
+      <span class="news-meta">${esc(n.source)} · ${timeAgo(n.ts)}${enTag(n)}${n.coins.length ? ' · ' + n.coins.map(c => esc(c)).join(', ') : ''}</span>
       <span class="news-title">${esc(n.title)}</span>
       ${n.summary ? `<span class="news-sum">${esc(n.summary)}</span>` : ''}
     </a>`).join('');
 }
 
-async function loadNews(force) {
+let newsRetry = null;
+async function loadNews(force, isRetry) {
   try {
     const coins = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol).slice(0, 40);
     const d = await api('/api/news?coins=' + encodeURIComponent(coins.join(',')) + (force ? '&t=' + Date.now() : ''));
@@ -1064,6 +1066,11 @@ async function loadNews(force) {
     const mc = $('#news-mini-sub');
     if (mc) mc.textContent = NEWS.length ? `${NEWS.length} titulares · ${new Date(d.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : 'Sin noticias';
     renderNewsList();
+    // Los titulares ingleses se traducen en segundo plano: si aún faltan, reintentar una vez.
+    if (d.pending > 0 && !isRetry) {
+      clearTimeout(newsRetry);
+      newsRetry = setTimeout(() => loadNews(true, true), 8000);
+    }
   } catch (e) {
     const mc = $('#news-mini-sub');
     if (mc) mc.textContent = 'No disponible: ' + e.message;
