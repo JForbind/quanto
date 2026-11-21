@@ -4154,6 +4154,14 @@ document.addEventListener('click', async (e) => {
 /* ------------------------------------------------ régimen, riesgo y reality check */
 const RISK = { regimeKey: null, regime: null, sizing: null, sizingMax: 35, realityCost: 5 };
 
+/** Guarda la posición de un elemento en pantalla para devolverla tras re-renderizar. */
+function anchorTop(el) { return el ? el.getBoundingClientRect().top : null; }
+function keepAnchor(el, top) {
+  if (!el || top == null) return;
+  const delta = el.getBoundingClientRect().top - top;
+  if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+}
+
 function toneClass(t) { return t === 'up' ? 'up' : t === 'down' ? 'down' : 'flat'; }
 
 async function loadRegime(sym, force) {
@@ -4161,6 +4169,11 @@ async function loadRegime(sym, force) {
   if (!box || !sym) return;
   if (!force && RISK.regimeKey === sym && RISK.regime) { renderRegime(RISK.regime); return; }
   const sub = $('#regime-sub');
+  const card = $('#regime-card');
+  const keep = anchorTop(card);
+  const yaHay = box.querySelector('.regime-badges');
+  if (!yaHay) box.innerHTML = '<p class="muted tiny">Calculando…</p>';
+  else box.classList.add('is-loading');
   if (sub) sub.textContent = sym + ' · calculando…';
   try {
     const d = await api('/api/regime?symbol=' + encodeURIComponent(sym) + '&days=400');
@@ -4171,6 +4184,9 @@ async function loadRegime(sym, force) {
   } catch (e) {
     box.innerHTML = `<p class="muted tiny">No disponible: ${esc(e.message)}</p>`;
     if (sub) sub.textContent = sym;
+  } finally {
+    box.classList.remove('is-loading');
+    keepAnchor(card, keep);
   }
 }
 
@@ -4199,13 +4215,20 @@ async function loadSizing(force) {
   const box = $('#sizing-body');
   if (!box) return;
   if (!force && RISK.sizing && RISK.sizing.maxWeight === RISK.sizingMax / 100) { renderSizing(RISK.sizing); return; }
-  box.innerHTML = '<p class="muted tiny" style="padding:12px">Calculando reparto por riesgo…</p>';
+  const card = $('#sizing-card');
+  const keep = anchorTop(card);
+  const yaHay = box.querySelector('table');
+  if (!yaHay) box.innerHTML = '<p class="muted tiny" style="padding:12px">Calculando reparto por riesgo…</p>';
+  else box.classList.add('is-loading');
   try {
     const d = await api('/api/sizing?max=' + RISK.sizingMax);
     RISK.sizing = d;
     renderSizing(d);
   } catch (e) {
     box.innerHTML = `<p class="muted tiny" style="padding:12px">${esc(e.message)}</p>`;
+  } finally {
+    box.classList.remove('is-loading');
+    keepAnchor(card, keep);
   }
 }
 
@@ -4237,7 +4260,11 @@ function renderSizing(d) {
 async function loadReality(sym) {
   const box = $('#reality-body');
   if (!box || !sym) return;
-  box.innerHTML = '<p class="muted tiny" style="padding:12px">Evaluando estrategias…</p>';
+  const card = $('#reality-card');
+  const keep = anchorTop(card);
+  const yaHay = box.querySelector('table');
+  if (!yaHay) box.innerHTML = '<p class="muted tiny" style="padding:12px">Evaluando estrategias…</p>';
+  else box.classList.add('is-loading');
   const note = $('#reality-note');
   if (note) note.textContent = '';
   try {
@@ -4245,6 +4272,9 @@ async function loadReality(sym) {
     renderReality(d);
   } catch (e) {
     box.innerHTML = `<p class="muted tiny" style="padding:12px">${esc(e.message)}</p>`;
+  } finally {
+    box.classList.remove('is-loading');
+    keepAnchor(card, keep);
   }
 }
 
