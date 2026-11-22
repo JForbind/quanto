@@ -114,3 +114,14 @@ export async function api(path, options = {}) {
   if (!res.ok) throw new Error(data.error || data.message || ('Error ' + res.status));
   return data;
 }
+
+/* ------------------------------------------------ avisos en pantalla */
+let toastTimer = null;
+export function toast(message, isError) {
+  const el = $('#toast');
+  if (!el) return;
+  el.textContent = message;
+  el.className = 'toast show' + (isError ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 4200);
+}
