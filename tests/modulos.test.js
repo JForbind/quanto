@@ -13,7 +13,7 @@ const RAIZ = path.join(__dirname, '..', 'public', 'src');
 // Símbolos que viven en módulos compartidos y por tanto hay que importar.
 const COMPARTIDOS = [
   '$', '$$', 'state', 'charts', 'api', 'toast', 'eur', 'eur0', 'num', 'pct', 'priceFmt',
-  'esc', 'signed', 'dateShort', 'dateLong', 'dateTime', 'relTime', 'groupNum', 'short',
+  'esc', 'signed', 'arrow', 'dateShort', 'dateLong', 'dateTime', 'relTime', 'groupNum', 'short', 'eurFmt', 'eur0Fmt', 'loadCoinIcons',
   'coinBadge', 'coinRow', 'sparklineSvg', 'coinColor', 'PIE_COLORS', 'loadCoinIcons',
   'chart', 'themeVars', 'baseTooltip', 'hexA', 'openModal', 'closeModal',
   'RANGES', 'loadRanges', 'rangeFmt',

@@ -1,6 +1,6 @@
 'use strict';
 // Resumen: KPIs compartidos, evolución, reparto, radar y sparklines.
-import { $, $$, state, api, esc, eur, eur0, num, pct, priceFmt, short, signed, dateShort, dateLong } from '../core.js';
+import { $, $$, state, api, esc, eur, eur0, num, pct, priceFmt, short, signed, arrow, dateShort, dateLong } from '../core.js';
 import { chart, themeVars, baseTooltip, hexA } from '../ui/charts.js';
 import { coinBadge, PIE_COLORS } from '../ui/coins.js';
 
