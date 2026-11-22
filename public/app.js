@@ -287,6 +287,26 @@ function navApplyOrder(order) {
       }
       dock.insertBefore(btn, btnMas);
     });
+
+    // La hoja «Más» debe dar acceso a TODO lo que no cabe en la barra:
+    // antes, las vistas del sidebar fuera del dock (p. ej. Índices) no eran
+    // alcanzables en el móvil.
+    const hoja = document.getElementById('more-sheet');
+    if (hoja) {
+      const yaEnHoja = new Set([...hoja.querySelectorAll('[data-view]')].map(b => b.dataset.view));
+      ordenFinal.forEach(v => {
+        if (cuatro.includes(v) || yaEnHoja.has(v)) return;
+        const src = porVista.get(v);
+        if (!src) return;
+        const clon = src.cloneNode(true);
+        clon.classList.remove('is-active');
+        clon.classList.add('more-item');
+        clon.draggable = false;
+        clon.addEventListener('click', () => { if (clon.dataset.view) navigate(clon.dataset.view); });
+        hoja.appendChild(clon);
+        yaEnHoja.add(v);
+      });
+    }
   }
 }
 
