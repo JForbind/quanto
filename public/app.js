@@ -165,13 +165,13 @@ function toggleMoreSheet(force) {
 }
 document.getElementById('more-btn')?.addEventListener('click', () => toggleMoreSheet());
 document.getElementById('more-backdrop')?.addEventListener('click', () => toggleMoreSheet(false));
-document.querySelectorAll('.more-item').forEach(b => b.addEventListener('click', () => {
+document.querySelectorAll('.more-item').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation();
   toggleMoreSheet(false);
   navigate(b.dataset.view);
 }));
 
-$$('.nav-item').forEach(btn => btn.addEventListener('click', () => { if (btn.dataset.view) navigate(btn.dataset.view); }));
-document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', () => navigate(btn.dataset.goto)));
+$$('.nav-item').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); if (btn.dataset.view) navigate(btn.dataset.view); }));
+document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); navigate(btn.dataset.goto); }));
 
 /* ------------------------------------------------ login */
 function showLogin() {
@@ -287,7 +287,7 @@ function navApplyOrder(order) {
         btn = src.cloneNode(true);
         btn.classList.remove('is-active');
         btn.draggable = false;
-        btn.addEventListener('click', () => { if (btn.dataset.view) navigate(btn.dataset.view); });
+        btn.addEventListener('click', (e) => { e.stopPropagation(); if (btn.dataset.view) navigate(btn.dataset.view); });
       }
       dock.insertBefore(btn, btnMas);
     });

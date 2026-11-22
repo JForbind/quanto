@@ -24,12 +24,19 @@ export function navigate(view) {
   $$('.view').forEach(v => v.classList.add('hidden'));
   const target = $('#view-' + view);
   if (target) target.classList.remove('hidden');
-  $$('.nav-item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
+  // Solo un elemento activo: se limpian todos los que navegan (incluye la hoja «Más»).
+  $$('[data-view]').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
 
   if (sharedKpis) sharedKpis(state.portfolio);
 
   const moreBtn = document.getElementById('more-btn');
-  if (moreBtn) moreBtn.classList.toggle('is-active', ['operations', 'tax', 'plans', 'trade', 'sim', 'settings'].includes(view));
+  if (moreBtn) {
+    // «Más» solo se resalta si la sección no tiene su propio botón visible:
+    // así no se iluminan a la vez Simulador (en el dock) y Más.
+    const botonPropio = [...document.querySelectorAll('.nav-item[data-view]')]
+      .some(b => b.dataset.view === view && b.offsetParent !== null);
+    moreBtn.classList.toggle('is-active', !botonPropio);
+  }
   const settingsBtn = $('#settings-btn');
   if (settingsBtn) settingsBtn.classList.toggle('is-active', view === 'settings');
 
