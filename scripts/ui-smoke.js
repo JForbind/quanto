@@ -25,6 +25,29 @@ try {
   process.exit(2);
 }
 
+
+/** Navega como un usuario: barra lateral, barra inferior o hoja «Más». */
+async function irA(page, view, esMovil) {
+  const candidatos = page.locator(`[data-view="${view}"]`);
+  const n = await candidatos.count();
+  for (let i = 0; i < n; i++) {
+    const el = candidatos.nth(i);
+    if (await el.isVisible().catch(() => false)) {
+      await el.click({ timeout: 5000, force: true });
+      return;
+    }
+  }
+  // Ajustes tiene su propio botón en la cabecera de escritorio.
+  if (view === 'settings') {
+    const btn = page.locator('#settings-btn');
+    if (await btn.isVisible().catch(() => false)) { await btn.click({ timeout: 5000, force: true }); return; }
+  }
+  // En móvil, las secciones que no caben están en la hoja «Más».
+  await page.click('#more-btn', { timeout: 5000, force: true });
+  await page.waitForTimeout(250);
+  await page.click(`#more-sheet [data-view="${view}"]`, { timeout: 5000, force: true });
+}
+
 function waitFor(url, ms = 40000) {
   const end = Date.now() + ms;
   return new Promise((resolve, reject) => {
@@ -54,12 +77,30 @@ function waitFor(url, ms = 40000) {
   let browser;
   try {
     await waitFor(`${BASE}/api/health`);
+    // La primera cuenta es el admin, y en modo admin la app no monta el menú
+    // habitual: se crea un usuario normal y se activa por invitación.
     const setup = await fetch(`${BASE}/api/setup`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username: USER, password: PASSWORD, email: 'smoke@example.com', canData: true }),
+      body: JSON.stringify({ username: 'admin-smoke', password: PASSWORD, email: 'admin@example.com', canData: true }),
     });
-    if (!setup.ok) throw new Error('No se pudo crear el usuario de prueba: ' + (await setup.text()));
+    if (!setup.ok) throw new Error('No se pudo crear el administrador: ' + (await setup.text()));
+    const cookieAdmin = (setup.headers.getSetCookie() || []).map(c => c.split(';')[0]).join('; ');
+
+    const creado = await fetch(`${BASE}/api/users`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: cookieAdmin },
+      body: JSON.stringify({ username: USER }),
+    });
+    const datos = await creado.json().catch(() => ({}));
+    if (!creado.ok || !datos.inviteToken) throw new Error('No se pudo crear el usuario de prueba: ' + JSON.stringify(datos));
+
+    const activado = await fetch(`${BASE}/api/invite/${datos.inviteToken}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: PASSWORD }),
+    });
+    if (!activado.ok) throw new Error('No se pudo activar el usuario: ' + (await activado.text()));
 
     browser = await chromium.launch();
     for (const [nombre, width, height] of [['escritorio', 1440, 1000], ['móvil', 390, 844]]) {
@@ -77,7 +118,12 @@ function waitFor(url, ms = 40000) {
 
       for (const view of VIEWS) {
         const antes = errores.length;
-        await page.evaluate(v => navigate(v), view);
+        try {
+          await irA(page, view, nombre === 'móvil');
+        } catch (e) {
+          fallos.push(`${nombre} · ${view}: no se pudo abrir (${String(e.message).split('\n')[0]})`);
+          continue;
+        }
         await page.waitForTimeout(900);
         const visible = await page.evaluate(v => {
           const el = document.querySelector('#view-' + v);

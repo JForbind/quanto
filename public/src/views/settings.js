@@ -220,7 +220,7 @@ $('#restore-file')?.addEventListener('change', async (e) => {
     out.textContent = '✅ Restaurado: ' + r.restored.join(', ');
     state.evolution = null;
     state.tax = null;
-    await boot();
+    if (hooks.boot) await hooks.boot();
   } catch (err) {
     out.className = 'result err';
     out.textContent = '❌ ' + err.message;
@@ -236,7 +236,7 @@ $('#wipe-btn')?.addEventListener('click', async () => {
     state.evolution = null;
     state.tax = null;
     state.transactions = [];
-    await boot();
+    if (hooks.boot) await hooks.boot();
   } catch (e) { toast(e.message, true); }
 });
 

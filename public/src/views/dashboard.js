@@ -1,7 +1,7 @@
 'use strict';
 // Resumen: KPIs compartidos, evolución, reparto, radar y sparklines.
 import { $, $$, state, api, esc, eur, eur0, num, pct, priceFmt, short, signed, arrow, dateShort, dateLong } from '../core.js';
-import { chart, themeVars, baseTooltip, hexA } from '../ui/charts.js';
+import { chart, themeVars, baseTooltip, hexA, clearChart } from '../ui/charts.js';
 import { coinBadge, PIE_COLORS } from '../ui/coins.js';
 
 // La app inyecta las piezas del dashboard que todavía viven allí.

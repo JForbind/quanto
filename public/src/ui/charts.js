@@ -37,6 +37,15 @@ export function baseTooltip(v) {
   };
 }
 
+export function clearChart(id, html) {
+  if (typeof echarts === 'undefined') return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  const inst = echarts.getInstanceByDom(el);
+  if (inst) { inst.dispose(); charts.delete(id); }
+  el.innerHTML = html || '';
+}
+
 export function chart(id, option) {
   if (typeof echarts === 'undefined') return null;
   const el = document.getElementById(id);

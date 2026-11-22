@@ -18,11 +18,12 @@ import { simState, renderSim, simNumbers, simCoinObject, simSaved, simSave, rend
 import { loadAppearance } from './src/views/appearance.js';
 import { loadSettingsView, renderImportStatus, renderColdList, renderTelegram, initSettings } from './src/views/settings.js';
 import { renderDashboard, renderSharedKpis, rangeCut, renderEvolutionChart, renderAllocation, loadRadar, sparklineWide, initDashboard } from './src/views/dashboard.js';
-import { themeVars, hexA, baseTooltip, chart } from './src/ui/charts.js';
+import { themeVars, hexA, baseTooltip, chart, clearChart } from './src/ui/charts.js';
 import { openModal, closeModal } from './src/ui/modal.js';
 import { RANGES, loadRanges, rangeFmt, initRanges } from './src/data/ranges.js';
 import { PIE_COLORS, coinColor, loadCoinIcons, coinBadge, sparklineSvg, rngBlock } from './src/ui/coins.js';
 import { loadNews, bindNews } from './src/views/news.js';
+import { navigate, register, initRouter } from './src/router.js';
 
 /* ------------------------------------------------ tema y gráficos */
 
@@ -30,14 +31,7 @@ import { loadNews, bindNews } from './src/views/news.js';
 
 
 /** Vacía un gráfico (mensaje de "sin datos") liberando antes la instancia. */
-function clearChart(id, html) {
-  if (typeof echarts === 'undefined') return;
-  const el = document.getElementById(id);
-  if (!el) return;
-  const inst = echarts.getInstanceByDom(el);
-  if (inst) { inst.dispose(); charts.delete(id); }
-  el.innerHTML = html || '';
-}
+
 function resizeCharts() { charts.forEach(c => { try { c.resize(); } catch {} }); }
 window.addEventListener('resize', () => { clearTimeout(window.__rz); window.__rz = setTimeout(resizeCharts, 120); });
 
@@ -135,48 +129,24 @@ const VIEW_TITLES = {
   settings: ['Ajustes', 'Claves, historial, seguridad y datos'],
 };
 
-function navigate(view) {
-  state.view = view;
-  $$('.view').forEach(v => v.classList.add('hidden'));
-  const target = $('#view-' + view);
-  if (target) target.classList.remove('hidden');
-  $$('.nav-item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
-  renderSharedKpis(state.portfolio);
-  const moreBtn = document.getElementById('more-btn');
-  if (moreBtn) moreBtn.classList.toggle('is-active', ['operations', 'tax', 'plans', 'trade', 'sim', 'settings'].includes(view));
-  const settingsBtn = $('#settings-btn');
-  if (settingsBtn) settingsBtn.classList.toggle('is-active', view === 'settings');
-  const [title, sub] = VIEW_TITLES[view] || ['Quanto', ''];
-  $('#page-title').textContent = title;
-  $('#page-sub').textContent = sub;
-  if (view === 'settings') { loadTotp(); loadBackups(); loadCoherence(); }
-  if (view === 'alerts') loadAutoAlerts();
-  if (view === 'sim') {
-    renderSim();
-    if (!Object.keys(RANGES).length) {
-      loadRanges().then(() => { if (state.view === 'sim') renderSim(); }).catch(() => {});
-    }
+// Router: una entrada por vista. El orden da igual; cada una se ejecuta al entrar.
+initRouter({ titles: VIEW_TITLES, sharedKpis: renderSharedKpis, resize: resizeCharts });
+register('dashboard', () => { renderDashboard(); watchRender(); loadSizing(); loadTwr(); });
+register('coins', () => renderCoins());
+register('market', () => { loadLiquidity(); loadLeverage(); loadPulse(); loadCalendar(); renderFearGreed(); });
+register('news', () => loadNews());
+register('sim', () => {
+  renderSim();
+  if (!Object.keys(RANGES).length) {
+    loadRanges().then(() => { if (state.view === 'sim') renderSim(); }).catch(() => {});
   }
-  if (view === 'news') loadNews();
-  if (view === 'market') { loadLiquidity(); loadLeverage(); loadPulse(); loadCalendar(); }
-  const topText = document.querySelector('.topbar-text');
-  if (topText) {
-    topText.classList.remove('is-entering');
-    void topText.offsetWidth;
-    topText.classList.add('is-entering');
-  }
-  if (view === 'dashboard') { renderDashboard(); watchRender(); loadSizing(); loadTwr(); }
-  if (view === 'coins') renderCoins();
-  if (view === 'tax') loadTax();
-  if (view === 'operations') loadTransactions();
-  if (view === 'settings') loadSettingsView();
-  if (view === 'alerts') renderAlertsView();
-  if (view === 'market') renderFearGreed();
-  if (view === 'trade') loadTradeChart();
-  if (view === 'plans') renderPlansView();
-  setTimeout(resizeCharts, 60);
-  if (location.hash !== '#/' + view) history.replaceState(null, '', '#/' + view);
-}
+});
+register('settings', () => { loadTotp(); loadBackups(); loadCoherence(); loadSettingsView(); });
+register('alerts', () => { loadAutoAlerts(); renderAlertsView(); });
+register('trade', () => loadTradeChart());
+register('plans', () => renderPlansView());
+register('tax', () => loadTax());
+register('operations', () => loadTransactions());
 
 /* Hoja "Más" del menú móvil */
 function toggleMoreSheet(force) {
@@ -2275,6 +2245,7 @@ $('#backups-body')?.addEventListener('click', async (e) => {
 
 // El núcleo llama aquí cuando una petición devuelve 401.
 setUnauthorized(showLogin);
+// Ya no se expone navigate en window: el router vive en su módulo.
 
 // Listeners de módulos extraídos.
 bindNews();
@@ -2284,12 +2255,8 @@ initRanges({ getWatch: () => WATCH, onRanges: () => { if (state.view === 'coins'
 initCoins({ onSaved: () => { renderDashboard(); if (state.view === 'settings') renderColdList(); } });
 initOperations();
 initDashboard({ renderTopCoins, renderFearGreedMini });
-initSettings({ loadOverview, loadTransactions });
+initSettings({ loadOverview, loadTransactions, boot });
 initSim({ getWatch: () => WATCH, getMercados: () => MERCADOS });
-
-/* Puente de la fase 2: el humo de UI navega con window.navigate.
-   Desaparece cuando el router esté extraído y las vistas se importen. */
-window.navigate = navigate;
 
 /* ------------------------------------------------ informe de coherencia */
 let COHERENCE = null;
