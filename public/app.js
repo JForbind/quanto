@@ -16,8 +16,8 @@ import { loadTax } from './src/views/tax.js';
 import { loadLiquidity, loadLeverage, loadPulse, loadCalendar, renderFearGreed } from './src/views/market.js';
 import { simState, renderSim, simNumbers, simCoinObject, simSaved, simSave, renderSimSaved, initSim } from './src/views/sim.js';
 import { loadAppearance } from './src/views/appearance.js';
-import { loadSettingsView, renderImportStatus, renderColdList, renderTelegram } from './src/views/settings.js';
-import { renderDashboard, renderSharedKpis, rangeCut, renderEvolutionChart, renderAllocation, loadRadar } from './src/views/dashboard.js';
+import { loadSettingsView, renderImportStatus, renderColdList, renderTelegram, initSettings } from './src/views/settings.js';
+import { renderDashboard, renderSharedKpis, rangeCut, renderEvolutionChart, renderAllocation, loadRadar, initDashboard } from './src/views/dashboard.js';
 import { themeVars, hexA, baseTooltip, chart } from './src/ui/charts.js';
 import { openModal, closeModal } from './src/ui/modal.js';
 import { RANGES, loadRanges, rangeFmt, initRanges } from './src/data/ranges.js';
@@ -1049,14 +1049,6 @@ async function loadHistory() {
   } catch {}
 }
 
-async function loadEvolution() {
-  if (state.evolution) return state.evolution;
-  try {
-    const data = await api('/api/evolution');
-    if (data && data.ok) state.evolution = data;
-  } catch {}
-  return state.evolution;
-}
 
 async function loadFearGreed() {
   try {
@@ -2291,6 +2283,8 @@ initAlerts({ coinBadge, renderTelegram });
 initRanges({ getWatch: () => WATCH, onRanges: () => { if (state.view === 'coins') renderCoins(); if (state.view === 'dashboard') renderTopCoins(); } });
 initCoins({ onSaved: () => { renderDashboard(); if (state.view === 'settings') renderColdList(); } });
 initOperations();
+initDashboard({ renderTopCoins, renderFearGreedMini });
+initSettings({ loadOverview, loadTransactions });
 initSim({ getWatch: () => WATCH, getMercados: () => MERCADOS });
 
 /* Puente de la fase 2: el humo de UI navega con window.navigate.

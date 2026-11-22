@@ -4,6 +4,22 @@ import { $, $$, state, api, esc, eur, eur0, num, pct, priceFmt, short, signed, a
 import { chart, themeVars, baseTooltip, hexA } from '../ui/charts.js';
 import { coinBadge, PIE_COLORS } from '../ui/coins.js';
 
+// La app inyecta las piezas del dashboard que todavía viven allí.
+let hooks = {};
+export function initDashboard(d = {}) {
+  hooks = d;
+}
+
+export async function loadEvolution() {
+  if (state.evolution) return state.evolution;
+  try {
+    const data = await api('/api/evolution');
+    if (data && data.ok) state.evolution = data;
+  } catch {}
+  return state.evolution;
+}
+
+
 /* KPIs compartidos: misma fila de resumen en las pestañas de contenido */
 export function renderSharedKpis(p) {
   if (!p) return;
@@ -43,8 +59,8 @@ export function renderDashboard() {
 
   renderEvolutionChart();
   renderAllocation();
-  renderTopCoins();
-  renderFearGreedMini();
+  if (hooks.renderTopCoins) hooks.renderTopCoins();
+  if (hooks.renderFearGreedMini) hooks.renderFearGreedMini();
 }
 
 export function rangeCut(range) {

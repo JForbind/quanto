@@ -3,6 +3,12 @@
 import { $, state, api, toast, esc, eur, num, dateShort, dateLong, dateTime } from '../core.js';
 import { renderDashboard } from './dashboard.js';
 
+// La app inyecta las recargas que viven en app.js.
+let hooks = {};
+export function initSettings(d = {}) {
+  hooks = d;
+}
+
 export function loadSettingsView() {
   renderSettings();
   renderImportStatus();
@@ -91,7 +97,7 @@ $('#keys-form')?.addEventListener('submit', async (e) => {
     toast('Claves guardadas. Sincronizando…');
     const sync = await api('/api/sync', { method: 'POST' });
     state.status = null;
-    await loadOverview(true);
+    if (hooks.loadOverview) await hooks.loadOverview(true);
     loadSettingsView();
     toast(sync.added ? `Sincronizadas ${sync.added} operaciones nuevas` : 'Sin operaciones nuevas');
   } catch (e2) { toast(e2.message, true); }
@@ -102,7 +108,7 @@ $('#keys-sync')?.addEventListener('click', async () => {
   btn.disabled = true;
   try {
     const r = await api('/api/sync', { method: 'POST' });
-    await loadOverview(true);
+    if (hooks.loadOverview) await hooks.loadOverview(true);
     toast(r.added ? `${r.added} operaciones nuevas` : 'Todo al día');
   } catch (e) { toast(e.message, true); }
   finally { btn.disabled = false; }
@@ -112,7 +118,7 @@ $('#keys-clear')?.addEventListener('click', async () => {
   if (!confirm('¿Borrar las claves de Bitvavo?')) return;
   try {
     await api('/api/settings', { method: 'POST', body: JSON.stringify({ apiKey: '', apiSecret: '', clearKeys: true }) });
-    await loadOverview(true);
+    if (hooks.loadOverview) await hooks.loadOverview(true);
     loadSettingsView();
     toast('Claves borradas');
   } catch (e) { toast(e.message, true); }
@@ -171,8 +177,8 @@ async function importHistoryText(text) {
       Comprado ${eur(r.bought)} · vendido ${eur(r.sold)}${r.unmatched > 0 ? `<br><span class="warn">⚠️ ${eur(r.unmatched)} en ventas sin compra registrada</span>` : ''}`;
     state.evolution = null;
     state.tax = null;
-    await loadOverview(true);
-    await loadTransactions();
+    if (hooks.loadOverview) await hooks.loadOverview(true);
+    if (hooks.loadTransactions) await hooks.loadTransactions();
     if (state.view === 'tax') loadTax();
     toast('Historial importado');
   } catch (e) {
