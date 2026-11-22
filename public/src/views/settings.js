@@ -1,6 +1,6 @@
 'use strict';
 // Ajustes: claves de Bitvavo, canales de aviso, importación, wallet fría y «Acerca de».
-import { $, state, api, toast, esc, eur, num, dateShort, dateLong, dateTime, haptic, hapticEstado } from '../core.js';
+import { $, state, api, toast, esc, eur, num, dateShort, dateLong, dateTime } from '../core.js';
 import { renderDashboard } from './dashboard.js';
 
 // La app inyecta las recargas que viven en app.js.
@@ -84,7 +84,7 @@ export function renderAbout() {
     ['Copias automáticas', 'en data/ junto a los JSON'],
   ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')
     + '<div><dt>Aplicación</dt><dd><a href="/Quanto.apk" download>Descargar app Android (APK)</a></dd></div>'
-    + '<div><dt>Vibración</dt><dd><button class="btn btn-ghost btn-xs" id="btn-vibrar" type="button">Probar</button> <span id="vibrar-estado" class="muted tiny"></span></dd></div>';
+;
 }
 
 $('#keys-form')?.addEventListener('submit', async (e) => {
@@ -273,12 +273,3 @@ export function renderTelegram(tg) {
   if (token && !token.value) token.placeholder = tg.tokenMasked ? `${tg.tokenMasked} (guardado)` : '123456789:AAE...';
 }
 
-// Prueba de vibración: dice qué mecanismo hay y si se ha podido lanzar.
-$('#about')?.addEventListener('click', (e) => {
-  if (!e.target || e.target.id !== 'btn-vibrar') return;
-  const est = hapticEstado();
-  const ok = haptic(120);
-  const partes = [est.app ? 'app Android' : 'navegador', est.nativo ? 'puente nativo' : (est.web ? 'API web' : 'sin API')];
-  const out = $('#vibrar-estado');
-  if (out) out.textContent = (ok ? 'lanzada · ' : 'no disponible · ') + partes.join(' · ');
-});

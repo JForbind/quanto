@@ -1,5 +1,4 @@
 'use strict';
-import { haptic } from '../core.js';
 // Cambio de vista deslizando el dedo a izquierda o derecha (solo en pantallas táctiles).
 // Sigue el orden del menú lateral, que respeta el orden personalizado del usuario.
 
@@ -69,7 +68,7 @@ export function initSwipe({ navigate, getView }) {
     const actual = orden.indexOf(getView());
     if (actual < 0) return;
     const destino = dx < 0 ? orden[actual + 1] : orden[actual - 1];
-    if (destino) { haptic(28); navigate(destino); }
+    if (destino) navigate(destino);
   }, { passive: true });
 
   // Cancelar si el gesto se vuelve vertical (scroll).

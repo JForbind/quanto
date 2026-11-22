@@ -4,7 +4,7 @@
    ============================================================ */
 
 import {
-  $, $$, state, charts, eurFmt, eur0Fmt, groupNum, eur, eur0, num, pct, priceFmt, short, haptic,
+  $, $$, state, charts, eurFmt, eur0Fmt, groupNum, eur, eur0, num, pct, priceFmt, short,
   dateShort, dateLong, dateTime, relTime, esc, signed, arrow, api, setUnauthorized,
   toast,
 } from './src/core.js';
@@ -167,12 +167,11 @@ document.getElementById('more-btn')?.addEventListener('click', () => toggleMoreS
 document.getElementById('more-backdrop')?.addEventListener('click', () => toggleMoreSheet(false));
 document.querySelectorAll('.more-item').forEach(b => b.addEventListener('click', () => {
   toggleMoreSheet(false);
-  haptic(22);
   navigate(b.dataset.view);
 }));
 
-$$('.nav-item').forEach(btn => btn.addEventListener('click', () => { if (btn.dataset.view) { haptic(22); navigate(btn.dataset.view); } }));
-document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', () => { haptic(22); navigate(btn.dataset.goto); }));
+$$('.nav-item').forEach(btn => btn.addEventListener('click', () => { if (btn.dataset.view) navigate(btn.dataset.view); }));
+document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', () => navigate(btn.dataset.goto)));
 
 /* ------------------------------------------------ login */
 function showLogin() {
@@ -288,7 +287,7 @@ function navApplyOrder(order) {
         btn = src.cloneNode(true);
         btn.classList.remove('is-active');
         btn.draggable = false;
-        btn.addEventListener('click', () => { if (btn.dataset.view) { haptic(22); navigate(btn.dataset.view); } });
+        btn.addEventListener('click', () => { if (btn.dataset.view) navigate(btn.dataset.view); });
       }
       dock.insertBefore(btn, btnMas);
     });

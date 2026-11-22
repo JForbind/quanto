@@ -117,30 +117,6 @@ export async function api(path, options = {}) {
 
 /* ------------------------------------------------ avisos en pantalla */
 let toastTimer = null;
-/**
- * Vibración corta en móvil. En la app Android se usa el puente nativo (no depende
- * del permiso del WebView ni de navigator.vibrate); en el navegador, la API web.
- */
-export function haptic(ms = 20) {
-  try {
-    if (typeof window !== 'undefined' && window.QuantoNative && typeof window.QuantoNative.vibrar === 'function') {
-      window.QuantoNative.vibrar(ms);
-      return true;
-    }
-  } catch {}
-  try {
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') return !!navigator.vibrate(ms);
-  } catch {}
-  return false;
-}
-
-/** Diagnóstico para Ajustes: qué mecanismo hay disponible. */
-export function hapticEstado() {
-  const nativo = !!(typeof window !== 'undefined' && window.QuantoNative && window.QuantoNative.vibrar);
-  const web = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
-  return { nativo, web, app: /QuantoApp\//.test(navigator.userAgent) };
-}
-
 export function toast(message, isError) {
   const el = $('#toast');
   if (!el) return;

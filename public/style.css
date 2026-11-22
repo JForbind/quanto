@@ -156,15 +156,6 @@ html[data-theme="light"] .orb-c { background: radial-gradient(circle at 40% 60%,
   backdrop-filter: blur(var(--blur)) saturate(170%);
 }
 
-/* En móvil, 80+ capas con desenfoque castigan la GPU del WebView y pueden
-   tumbar el proceso al abrir Ajustes. Se cambia por fondo translúcido sin blur. */
-@media (max-width: 900px) {
-  .glass {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
-
 /* ---------------------------------------------- login */
 .login {
   position: relative; z-index: 2;
