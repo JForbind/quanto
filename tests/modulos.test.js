@@ -70,3 +70,19 @@ test('cada módulo importa los símbolos compartidos que usa', () => {
   }
   assert.deepStrictEqual(problemas, []);
 });
+
+test('app.js importa todo lo que usa de los módulos', () => {
+  const RUTA_APP = path.join(__dirname, '..', 'public', 'app.js');
+  const exportados = new Set();
+  for (const f of ficheros(RAIZ)) {
+    const src = limpiar(fs.readFileSync(f, 'utf8'));
+    for (const m of src.matchAll(/export\s+(?:async\s+)?function\s+([\w$]+)/g)) exportados.add(m[1]);
+    for (const m of src.matchAll(/export\s+(?:const|let)\s+([\w$]+)/g)) exportados.add(m[1]);
+  }
+  const app = limpiar(fs.readFileSync(RUTA_APP, 'utf8'));
+  const importados = importadosYDeclarados(app);
+  const usados = new Set();
+  for (const m of app.matchAll(/(?<![\w.$])([A-Za-z_$][\w$]*)\s*\(/g)) usados.add(m[1]);
+  const faltan = [...(usados)].filter(n => exportados.has(n) && !importados.has(n)).sort();
+  assert.deepStrictEqual(faltan, [], 'app.js usa funciones de módulos sin importarlas: ' + faltan.join(', '));
+});
