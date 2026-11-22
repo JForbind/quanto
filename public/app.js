@@ -1790,7 +1790,7 @@ initPlans({ tradeSymbols });
 initAlerts({ coinBadge, renderTelegram });
 initRanges({ getWatch: () => WATCH, onRanges: () => { if (state.view === 'coins') renderCoins(); if (state.view === 'dashboard') renderTopCoins(); } });
 initCoins({ onSaved: () => { renderDashboard(); if (state.view === 'settings') renderColdList(); } });
-initTrade({ getWatch: () => WATCH });
+initTrade({ getWatch: () => WATCH, loadRegime, loadRegimeWatch });
 initOperations();
 initDashboard({ renderTopCoins, renderFearGreedMini });
 initSettings({ loadOverview, loadTransactions, boot });

@@ -8,8 +8,12 @@ import { coinColor, coinBadge, rngBlock } from '../ui/coins.js';
 /* ------------------------------------------------ trading */
 // La app inyecta la lista de seguimiento (vive en app.js).
 let getWatch = () => [];
+// La app inyecta la carga de régimen y del vigilante (viven en app.js).
+let hooks = {};
 export function initTrade(d = {}) {
   if (typeof d.getWatch === 'function') getWatch = d.getWatch;
+  if (typeof d.loadRegime === 'function') hooks.loadRegime = d.loadRegime;
+  if (typeof d.loadRegimeWatch === 'function') hooks.loadRegimeWatch = d.loadRegimeWatch;
 }
 
 export function tradeSymbols() {
@@ -69,8 +73,8 @@ export async function loadTradeChart() {
     const limite = state.tradeAll ? 1000 : 300;
     const r = await api(`/api/candles?symbol=${encodeURIComponent(sym)}&interval=${iv}&limit=${limite}`);
     renderCandles(sym, iv, r.candles || []);
-    loadRegime(sym);
-    loadRegimeWatch();
+    if (hooks.loadRegime) hooks.loadRegime(sym);
+    if (hooks.loadRegimeWatch) hooks.loadRegimeWatch();
     // Análisis automático la primera vez para cada moneda e intervalo
     if (state.analystKey !== analystKeyFor(sym, iv) && $('#analyst-btn')) runAnalyst();
   } catch (e) {
