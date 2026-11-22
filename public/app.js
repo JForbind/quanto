@@ -14,14 +14,14 @@ import { renderCoins, initCoins } from './src/views/coins.js';
 import { renderOperations, initOperations } from './src/views/operations.js';
 import { loadTax } from './src/views/tax.js';
 import { loadLiquidity, loadLeverage, loadPulse, loadCalendar, renderFearGreed } from './src/views/market.js';
-import { simState, renderSim, simNumbers, simCoinObject, simSaved, simSave, renderSimSaved, initSim } from './src/views/sim.js';
+import { simState, renderSim, simNumbers, simCoinObject, simSaved, simSave, renderSimSaved, renderSimBuy, initSim } from './src/views/sim.js';
 import { loadAppearance } from './src/views/appearance.js';
 import { loadSettingsView, renderImportStatus, renderColdList, renderTelegram, initSettings } from './src/views/settings.js';
-import { renderDashboard, renderSharedKpis, rangeCut, renderEvolutionChart, renderAllocation, loadRadar, initDashboard } from './src/views/dashboard.js';
+import { renderDashboard, renderSharedKpis, rangeCut, renderEvolutionChart, renderAllocation, loadRadar, sparklineWide, initDashboard } from './src/views/dashboard.js';
 import { themeVars, hexA, baseTooltip, chart } from './src/ui/charts.js';
 import { openModal, closeModal } from './src/ui/modal.js';
 import { RANGES, loadRanges, rangeFmt, initRanges } from './src/data/ranges.js';
-import { PIE_COLORS, coinColor, loadCoinIcons, coinBadge, sparklineSvg } from './src/ui/coins.js';
+import { PIE_COLORS, coinColor, loadCoinIcons, coinBadge, sparklineSvg, rngBlock } from './src/ui/coins.js';
 import { loadNews, bindNews } from './src/views/news.js';
 
 /* ------------------------------------------------ tema y gráficos */

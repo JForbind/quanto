@@ -18,7 +18,7 @@ const COMPARTIDOS = [
   'chart', 'themeVars', 'baseTooltip', 'hexA', 'openModal', 'closeModal',
   'RANGES', 'loadRanges', 'rangeFmt',
   'renderDashboard', 'renderSharedKpis', 'rangeCut', 'renderEvolutionChart', 'renderAllocation', 'loadRadar',
-  'loadEvolution', 'loadFearGreed', 'loadHistory', 'loadSparklines', 'watchRender',
+  'loadEvolution', 'renderSimBuy', 'rngBlock', 'sparklineWide', 'loadFearGreed', 'loadHistory', 'loadSparklines', 'watchRender',
 ];
 
 function ficheros(dir) {
