@@ -4,14 +4,14 @@
   "private": true,
   "type": "commonjs",
   "main": "server.js",
-  "description": "Quanto — cartera cripto (Bitvavo) con informe fiscal FIFO, índice miedo y codicia y wallet fría",
+  "description": "Quanto \u2014 cartera cripto (Bitvavo) con informe fiscal FIFO, \u00edndice miedo y codicia y wallet fr\u00eda",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "start": "node server.js",
     "test": "node --test tests/*.test.js",
-    "test:ui": "node scripts/ui-smoke.js",
+    "test:ui": "npm run build:web && node scripts/ui-smoke.js",
     "build:web": "vite build",
     "dev:web": "vite"
   },
