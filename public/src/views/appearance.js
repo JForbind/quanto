@@ -8,7 +8,10 @@ function appearanceUrl(kind, ts) {
 }
 
 function applyWallpaper(on, ts) {
-  if (on) {
+  // En móvil el fondo a tamaño completo consume mucha memoria y puede tumbar el
+  // WebView al abrir Ajustes; allí se deja el fondo liso.
+  const cabe = window.innerWidth >= 900;
+  if (on && cabe) {
     document.body.style.setProperty('--wallpaper', `url("${appearanceUrl('wallpaper', ts)}")`);
     document.body.classList.add('has-wallpaper');
   } else {
@@ -30,17 +33,37 @@ function applyAvatar(on, ts) {
   }
 }
 
+/** Miniatura cuadrada en dataURL: evita retener la imagen a tamaño completo. */
+async function miniatura(url, lado = 96) {
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = lado; c.height = lado;
+    const ctx = c.getContext('2d');
+    const r = Math.max(lado / img.width, lado / img.height);
+    const w = img.width * r, h = img.height * r;
+    ctx.drawImage(img, (lado - w) / 2, (lado - h) / 2, w, h);
+    return c.toDataURL('image/jpeg', 0.72);
+  } catch {
+    return '';
+  }
+}
+
 function renderAppearancePreviews(a) {
-  const set = (sel, kind, has) => {
+  const set = async (sel, kind, has) => {
     const el = $(sel);
     if (!el) return;
-    if (has) {
-      el.style.backgroundImage = `url("${appearanceUrl(kind, a && a.ts && a.ts[kind])}")`;
-      el.classList.add('has-img');
-    } else {
+    if (!has) {
       el.style.backgroundImage = '';
       el.classList.remove('has-img');
+      return;
     }
+    const src = await miniatura(appearanceUrl(kind, a && a.ts && a.ts[kind]));
+    if (!src) return;
+    el.style.backgroundImage = `url("${src}")`;
+    el.classList.add('has-img');
   };
   set('#wallpaper-preview', 'wallpaper', !!(a && a.wallpaper));
   set('#avatar-preview', 'avatar', !!(a && a.avatar));
