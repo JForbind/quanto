@@ -10,9 +10,11 @@ import {
 } from './src/core.js';
 import { renderPlansView, initPlans } from './src/views/plans.js';
 import { renderAlertsView, initAlerts } from './src/views/alerts.js';
+import { renderCoins, initCoins } from './src/views/coins.js';
 import { themeVars, hexA, baseTooltip, chart } from './src/ui/charts.js';
 import { openModal, closeModal } from './src/ui/modal.js';
 import { RANGES, loadRanges, rangeFmt, initRanges } from './src/data/ranges.js';
+import { PIE_COLORS, coinColor, loadCoinIcons, coinBadge, sparklineSvg } from './src/ui/coins.js';
 import { loadNews, bindNews } from './src/views/news.js';
 
 /* ------------------------------------------------ tema y gráficos */
@@ -1743,13 +1745,8 @@ $$('#range-chips button').forEach(b => b.addEventListener('click', () => {
   renderEvolutionChart();
 }));
 
-const PIE_COLORS = ['#8ba4ff', '#22d3ee', '#a78bfa', '#34e0a1', '#ffc266', '#ff7387', '#60a5fa', '#f472b6', '#4ade80', '#facc15', '#c084fc', '#2dd4bf'];
 
-function coinColor(symbol) {
-  let h = 0;
-  for (const ch of String(symbol)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return PIE_COLORS[h % PIE_COLORS.length];
-}
+
 
 function renderAllocation() {
   const p = state.portfolio;
@@ -1810,24 +1807,7 @@ function renderAllocation() {
   }
 }
 
-let COIN_ICONS = new Set();
-async function loadCoinIcons() {
-  try {
-    const res = await fetch('/icons/coins/index.json', { cache: 'force-cache' });
-    if (res.ok) COIN_ICONS = new Set((await res.json()).map(s => String(s).toLowerCase()));
-  } catch { /* sin iconos: se usa la insignia con letras */ }
-}
 
-function coinBadge(symbol) {
-  const sym = String(symbol || '').toLowerCase();
-  if (COIN_ICONS.has(sym)) {
-    return `<span class="coin-badge coin-badge-icon"><img src="/icons/coins/${encodeURIComponent(sym)}.png" alt="" loading="lazy" decoding="async"></span>`;
-  }
-  const c = coinColor(symbol);
-  const label = String(symbol).length <= 4 ? String(symbol) : String(symbol).slice(0, 3);
-  const dyn = `<img class="coin-badge-dyn" src="/api/icon/${encodeURIComponent(String(symbol).toUpperCase())}" alt="" loading="lazy" decoding="async">`;
-  return `<span class="coin-badge" style="background:linear-gradient(140deg,${c},${hexA(c, .55)})">${esc(label)}${dyn}</span>`;
-}
 
 /* Radar del mercado: mayores subidas y bajadas del día */
 function radarRow(item, up) {
@@ -1870,21 +1850,7 @@ function sparklineWide(values) {
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
-function sparklineSvg(values) {
-  if (!Array.isArray(values) || values.length < 2) return '<span class="muted">—</span>';
-  const w = 72, h = 26, pad = 3;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const pts = values.map((v, i) => {
-    const x = pad + (i * (w - pad * 2)) / (values.length - 1);
-    const y = pad + (h - pad * 2) * (1 - (v - min) / span);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  const up = values[values.length - 1] >= values[0];
-  const color = up ? 'var(--pos)' : 'var(--neg)';
-  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-}
+
 
 /* ------------------------------------------------ trading */
 function tradeSymbols() {
@@ -2376,43 +2342,9 @@ async function loadSparklines() {
 
 
 
-function rngBlock(symbol) {
-  const r = RANGES[symbol];
-  if (!r || (!r.high && !r.ath)) return '';
-  const y = r.year || new Date().getFullYear();
-  const etiquetaMax = r.athApprox && r.athFrom
-    ? 'Máximo desde ' + new Date(r.athFrom).getFullYear()
-    : 'Máximo histórico';
-  const ayudaMax = r.athApprox && r.athFrom
-    ? 'No hay histórico completo: es el máximo desde que tenemos datos'
-    : '';
-  const cell = (label, value, approx, title) => `<span class="rng-cell"><i>${label}</i><b${approx ? ` class="approx"${title ? ` title="${esc(title)}"` : ''}` : ''}>${value ? (approx ? '≈ ' : '') + rangeFmt(value) + ' €' : '—'}</b></span>`;
-  return `<div class="coin-rng">
-    ${cell(etiquetaMax, r.ath, r.athApprox, ayudaMax)}
-    ${cell('Máximo ' + y, r.high)}
-    ${cell('Mínimo ' + y, r.low)}
-  </div>`;
-}
 
-function coinRow(c, index) {
-  const change = c.dayChangePct;
-  return `<tr data-symbol="${esc(c.symbol)}" class="clickable">
-    <td class="coin-cell" data-label="Moneda">
-      <div class="coin">${coinBadge(c.symbol)}
-        <div class="coin-name"><b>${esc(c.symbol)}</b></div>
-        ${rngBlock(c.symbol)}
-      </div>
-    </td>
-    <td class="num" data-label="Cantidad">${num(c.amount, 8)}</td>
-    <td class="num" data-label="Precio">${priceFmt(c.price)}</td>
-    <td class="num" data-label="P. medio">${c.costKnown ? priceFmt(c.avgPrice) : '<span class="muted">n/d</span>'}</td>
-    <td class="num" data-label="Valor"><b>${eur(c.value)}</b></td>
-    <td class="num" data-label="Invertido">${c.costKnown ? eur(c.invested) : '<span class="muted">n/d</span>'}</td>
-    <td class="num ${c.pnl === null ? '' : signed(c.pnl)}" data-label="P/L">${c.pnl === null ? '<span class="muted">n/d</span>' : `<b>${c.pnl >= 0 ? '+' : ''}${eur(c.pnl)}</b><br><small>${pct(c.pnlPct)}</small>`}</td>
-    <td class="num ${signed(change || 0)}" data-label="Hoy">${change === null || change === undefined ? '—' : pct(change)}</td>
-    <td class="num spark-cell" data-label="7 días">${sparklineSvg(state.sparklines[c.symbol])}</td>
-  </tr>`;
-}
+
+
 
 function renderTopCoins() {
   const p = state.portfolio;
@@ -2639,150 +2571,7 @@ $$('#fg-ranges button').forEach(b => b.addEventListener('click', () => {
   renderFearGreed();
 }));
 
-/* ============================================================
-   MONEDAS
-   ============================================================ */
-function filteredCoins() {
-  const p = state.portfolio;
-  if (!p) return [];
-  let rows = p.coins.slice();
-  const q = state.coinsQuery.trim().toLowerCase();
-  if (q) rows = rows.filter(c => c.symbol.toLowerCase().includes(q));
-  const sort = state.coinsSort;
-  rows.sort((a, b) => {
-    if (sort === 'name') return a.symbol.localeCompare(b.symbol);
-    if (sort === 'pnl') return (b.pnl || -Infinity) - (a.pnl || -Infinity);
-    if (sort === 'pnlpct') return (b.pnlPct || -Infinity) - (a.pnlPct || -Infinity);
-    if (sort === 'day') return (b.dayChangePct || 0) - (a.dayChangePct || 0);
-    return b.value - a.value;
-  });
-  return rows;
-}
-
-function renderCoins() {
-  const rows = filteredCoins();
-  const tbody = $('#coins-tbody');
-  const empty = $('#coins-empty');
-  if (!tbody) return;
-  $('#coins-count').textContent = `${rows.length} ${rows.length === 1 ? 'moneda' : 'monedas'}`;
-  if (!rows.length) {
-    tbody.innerHTML = '';
-    empty.classList.remove('hidden');
-    return;
-  }
-  empty.classList.add('hidden');
-  tbody.innerHTML = rows.map(c => coinRow(c)).join('');
-  tbody.querySelectorAll('tr[data-symbol]').forEach(tr => tr.addEventListener('click', () => openCoin(tr.dataset.symbol)));
-}
-
-$('#coins-search')?.addEventListener('input', (e) => { state.coinsQuery = e.target.value; renderCoins(); });
-$('#coins-sort')?.addEventListener('change', (e) => { state.coinsSort = e.target.value; renderCoins(); });
-
-function openCoin(symbol) {
-  const p = state.portfolio;
-  const coin = p && p.coins.find(c => c.symbol === symbol);
-  if (!coin) return;
-  const rows = state.transactions.filter(t => t.symbol === symbol).slice(0, 6);
-  $('#modal-title').textContent = symbol + ' · EUR';
-  $('#modal-body').innerHTML = `
-    <div class="modal-grid">
-      <div class="stat"><span>Cantidad</span><strong>${num(coin.amount, 8)}</strong></div>
-      <div class="stat"><span>Valor actual</span><strong>${eur(coin.value)}</strong></div>
-      <div class="stat"><span>Precio</span><strong>${priceFmt(coin.price)}</strong></div>
-      <div class="stat"><span>Precio medio</span><strong>${coin.avgPrice ? priceFmt(coin.avgPrice) : 'n/d'}</strong></div>
-      <div class="stat"><span>Invertido</span><strong>${coin.invested !== null ? eur(coin.invested) : 'n/d'}</strong></div>
-      <div class="stat"><span>P/L</span><strong class="${coin.pnl === null ? '' : signed(coin.pnl)}">${coin.pnl === null ? 'n/d' : (coin.pnl >= 0 ? '+' : '') + eur(coin.pnl)} ${coin.pnlPct !== null ? '(' + pct(coin.pnlPct) + ')' : ''}</strong></div>
-      <div class="stat"><span>En Bitvavo</span><strong>${num(coin.onExchange, 8)}</strong></div>
-      <div class="stat"><span>En wallet fría</span><strong>${num(coin.inCold, 8)}</strong></div>
-    </div>
-    <div id="coin-chart" class="chart" style="height:220px"></div>
-    ${(() => {
-      const r = RANGES[symbol] || {};
-      if (!r.high && !r.ath) return '';
-      const f = (v) => (v ? rangeFmt(v) : '—');
-      const fecha = (ts) => ts ? new Date(ts).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '';
-      return `<h3 class="h3" style="margin-top:16px">Rangos de precio</h3>
-      <div class="rng-grid">
-        <div class="stat"><span>${r.athApprox && r.athFrom ? 'Máximo desde ' + new Date(r.athFrom).getFullYear() : 'Máximo histórico'}</span><strong>${f(r.ath)}</strong><small>${r.athApprox && r.athFrom ? 'sin histórico completo' : fecha(r.athDate)}</small></div>
-        <div class="stat"><span>Máximo ${r.year || ''}</span><strong>${f(r.high)}</strong><small>año en curso</small></div>
-        <div class="stat"><span>Mínimo ${r.year || ''}</span><strong>${f(r.low)}</strong><small>año en curso</small></div>
-      </div>
-      ${r.high && r.low && r.high > r.low ? `<div class="rng-bar" title="Dónde está el precio dentro del rango del año">
-        <span style="left:${Math.max(0, Math.min(100, ((coin.price - r.low) / (r.high - r.low)) * 100))}%"></span>
-      </div>
-      <p class="tiny muted" style="margin:6px 0 0">La marca señala el precio actual dentro del rango de ${r.year || 'este año'}.</p>` : ''}`;
-    })()}
-    <div class="modal-grid" style="grid-template-columns:1fr 1fr">
-      <form class="field" id="coin-invested-form">
-        <span>Invertido total (€)</span>
-        <input id="coin-invested" type="number" step="any" min="0" placeholder="Automático" value="${coin.invested !== null ? coin.invested : ''}">
-      </form>
-      <form class="field" id="coin-cold-form">
-        <span>Cantidad en wallet fría</span>
-        <input id="coin-cold" type="number" step="any" min="0" placeholder="0" value="${coin.inCold || ''}">
-      </form>
-    </div>
-    ${rows.length ? `<h3 class="h3" style="margin-top:16px">Últimas operaciones</h3>
-      <table class="table"><tbody>${rows.map(t => `<tr><td>${dateShort(t.ts)}</td><td><span class="pill ${t.type}">${esc(t.label)}</span></td><td class="num">${num(t.amount, 6)}</td><td class="num">${t.price ? priceFmt(t.price) : '—'}</td></tr>`).join('')}</tbody></table>` : ''}
-  `;
-  $('#modal-foot').innerHTML = `
-    <button class="btn btn-ghost" data-close="1">Cerrar</button>
-    <button class="btn btn-primary" id="coin-save">Guardar cambios</button>`;
-  $('#modal-foot').querySelector('[data-close]').addEventListener('click', closeModal);
-  $('#coin-save').addEventListener('click', async () => {
-    try {
-      const invested = $('#coin-invested').value;
-      const cold = $('#coin-cold').value;
-      if (invested !== '') await api('/api/overrides', { method: 'POST', body: JSON.stringify({ symbol, invested }) });
-      else await api('/api/overrides', { method: 'POST', body: JSON.stringify({ symbol, invested: null }) });
-      if (cold !== '') await api('/api/holdings', { method: 'POST', body: JSON.stringify({ symbol, amount: Number(cold), invested: invested === '' ? null : Number(invested) }) });
-      closeModal();
-      toast('Guardado');
-      state.portfolio = (await api('/api/portfolio?force=1'));
-      state.cold = await api('/api/holdings');
-      state.overrides = await api('/api/overrides');
-      renderDashboard();
-      if (state.view === 'coins') renderCoins();
-      if (state.view === 'settings') renderColdList();
-    } catch (e) { toast(e.message, true); }
-  });
-  openModal();
-  loadCoinChart(symbol);
-}
-
-async function loadCoinChart(symbol) {
-  try {
-    const data = await api('/api/candles?symbol=' + encodeURIComponent(symbol) + '&interval=1d&limit=180');
-    // La API puede devolver velas en bruto ([ts, open, high, low, close, vol]) o puntos ya normalizados.
-    const raw = Array.isArray(data.points) && data.points.length
-      ? data.points
-      : (data.candles || []).map(c => ({ t: c[0], open: c[1], high: c[2], low: c[3], close: c[4], volume: c[5] }));
-    const pts = raw.slice().sort((a, b) => a.t - b.t);
-    if (!pts.length) return;
-    const v = themeVars();
-    chart('coin-chart', {
-      animationDuration: 400,
-      grid: { left: 4, right: 10, top: 10, bottom: 4, containLabel: true },
-      tooltip: {
-        ...baseTooltip(v),
-        formatter: (items) => {
-          const it = items[0];
-          const d = pts[it.dataIndex];
-          if (!d) return '';
-          const up = d.close >= d.open;
-          return `${new Date(d.t).toLocaleDateString('es-ES')}<br/>A ${priceFmt(d.open)} · C ${priceFmt(d.close)}<br/><span style="color:${up ? v.pos : v.neg}">${up ? '▲' : '▼'} ${pct(((d.close - d.open) / d.open) * 100)}</span>`;
-        },
-      },
-      xAxis: { type: 'category', data: pts.map(p => new Date(p.t).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: v.muted, fontSize: 10, interval: Math.floor(pts.length / 6) } },
-      yAxis: { type: 'value', scale: true, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: v.muted, fontSize: 10, formatter: (x) => priceFmt(x) }, splitLine: { lineStyle: { color: v.line, type: [4, 4] } } },
-      series: [{
-        type: 'candlestick',
-        data: pts.map(p => [p.open, p.close, p.low, p.high]),
-        itemStyle: { color: v.pos, color0: v.neg, borderColor: v.pos, borderColor0: v.neg },
-      }],
-    });
-  } catch {}
-}
+// Monedas vive en src/views/coins.js
 
 /* ============================================================
    OPERACIONES
@@ -3910,6 +3699,7 @@ bindNews();
 initPlans({ tradeSymbols });
 initAlerts({ coinBadge, renderTelegram });
 initRanges({ getWatch: () => WATCH, onRanges: () => { if (state.view === 'coins') renderCoins(); if (state.view === 'dashboard') renderTopCoins(); } });
+initCoins({ onSaved: () => { renderDashboard(); if (state.view === 'settings') renderColdList(); } });
 
 /* Puente de la fase 2: el humo de UI navega con window.navigate.
    Desaparece cuando el router esté extraído y las vistas se importen. */
