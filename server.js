@@ -40,7 +40,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '4.2.0';
+const VERSION = '4.2.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -3711,6 +3711,49 @@ app.get('/api/analyze', async (req, res) => {
     res.json({ ok: true, ...out, interval, at: Date.now() });
   } catch (e) {
     res.status(502).json({ error: 'No se pudo analizar: ' + e.message });
+  }
+});
+
+// ---------------- liquidez y noticias ----------------
+let levCache = { at: 0, data: null };
+const LEV_TTL = 6 * 3600e3;
+
+app.get('/api/leverage', async (req, res) => {
+  if (levCache.data && Date.now() - levCache.at < LEV_TTL) {
+    return res.json({ ok: true, ...levCache.data, cached: true });
+  }
+  try {
+    const data = await getLeverage();
+    levCache = { at: Date.now(), data };
+    res.json({ ok: true, ...data, cached: false });
+  } catch (e) {
+    if (levCache.data) return res.json({ ok: true, ...levCache.data, cached: true, stale: true });
+    res.status(502).json({ error: 'No se pudo calcular la deuda: ' + e.message });
+  }
+});
+
+let newsCache = { at: 0, key: '', data: null };
+const NEWS_TTL = 15 * 60e3;
+
+// La traducción de titulares va en segundo plano: el número de pendientes se recalcula.
+function newsPending(data) {
+  const items = (data && data.items) || [];
+  return items.filter(i => i.lang && i.lang !== 'es' && !i.translated).length;
+}
+
+app.get('/api/news', async (req, res) => {
+  const coins = String(req.query.coins || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean).slice(0, 40);
+  const key = coins.join(',');
+  if (newsCache.data && newsCache.key === key && Date.now() - newsCache.at < NEWS_TTL) {
+    return res.json({ ok: true, ...newsCache.data, pending: newsPending(newsCache.data), cached: true });
+  }
+  try {
+    const data = await getNews({ coins, limit: 60 });
+    newsCache = { at: Date.now(), key, data };
+    res.json({ ok: true, ...data, pending: newsPending(data), cached: false });
+  } catch (e) {
+    if (newsCache.data) return res.json({ ok: true, ...newsCache.data, pending: newsPending(newsCache.data), cached: true, stale: true });
+    res.status(502).json({ error: 'No se pudieron leer las noticias: ' + e.message });
   }
 });
 

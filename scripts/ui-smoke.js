@@ -92,6 +92,20 @@ function waitFor(url, ms = 40000) {
         if (errores.length > antes) fallos.push(`${nombre} · ${view}: ${errores[antes]}`);
       }
 
+      // Las APIs deben responder por código, no por una referencia rota:
+      // un refactor que se lleve un endpoint o una función tiene que cantar aquí.
+      const APIs = ['/api/overview', '/api/backups', '/api/regime-watch', '/api/coherence', '/api/twr?days=30', '/api/news', '/api/leverage'];
+      for (const url of APIs) {
+        const res = await page.evaluate(async u => {
+          const r = await fetch(u, { credentials: 'same-origin' });
+          const t = await r.text();
+          return { status: r.status, body: t.slice(0, 400) };
+        }, url);
+        if (res.status >= 500 || /is not defined|is not a function|Cannot read propert/.test(res.body)) {
+          fallos.push(`${nombre} · ${url}: ${res.status} ${res.body.slice(0, 90)}`);
+        }
+      }
+
       // el cajón de noticias y el simulador cargan datos: se les da un respiro
       await page.waitForTimeout(1200);
       if (errores.length > 0) {
