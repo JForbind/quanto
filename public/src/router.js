@@ -51,6 +51,14 @@ export function navigate(view) {
     try { enter(); } catch (e) { console.error('[router] ' + view + ':', e.message); }
   }
 
+  // El scroll es del body y se compartía entre paneles: al cambiar de vista se
+  // vuelve arriba para que el nuevo panel empiece por su principio.
+  try {
+    window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  } catch {}
+
   if (alRedimensionar) setTimeout(alRedimensionar, 60);
   if (location.hash !== '#/' + view) history.replaceState(null, '', '#/' + view);
 }
