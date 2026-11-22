@@ -10,43 +10,15 @@ import {
 } from './src/core.js';
 import { renderPlansView, initPlans } from './src/views/plans.js';
 import { renderAlertsView, initAlerts } from './src/views/alerts.js';
+import { themeVars, hexA, baseTooltip, chart } from './src/ui/charts.js';
+import { openModal, closeModal } from './src/ui/modal.js';
+import { RANGES, loadRanges, rangeFmt, initRanges } from './src/data/ranges.js';
 import { loadNews, bindNews } from './src/views/news.js';
 
 /* ------------------------------------------------ tema y gráficos */
-function themeVars() {
-  const cs = getComputedStyle(document.documentElement);
-  return {
-    text: cs.getPropertyValue('--text').trim() || '#edf1f8',
-    muted: cs.getPropertyValue('--muted').trim() || '#8593a8',
-    line: cs.getPropertyValue('--line').trim() || 'rgba(255,255,255,.09)',
-    accent: cs.getPropertyValue('--accent').trim() || '#8ba4ff',
-    accent2: cs.getPropertyValue('--accent-2').trim() || '#22d3ee',
-    pos: cs.getPropertyValue('--pos').trim() || '#34e0a1',
-    neg: cs.getPropertyValue('--neg').trim() || '#ff7387',
-    text2: cs.getPropertyValue('--text-2').trim() || '#b6c1d4',
-  };
-}
-function hexA(hex, alpha) {
-  const h = String(hex || '').trim();
-  if (!h.startsWith('#')) return h;
-  let c = h.slice(1);
-  if (c.length === 3) c = c.split('').map(x => x + x).join('');
-  const n = parseInt(c, 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}
-function chart(id, option) {
-  if (typeof echarts === 'undefined') return null;
-  const el = document.getElementById(id);
-  if (!el) return null;
-  let inst = echarts.getInstanceByDom(el);
-  if (!inst || inst.isDisposed()) {
-    el.innerHTML = '';
-    inst = echarts.init(el, null, { renderer: 'canvas' });
-    charts.set(id, inst);
-  }
-  inst.setOption(option, true);
-  return inst;
-}
+
+
+
 
 /** Vacía un gráfico (mensaje de "sin datos") liberando antes la instancia. */
 function clearChart(id, html) {
@@ -60,17 +32,7 @@ function clearChart(id, html) {
 function resizeCharts() { charts.forEach(c => { try { c.resize(); } catch {} }); }
 window.addEventListener('resize', () => { clearTimeout(window.__rz); window.__rz = setTimeout(resizeCharts, 120); });
 
-function baseTooltip(v) {
-  return {
-    trigger: 'axis',
-    backgroundColor: v.tip,
-    borderColor: v.line,
-    borderWidth: 1,
-    padding: [9, 12],
-    textStyle: { color: v.text, fontSize: 12 },
-    axisPointer: { type: 'line', lineStyle: { color: v.line, width: 1 } },
-  };
-}
+
 
 /* ------------------------------------------------ toast */
 /* ------------------------------------------------ navegación */
@@ -2411,30 +2373,8 @@ async function loadSparklines() {
   } catch { /* es un extra: si falla, la tabla sigue igual */ }
 }
 
-function rangeFmt(v) {
-  const a = Math.abs(Number(v) || 0);
-  if (!a) return '—';
-  if (a < 0.001) return num(v, 6);
-  if (a < 1) return num(v, 4);
-  if (a < 10) return num(v, 3);
-  if (a < 1000) return num(v, 2);
-  return priceFmt(v);
-}
 
-let RANGES = {};
-async function loadRanges() {
-  const cartera = ((state.portfolio && state.portfolio.coins) || []).map(c => c.symbol);
-  const seguidas = (typeof WATCH !== 'undefined' && Array.isArray(WATCH)) ? WATCH : [];
-  const syms = [...new Set([...cartera, ...seguidas])].slice(0, 30);
-  if (!syms.length) return;
-  try {
-    const d = await api('/api/ranges?symbols=' + encodeURIComponent(syms.join(',')));
-    RANGES = d.ranges || {};
-    state.ranges = RANGES;
-    if (state.view === 'coins') renderCoins();
-    if (state.view === 'dashboard') renderTopCoins();
-  } catch {}
-}
+
 
 function rngBlock(symbol) {
   const r = RANGES[symbol];
@@ -3276,8 +3216,8 @@ $('#cold-form')?.addEventListener('submit', async (e) => {
 });
 
 /* ------------------------------------------------ modal */
-function openModal() { $('#modal').classList.remove('hidden'); }
-function closeModal() { $('#modal').classList.add('hidden'); }
+
+
 document.querySelectorAll('[data-close="1"]').forEach(el => el.addEventListener('click', closeModal));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
@@ -3969,6 +3909,7 @@ setUnauthorized(showLogin);
 bindNews();
 initPlans({ tradeSymbols });
 initAlerts({ coinBadge, renderTelegram });
+initRanges({ getWatch: () => WATCH, onRanges: () => { if (state.view === 'coins') renderCoins(); if (state.view === 'dashboard') renderTopCoins(); } });
 
 /* Puente de la fase 2: el humo de UI navega con window.navigate.
    Desaparece cuando el router esté extraído y las vistas se importen. */
