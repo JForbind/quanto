@@ -12,8 +12,25 @@ let x0 = 0;
 let y0 = 0;
 let t0 = 0;
 
-// Zonas donde el gesto horizontal tiene otro significado (gráficos, tablas, pestañas).
-const EXCLUIR = 'canvas, .table-wrap, [data-noswipe], input, textarea, select, .chips, .tabs, .range-chips';
+/**
+ * ¿El gesto cae donde deslizar en horizontal significa otra cosa?
+ * Solo se excluye si de verdad hay algo que se desplaza en horizontal (o un control),
+ * no por la mera presencia de una tabla.
+ */
+function bloqueaGestoS(el) {
+  let n = el;
+  while (n && n !== document.body && n !== document.documentElement) {
+    const tag = n.tagName;
+    if (tag === 'CANVAS' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (n.hasAttribute && n.hasAttribute('data-noswipe')) return true;
+    if (n.scrollWidth > n.clientWidth + 4) {
+      const ox = getComputedStyle(n).overflowX;
+      if (ox === 'auto' || ox === 'scroll' || ox === 'hidden') return true;
+    }
+    n = n.parentElement;
+  }
+  return false;
+}
 
 /** Vistas en el orden del menú (incluye las que están en la hoja «Más»). */
 function ordenVistas() {
@@ -29,7 +46,7 @@ export function initSwipe({ navigate, getView }) {
     if (window.innerWidth > ANCHO_MAX) return;
     const t = e.touches[0];
     const el = document.elementFromPoint(t.clientX, t.clientY);
-    if (el && el.closest(EXCLUIR)) return;
+    if (el && bloqueaGestoS(el)) return;
     x0 = t.clientX;
     y0 = t.clientY;
     t0 = Date.now();
