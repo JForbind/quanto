@@ -7,7 +7,8 @@ ENV NODE_ENV=production \
 
 # Dependencias primero (mejor caché de capas)
 COPY package.json ./
-RUN npm install --no-audit --no-fund \
+# --include=dev: NODE_ENV=production haría que npm omitiera Vite y no habría build.
+RUN npm install --include=dev --no-audit --no-fund \
  && npm cache clean --force \
  && apk add --no-cache su-exec
 
