@@ -1,6 +1,7 @@
 'use strict';
 // Ajustes: claves de Bitvavo, canales de aviso, importación, wallet fría y «Acerca de».
 import { $, state, api, toast, esc, eur, num, dateShort, dateLong, dateTime } from '../core.js';
+import { renderDashboard } from './dashboard.js';
 
 export function loadSettingsView() {
   renderSettings();

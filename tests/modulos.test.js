@@ -17,6 +17,7 @@ const COMPARTIDOS = [
   'coinBadge', 'coinRow', 'sparklineSvg', 'coinColor', 'PIE_COLORS', 'loadCoinIcons',
   'chart', 'themeVars', 'baseTooltip', 'hexA', 'openModal', 'closeModal',
   'RANGES', 'loadRanges', 'rangeFmt',
+  'renderDashboard', 'renderSharedKpis', 'rangeCut', 'renderEvolutionChart', 'renderAllocation', 'loadRadar',
 ];
 
 function ficheros(dir) {
