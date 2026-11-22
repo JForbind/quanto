@@ -145,6 +145,10 @@ html[data-theme="light"] .orb-c { background: radial-gradient(circle at 40% 60%,
   to { transform: translate3d(3vw, 4vh, 0) scale(1.08); }
 }
 
+/* El resaltado táctil del WebView pinta un rectángulo que no respeta el
+   border-radius de los botones; se sustituye por el estado :active de cada uno. */
+* { -webkit-tap-highlight-color: transparent; }
+
 /* ---------------------------------------------- cristal */
 .glass {
   position: relative;
@@ -657,6 +661,8 @@ html[data-theme="light"] .select option { background: #fff; color: #0d1524; }
   .mobile-nav .nav-item { flex-direction: column; gap: 3px; padding: 7px 4px; font-size: 10px; border-radius: 12px; justify-content: center; flex: 1; }
   .mobile-nav .nav-item svg { width: 20px; height: 20px; }
   .mobile-nav .nav-item.is-active { background: var(--glass-hi-2); }
+  .mobile-nav .nav-item:active { background: var(--glass-hi-2); }
+  .mobile-nav .nav-item { overflow: hidden; }
 }
 
 @media (max-width: 520px) {
