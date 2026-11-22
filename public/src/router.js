@@ -19,6 +19,21 @@ export function register(view, enter) {
   if (typeof enter === 'function') entradas.set(view, enter);
 }
 
+function resetScroll() {
+  const arriba = () => {
+    try {
+      window.scrollTo(0, 0);
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+      for (const el of document.querySelectorAll('#app, main, .view')) el.scrollTop = 0;
+    } catch {}
+  };
+  arriba();
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(arriba);
+  setTimeout(arriba, 0);
+}
+
 export function navigate(view) {
   state.view = view;
   $$('.view').forEach(v => v.classList.add('hidden'));
@@ -59,12 +74,8 @@ export function navigate(view) {
   }
 
   // El scroll es del body y se compartía entre paneles: al cambiar de vista se
-  // vuelve arriba para que el nuevo panel empiece por su principio.
-  try {
-    window.scrollTo(0, 0);
-    document.body.scrollTop = 0;
-    document.documentElement.scrollTop = 0;
-  } catch {}
+  // vuelve arriba. Se repite tras el primer pintado porque el panel cambia de alto.
+  resetScroll();
 
   if (alRedimensionar) setTimeout(alRedimensionar, 60);
   if (location.hash !== '#/' + view) history.replaceState(null, '', '#/' + view);
