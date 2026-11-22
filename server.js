@@ -40,7 +40,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '5.5.0';
+const VERSION = '5.5.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -3815,6 +3815,15 @@ app.get('/api/icon/:symbol', limitHeavy, async (req, res) => {
 // Si hay build de Vite (dist/) se sirve ese; si no, el public/ de siempre.
 // Así el despliegue puede seguir siendo una copia directa sin build.
 const WEB_DIR = exists(path.join(__dirname, 'dist', 'index.html')) ? path.join(__dirname, 'dist') : path.join(__dirname, 'public');
+// Descarga directa de la app Android (no es secreto; se sirve sin sesión).
+app.get('/Quanto.apk', (req, res) => {
+  const apk = path.join(__dirname, 'public', 'downloads', 'Quanto.apk');
+  if (!fs.existsSync(apk)) return res.status(404).send('La app Android no está incluida en esta imagen');
+  res.set('Content-Type', 'application/vnd.android.package-archive');
+  res.set('Content-Disposition', 'attachment; filename="Quanto.apk"');
+  res.sendFile(apk);
+});
+
 app.use(express.static(WEB_DIR, { extensions: ['html'] }));
 app.get('/', (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html')));
 // Compatibilidad con la ruta de la app anterior (/app.html) y con enlaces antiguos

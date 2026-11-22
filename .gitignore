@@ -23,3 +23,6 @@ Thumbs.db
 
 # Build del front (se genera en el Dockerfile o con npm run build:web)
 dist/
+
+# Binario de la app Android (se genera con quanto-android/build.sh)
+public/downloads/*.apk

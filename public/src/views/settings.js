@@ -82,7 +82,8 @@ export function renderAbout() {
     ['Historial importado', st.importedAt ? dateLong(st.importedAt) : 'No'],
     ['Última sincronización', st.lastSyncAt ? dateTime(st.lastSyncAt) : '—'],
     ['Copias automáticas', 'en data/ junto a los JSON'],
-  ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
+  ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')
+    + '<div><dt>Aplicación</dt><dd><a href="/Quanto.apk" download>Descargar app Android (APK)</a></dd></div>';
 }
 
 $('#keys-form')?.addEventListener('submit', async (e) => {
