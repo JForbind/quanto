@@ -94,7 +94,7 @@ function waitFor(url, ms = 40000) {
 
       // Las APIs deben responder por código, no por una referencia rota:
       // un refactor que se lleve un endpoint o una función tiene que cantar aquí.
-      const APIs = ['/api/overview', '/api/backups', '/api/regime-watch', '/api/coherence', '/api/twr?days=30', '/api/news', '/api/leverage', '/api/plans', '/api/alerts'];
+      const APIs = ['/api/overview', '/api/backups', '/api/regime-watch', '/api/coherence', '/api/twr?days=30', '/api/news', '/api/leverage', '/api/plans', '/api/alerts', '/api/transactions', '/api/tax?year=all'];
       for (const url of APIs) {
         const res = await page.evaluate(async u => {
           const r = await fetch(u, { credentials: 'same-origin' });
