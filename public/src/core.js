@@ -117,6 +117,13 @@ export async function api(path, options = {}) {
 
 /* ------------------------------------------------ avisos en pantalla */
 let toastTimer = null;
+/** Vibración corta en móvil (el navegador la ignora donde no existe). */
+export function haptic(ms = 12) {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(ms);
+  } catch {}
+}
+
 export function toast(message, isError) {
   const el = $('#toast');
   if (!el) return;
