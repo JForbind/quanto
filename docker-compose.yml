@@ -2,7 +2,7 @@ name: quanto
 
 services:
   quanto:
-    image: quanto:4.0.1
+    image: quanto:4.1.0
     build: .
     container_name: quanto
     restart: unless-stopped

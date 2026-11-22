@@ -20,3 +20,6 @@ data/
 .tmp/
 .DS_Store
 Thumbs.db
+
+# Build del front (se genera en el Dockerfile o con npm run build:web)
+dist/

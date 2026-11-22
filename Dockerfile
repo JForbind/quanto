@@ -7,11 +7,16 @@ ENV NODE_ENV=production \
 
 # Dependencias primero (mejor caché de capas)
 COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund \
+RUN npm install --no-audit --no-fund \
  && npm cache clean --force \
  && apk add --no-cache su-exec
 
 COPY . .
+
+# Build del front con Vite. Si fallara (por ejemplo, sin esbuild para musl),
+# el servidor sirve public/ igual que antes: el despliegue no se rompe.
+RUN (npm run build:web || echo 'aviso: sin build de Vite, se servirá public/') \
+ && npm prune --omit=dev
 
 # El punto de entrada ajusta el propietario del volumen y ejecuta como usuario node
 RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /app/data && chown -R node:node /app

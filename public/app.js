@@ -4500,6 +4500,11 @@ $('#backups-body')?.addEventListener('click', async (e) => {
   }
 });
 
+/* Puente de la fase 1: al empaquetarse con Vite el código queda encapsulado.
+   Se expone el router para el humo de UI y la consola; en la fase 2 (módulos)
+   esta línea desaparece y nadie necesita globals. */
+window.navigate = navigate;
+
 /* ------------------------------------------------ informe de coherencia */
 let COHERENCE = null;
 

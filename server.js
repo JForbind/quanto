@@ -40,7 +40,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '4.0.1';
+const VERSION = '4.1.0';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -3769,10 +3769,13 @@ app.get('/api/icon/:symbol', limitHeavy, async (req, res) => {
   res.type('svg').send(letraSvg(sym));
 });
 
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// Si hay build de Vite (dist/) se sirve ese; si no, el public/ de siempre.
+// Así el despliegue puede seguir siendo una copia directa sin build.
+const WEB_DIR = exists(path.join(__dirname, 'dist', 'index.html')) ? path.join(__dirname, 'dist') : path.join(__dirname, 'public');
+app.use(express.static(WEB_DIR, { extensions: ['html'] }));
+app.get('/', (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html')));
 // Compatibilidad con la ruta de la app anterior (/app.html) y con enlaces antiguos
-app.get(['/app.html', '/app'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get(['/app.html', '/app'], (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html')));
 
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'No existe' });
