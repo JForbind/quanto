@@ -69,7 +69,7 @@ export function initSwipe({ navigate, getView }) {
     const actual = orden.indexOf(getView());
     if (actual < 0) return;
     const destino = dx < 0 ? orden[actual + 1] : orden[actual - 1];
-    if (destino) { haptic(14); navigate(destino); }
+    if (destino) { haptic(28); navigate(destino); }
   }, { passive: true });
 
   // Cancelar si el gesto se vuelve vertical (scroll).
