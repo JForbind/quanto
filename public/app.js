@@ -24,6 +24,7 @@ import { RANGES, loadRanges, rangeFmt, initRanges } from './src/data/ranges.js';
 import { PIE_COLORS, coinColor, loadCoinIcons, coinBadge, sparklineSvg, rngBlock } from './src/ui/coins.js';
 import { loadNews, bindNews } from './src/views/news.js';
 import { navigate, register, initRouter } from './src/router.js';
+import { initSwipe } from './src/ui/swipe.js';
 import { loadTradeChart, tradeSymbols, initTrade } from './src/views/trade.js';
 import { loadTotp } from './src/views/totp.js';
 
@@ -133,6 +134,7 @@ const VIEW_TITLES = {
 
 // Router: una entrada por vista. El orden da igual; cada una se ejecuta al entrar.
 initRouter({ titles: VIEW_TITLES, sharedKpis: renderSharedKpis, resize: resizeCharts });
+initSwipe({ navigate, getView: () => state.view });
 register('dashboard', () => { renderDashboard(); watchRender(); loadSizing(); loadTwr(); });
 register('coins', () => renderCoins());
 register('market', () => { loadLiquidity(); loadLeverage(); loadPulse(); loadCalendar(); renderFearGreed(); });
