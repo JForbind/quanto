@@ -59,6 +59,6 @@ export function anioCobertura(r) {
 /** Aviso cuando el máximo del exchange supera al ATH global (mercados distintos). */
 export function avisoExchange(r) {
   if (!r || !r.ath || !r.histHigh || r.athApprox) return '';
-  if (r.histHigh <= r.ath * 1.005) return '';
+  if (r.histHigh <= r.ath * 1.02) return '';  // 2%: por debajo es ruido de cambio/spread
   return 'Bitvavo marcó ' + rangeFmt(r.histHigh) + ' €, por encima del ATH global: son fuentes distintas';
 }
