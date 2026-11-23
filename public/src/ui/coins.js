@@ -55,10 +55,10 @@ export function rngBlock(symbol) {
     ? 'Máximo desde ' + new Date(r.athFrom).getFullYear()
     : 'Máximo histórico';
   const ayudaMax = [athFuente(r), avisoExchange(r)].filter(Boolean).join(' · ');
-  const cell = (label, value, approx, title) => `<span class="rng-cell"><i>${label}</i><b${approx ? ` class="approx"${title ? ` title="${esc(title)}"` : ''}` : ''}>${value ? (approx ? '≈ ' : '') + rangeFmt(value) + ' €' : '—'}</b></span>`;
+  const cell = (label, value, approx, title, cls = '') => `<span class="rng-cell${cls ? ' ' + cls : ''}"><i>${label}</i><b${approx ? ` class="approx"${title ? ` title="${esc(title)}"` : ''}` : ''}>${value ? (approx ? '≈ ' : '') + rangeFmt(value) + ' €' : '—'}</b></span>`;
   return `<div class="coin-rng">
-    ${cell(etiquetaMax, r.ath, r.athApprox, ayudaMax)}
     ${cell('Máximo ' + y + (anioCobertura(r) ? ' (' + anioCobertura(r) + ')' : ''), r.high)}
+    ${cell(etiquetaMax, r.ath, r.athApprox, ayudaMax, 'rng-ath')}
     ${cell('Mínimo ' + y, r.low)}
   </div>`;
 }

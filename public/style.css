@@ -950,6 +950,9 @@ body.is-admin .topbar-actions #refresh-btn { display: none; }
 /* rejilla de rangos junto al nombre: dos columnas, cuatro celdas */
 .coin-rng { display: grid; grid-template-columns: auto auto; gap: 0 14px; font-size: 10px; color: var(--muted); line-height: 1.45; margin-top: 1px; }
 .coin-rng span { white-space: nowrap; }
+/* El máximo histórico va solo a la derecha, ocupando las dos filas. */
+.coin-rng .rng-ath { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+@media (max-width: 900px) { .coin-rng .rng-ath { grid-column: auto; grid-row: auto; } }
 .coin-rng b { color: var(--text); font-weight: 600; }
 
 /* nombre centrado + datos completos al lado */
