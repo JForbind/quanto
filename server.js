@@ -40,7 +40,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '5.9.0';
+const VERSION = '5.10.0';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -2444,8 +2444,11 @@ app.get('/api/tax/simulate', async (req, res) => {
     }
     const proceeds = round(amount * price, 2);
     const matched = sim.matchedAmount;
-    const fifoGain = round(proceeds - sim.fifoCost, 2);
-    const avgGain = round(proceeds - sim.avgCostUsed, 2);
+    // La ganancia se calcula solo sobre la parte que tiene compra casada; la
+    // parte sin casar no debe inflar el beneficio ni tributar.
+    const matchedProceeds = round(matched * price, 2);
+    const fifoGain = round(matchedProceeds - sim.fifoCost, 2);
+    const avgGain = round(matchedProceeds - sim.avgCostUsed, 2);
     res.json({
       ok: true,
       symbol,
@@ -2457,7 +2460,7 @@ app.get('/api/tax/simulate', async (req, res) => {
       unmatched: sim.unmatchedAmount,
       fifo: { cost: sim.fifoCost, gain: fifoGain, tax: estimateTax(fifoGain), lots: sim.fifoLots },
       average: { cost: sim.avgCostUsed, gain: avgGain, tax: estimateTax(avgGain), unitCost: sim.avgCost },
-      netAfterTax: round(proceeds - estimateTax(fifoGain), 2),
+      netAfterTax: round(matchedProceeds - estimateTax(fifoGain), 2),
       remaining: round(Math.max(0, sim.available - amount), 8),
       remainingValue: round(Math.max(0, sim.available - amount) * price, 2),
       weightBefore: (() => {

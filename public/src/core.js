@@ -44,7 +44,11 @@ export const eur0Fmt = new Intl.NumberFormat('es-ES', { style: 'currency', curre
 export function groupNum(v, d = 2, minD = 0) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   const neg = Number(v) < 0;
-  const fixed = Math.abs(Number(v)).toFixed(d);
+  // Compensa el ruido de coma flotante antes de redondear (1.005 → 1.01),
+  // igual que hace el servidor en lib/util.js.
+  const abs = Math.abs(Number(v));
+  const redondeado = Math.round((abs + Number.EPSILON) * 10 ** d) / 10 ** d;
+  const fixed = redondeado.toFixed(d);
   const [en, fr] = fixed.split('.');
   const ent = en.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   const frac = fr && fr.replace(/0+$/, '').length >= minD ? fr.replace(/0+$/, '') : (minD > 0 ? fr : '');

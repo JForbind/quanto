@@ -170,29 +170,27 @@ export function renderSimPosicion() {
       <p class="hint" style="margin:0">Está en <b>Seguimiento</b>. Usa la tarjeta <b>«¿Y si invierto más?»</b> para simular una compra a precio de hoy y ver cuánto ganarías si vendes a ${priceFmt(n.price)}.</p>`;
     return;
   }
-  const invertido = Number(c.invested) || 0;
+  // Base de coste medio para el resumen de la posición (los impuestos FIFO
+  // están en la tarjeta «¿Y si vendo?», que usa el cálculo del servidor).
+  const conocidos = !!c.costKnown;
+  const invertido = conocidos ? (Number(c.invested) || 0) : null;
   const objetivo = n.newCoinValue;
-  const bruto = objetivo - invertido;
-  const t = simState.tax && simState.tax.ok ? simState.tax : null;
-  const impuestos = t && Number(t.price) === Number(simState.price) ? (Number(t.fifo && t.fifo.tax) || 0) : null;
-  const neto = impuestos === null ? null : bruto - impuestos;
-  const pct = invertido > 0 ? (bruto / invertido) * 100 : null;
+  const bruto = invertido === null ? null : objetivo - invertido;
+  const pct = invertido && invertido > 0 ? (bruto / invertido) * 100 : null;
   const fila = (etiqueta, valor, clase) => `<div class="pos-line"><span>${etiqueta}</span><b class="${clase || ''}">${valor}</b></div>`;
 
   box.innerHTML = `<header class="card-head">
       <div><h2>Tu ${esc(c.symbol)} a ${priceFmt(n.price)}</h2>
-      <p class="card-sub">Lo que has puesto, lo que valdría y lo que te llevas de verdad.</p></div>
+      <p class="card-sub">Lo que has puesto y lo que valdría a ese precio.</p></div>
     </header>
     <div class="pos-grid">
-      ${fila('Inversión total', invertido ? eur(invertido) : '—')}
+      ${fila('Inversión total', invertido === null ? '—' : eur(invertido))}
       ${fila('Cantidad', num(c.amount, 8) + ' ' + esc(c.symbol))}
       ${fila('Precio medio de compra', c.costKnown ? priceFmt(c.avgPrice) : '—')}
       ${fila('Valdría a ' + priceFmt(n.price), eur(objetivo))}
-      ${fila('Beneficio bruto', (bruto >= 0 ? '+' : '') + eur(bruto) + (pct === null ? '' : ` (${(pct >= 0 ? '+' : '') + num(pct, 1)} %)`), bruto >= 0 ? 'pos' : 'neg')}
-      ${fila('Impuestos estimados', impuestos === null ? 'calculando…' : '−' + eur(impuestos))}
-      ${fila('Beneficio neto', neto === null ? 'calculando…' : (neto >= 0 ? '+' : '') + eur(neto), neto === null ? '' : (neto >= 0 ? 'pos' : 'neg'))}
+      ${fila('Beneficio bruto', bruto === null ? '—' : (bruto >= 0 ? '+' : '') + eur(bruto) + (pct === null ? '' : ` (${(pct >= 0 ? '+' : '') + num(pct, 1)} %)`), bruto === null ? '' : (bruto >= 0 ? 'pos' : 'neg'))}
     </div>
-    <p class="hint" style="margin:10px 0 0">${bruto >= 0 ? 'Beneficio = valor a ese precio − lo que invertiste. Los impuestos salen del cálculo FIFO de tus compras reales.' : 'A ese precio estarías por debajo de lo invertido: no habría beneficio que declarar.'}</p>`;
+    <p class="hint" style="margin:10px 0 0">${bruto === null ? 'Sin coste conocido: el beneficio no se puede calcular hasta que importes el historial.' : 'Beneficio = valor a ese precio − lo que invertiste (coste medio). El desglose con impuestos FIFO está en «¿Y si vendo?».'}</p>`;
 }
 
 export async function renderSimBuy(unidades) {
@@ -266,7 +264,7 @@ export function renderSimExtras(n, r) {
   const avg = Number(n.coin.avgPrice) || 0;
   const need = n.price > 0 && avg > 0 ? ((avg / n.price) - 1) * 100 : null;
   const target = avg > 0 ? avg * 0.9 : 0;
-  const b = target > n.price ? (n.coin.invested - target * n.coin.amount) / (target - n.price) : -1;
+  const b = target > n.price && n.price > 0 ? ((target * n.coin.amount - n.coin.invested) * n.price) / (n.price - target) : -1;
   const bText = b > 0 ? `${eur(b)} a ${priceFmt(n.price)} te dejarían la media en ${priceFmt(target)}` : 'a ese precio no se puede bajar la media comprando';
 
   const hoy = Number(n.coin.price) || 0;
