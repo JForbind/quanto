@@ -1010,7 +1010,17 @@ function renderStatus() {
   if (updated) $('#page-sub').textContent = (VIEW_TITLES[state.view] || ['', ''])[1] + ' · actualizado ' + relTime(Date.parse(updated));
 }
 
-const dismissedBanners = new Set();
+// Avisos descartados: se recuerdan entre recargas. Si cambia su «sello»
+// (p. ej. el importe pendiente), vuelven a aparecer.
+const BANNERS_KEY = 'quanto.banners';
+const dismissedBanners = (() => {
+  try { return JSON.parse(localStorage.getItem(BANNERS_KEY) || '{}') || {}; } catch { return {}; }
+})();
+function bannerKey(w) { return w.code || w.text; }
+function bannerStamp(w) { return String(w.pending !== undefined && w.pending !== null ? w.pending : (w.text || '')); }
+function saveDismissed() {
+  try { localStorage.setItem(BANNERS_KEY, JSON.stringify(dismissedBanners)); } catch {}
+}
 
 function renderBanner() {
   const el = $('#banner');
@@ -1018,7 +1028,7 @@ function renderBanner() {
   const extra = [];
   if (state.status && state.status.keysError) extra.push({ level: 'warn', text: state.status.keysError });
   if (state.status && state.status.error) extra.push({ level: 'warn', text: state.status.error });
-  const all = extra.concat(warnings).filter(w => !dismissedBanners.has(w.code || w.text));
+  const all = extra.concat(warnings).filter(w => dismissedBanners[bannerKey(w)] !== bannerStamp(w));
   if (!all.length) { el.classList.add('hidden'); return; }
   const first = all[0];
   const key = first.code || first.text;
@@ -1027,7 +1037,7 @@ function renderBanner() {
     (all.length > 1 ? `<span class="tiny muted">(+${all.length - 1})</span>` : '') +
     `<button class="banner-close" type="button" aria-label="Cerrar aviso">×</button>`;
   const close = el.querySelector('.banner-close');
-  if (close) close.addEventListener('click', () => { dismissedBanners.add(key); renderBanner(); });
+  if (close) close.addEventListener('click', () => { dismissedBanners[key] = bannerStamp(first); saveDismissed(); renderBanner(); });
 }
 
 // Resumen vive en src/views/dashboard.js (parte de datos y gráficos)
