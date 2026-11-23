@@ -134,7 +134,21 @@ function waitFor(url, ms = 40000) {
           return Math.max(0, doc.scrollWidth - window.innerWidth);
         });
         if (!visible) fallos.push(`${nombre} · ${view}: la vista no se muestra`);
-        if (desborde > 2) fallos.push(`${nombre} · ${view}: desborde de ${desborde}px`);
+        if (desborde > 2) {
+          const quien = await page.evaluate(() => {
+            const ancho = window.innerWidth;
+            const fuera = [];
+            document.querySelectorAll('*').forEach(el => {
+              const r = el.getBoundingClientRect();
+              if (r.width > 0 && r.right > ancho + 1) {
+                const cls = String(el.className || '').slice(0, 24);
+                fuera.push(`${el.tagName}${el.id ? '#' + el.id : ''}.${cls}`);
+              }
+            });
+            return [...new Set(fuera)].slice(0, 3).join(' | ');
+          });
+          fallos.push(`${nombre} · ${view}: desborde de ${desborde}px (${quien})`);
+        }
         if (errores.length > antes) fallos.push(`${nombre} · ${view}: ${errores[antes]}`);
       }
 
