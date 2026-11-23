@@ -40,7 +40,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '5.10.0';
+const VERSION = '5.10.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -2442,11 +2442,11 @@ app.get('/api/tax/simulate', async (req, res) => {
         try { price = Number((await fetchMarket()).prices[symbol]) || 0; } catch {}
       }
     }
-    const proceeds = round(amount * price, 2);
+    // Solo se puede vender lo que hay: el ingreso mostrado es el de la parte
+    // casada (con cantidad normal, matched = amount y no cambia nada).
     const matched = sim.matchedAmount;
-    // La ganancia se calcula solo sobre la parte que tiene compra casada; la
-    // parte sin casar no debe inflar el beneficio ni tributar.
-    const matchedProceeds = round(matched * price, 2);
+    const proceeds = round(matched * price, 2);
+    const matchedProceeds = proceeds;
     const fifoGain = round(matchedProceeds - sim.fifoCost, 2);
     const avgGain = round(matchedProceeds - sim.avgCostUsed, 2);
     res.json({
