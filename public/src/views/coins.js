@@ -4,7 +4,7 @@ import { $, state, api, toast, eur, num, pct, priceFmt, signed, dateShort, esc }
 import { coinRow } from '../ui/coins.js';
 import { chart, themeVars, baseTooltip } from '../ui/charts.js';
 import { openModal, closeModal } from '../ui/modal.js';
-import { RANGES, rangeFmt } from '../data/ranges.js';
+import { RANGES, rangeFmt, athFuente, anioCobertura, avisoExchange } from '../data/ranges.js';
 
 let onSaved = null;
 
@@ -72,10 +72,11 @@ function openCoin(symbol) {
       const fecha = (ts) => ts ? new Date(ts).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '';
       return `<h3 class="h3" style="margin-top:16px">Rangos de precio</h3>
       <div class="rng-grid">
-        <div class="stat"><span>${r.athApprox && r.athFrom ? 'Máximo desde ' + new Date(r.athFrom).getFullYear() : 'Máximo histórico'}</span><strong>${f(r.ath)}</strong><small>${r.athApprox && r.athFrom ? 'sin histórico completo' : fecha(r.athDate)}</small></div>
-        <div class="stat"><span>Máximo ${r.year || ''}</span><strong>${f(r.high)}</strong><small>año en curso</small></div>
-        <div class="stat"><span>Mínimo ${r.year || ''}</span><strong>${f(r.low)}</strong><small>año en curso</small></div>
+        <div class="stat"><span>${r.athApprox && r.athFrom ? 'Máximo desde ' + new Date(r.athFrom).getFullYear() : 'Máximo histórico'}</span><strong>${f(r.ath)}</strong><small>${r.athApprox ? 'sin histórico completo' : athFuente(r)}</small></div>
+        <div class="stat"><span>Máximo ${r.year || ''}</span><strong>${f(r.high)}</strong><small>${anioCobertura(r) ? 'año en curso, ' + anioCobertura(r) : 'año en curso'}</small></div>
+        <div class="stat"><span>Mínimo ${r.year || ''}</span><strong>${f(r.low)}</strong><small>${anioCobertura(r) ? 'año en curso, ' + anioCobertura(r) : 'año en curso'}</small></div>
       </div>
+      ${avisoExchange(r) ? `<p class="hint">${esc(avisoExchange(r))}</p>` : ''}
       ${r.high && r.low && r.high > r.low ? `<div class="rng-bar" title="Dónde está el precio dentro del rango del año">
         <span style="left:${Math.max(0, Math.min(100, ((coin.price - r.low) / (r.high - r.low)) * 100))}%"></span>
       </div>

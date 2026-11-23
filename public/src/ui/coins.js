@@ -2,7 +2,7 @@
 // Piezas de una moneda: insignia, fila de tabla, rangos y minigráfico.
 import { esc, num, eur, pct, priceFmt, signed, state } from '../core.js';
 import { hexA } from './charts.js';
-import { RANGES, rangeFmt } from '../data/ranges.js';
+import { RANGES, rangeFmt, athFuente, anioCobertura, avisoExchange } from '../data/ranges.js';
 
 export const PIE_COLORS = ['#8ba4ff', '#22d3ee', '#a78bfa', '#34e0a1', '#ffc266', '#ff7387', '#60a5fa', '#f472b6', '#4ade80', '#facc15', '#c084fc', '#2dd4bf'];
 
@@ -54,13 +54,11 @@ export function rngBlock(symbol) {
   const etiquetaMax = r.athApprox && r.athFrom
     ? 'Máximo desde ' + new Date(r.athFrom).getFullYear()
     : 'Máximo histórico';
-  const ayudaMax = r.athApprox && r.athFrom
-    ? 'No hay histórico completo: es el máximo desde que tenemos datos'
-    : '';
+  const ayudaMax = [athFuente(r), avisoExchange(r)].filter(Boolean).join(' · ');
   const cell = (label, value, approx, title) => `<span class="rng-cell"><i>${label}</i><b${approx ? ` class="approx"${title ? ` title="${esc(title)}"` : ''}` : ''}>${value ? (approx ? '≈ ' : '') + rangeFmt(value) + ' €' : '—'}</b></span>`;
   return `<div class="coin-rng">
     ${cell(etiquetaMax, r.ath, r.athApprox, ayudaMax)}
-    ${cell('Máximo ' + y, r.high)}
+    ${cell('Máximo ' + y + (anioCobertura(r) ? ' (' + anioCobertura(r) + ')' : ''), r.high)}
     ${cell('Mínimo ' + y, r.low)}
   </div>`;
 }

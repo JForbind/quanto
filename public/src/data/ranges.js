@@ -34,3 +34,31 @@ export async function loadRanges() {
     if (onRanges) onRanges();
   } catch {}
 }
+
+/** Fuente y fecha del máximo histórico, para mostrarlas bajo el número. */
+export function athFuente(r) {
+  if (!r || !r.ath) return '';
+  if (r.athApprox) {
+    return r.athFrom ? 'Binance · desde ' + new Date(r.athFrom).getFullYear() : 'aproximado';
+  }
+  const f = r.athDate
+    ? new Date(r.athDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+  return 'CoinGecko' + (f ? ' · ' + f : '');
+}
+
+/** «desde may» cuando el año no está cubierto desde enero (listado tardío). */
+export function anioCobertura(r) {
+  const y = r && r.year ? r.year : new Date().getFullYear();
+  if (!r || !r.from) return '';
+  const desde = new Date(r.from);
+  if (desde.getFullYear() !== y || desde.getMonth() <= 1) return '';
+  return 'desde ' + desde.toLocaleDateString('es-ES', { month: 'short' });
+}
+
+/** Aviso cuando el máximo del exchange supera al ATH global (mercados distintos). */
+export function avisoExchange(r) {
+  if (!r || !r.ath || !r.histHigh || r.athApprox) return '';
+  if (r.histHigh <= r.ath * 1.005) return '';
+  return 'Bitvavo marcó ' + rangeFmt(r.histHigh) + ' €, por encima del ATH global: son fuentes distintas';
+}

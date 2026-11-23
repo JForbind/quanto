@@ -1,7 +1,7 @@
 'use strict';
 // Simulador: escenarios de precio, venta simulada, compra extra y guardados.
 import { $, state, api, esc, eur, num, pct, priceFmt, dateShort } from '../core.js';
-import { RANGES, rangeFmt } from '../data/ranges.js';
+import { RANGES, rangeFmt, athFuente, anioCobertura, avisoExchange } from '../data/ranges.js';
 
 // La app inyecta seguimiento y catálogo de mercados.
 let getWatch = () => [];
@@ -103,8 +103,8 @@ export function renderSim() {
     ['+50 %', base * 1.5, 'Un 50 % por encima'],
     ['×2', base * 2, 'El doble del precio actual'],
     ['Tu precio medio', n.coin.avgPrice, tienePosicion ? 'Tu precio medio de compra' : 'Sin posición: no hay precio medio'],
-    ['Máximo del año', r.high, 'Precio más alto de este año'],
-    ['Máx. histórico', r.ath, 'Precio más alto de la historia'],
+    ['Máximo del año', r.high, 'Precio más alto de este año' + (anioCobertura(r) ? ' (' + anioCobertura(r) + ')' : '')],
+    ['Máx. histórico', r.ath, ('Precio más alto de la historia' + (athFuente(r) ? ' · ' + athFuente(r) : ''))],
   ];
   $('#sim-presets').innerHTML = presets.map(([label, value, title]) => {
     const ok = Number(value) > 0;
@@ -271,10 +271,10 @@ export function renderSimExtras(n, r) {
 
   const hoy = Number(n.coin.price) || 0;
   const veces = hoy > 0 && r.ath ? r.ath / hoy : null;
-  box.innerHTML = `<header class="card-head"><div><h2>Datos que ayudan</h2><p class="card-sub">Equilibrio, histórico y cuánto haría falta.</p></div></header>
+  box.innerHTML = `<header class="card-head"><div><h2>Datos que ayudan</h2><p class="card-sub">Equilibrio, histórico y cuánto haría falta.</p></div></header>${avisoExchange(r) ? `<p class="hint">${avisoExchange(r)}</p>` : ''}
     <div class="sim-kpis">
       <div class="stat"><span>Precio actual</span><strong>${priceFmt(hoy)}</strong><small>${n.coin.dayChangePct === null || n.coin.dayChangePct === undefined ? 'ahora mismo' : `hoy ${n.coin.dayChangePct >= 0 ? '+' : ''}${num(n.coin.dayChangePct, 2)} %`}</small></div>
-      <div class="stat"><span>Máximo histórico</span><strong>${r.ath ? priceFmt(r.ath) : '—'}</strong><small>${veces ? `${num(veces, 1)}× el precio de hoy` : 'sin dato histórico'}</small></div>
+      <div class="stat"><span>Máximo histórico</span><strong>${r.ath ? priceFmt(r.ath) : '—'}</strong><small>${athFuente(r) || 'sin dato histórico'}${veces ? ' · ' + num(veces, 1) + '× el precio de hoy' : ''}</small></div>
       <div class="stat"><span>Precio de equilibrio</span><strong>${avg ? priceFmt(avg) : '—'}</strong><small>${need === null ? '' : `estás ${need >= 0 ? '+' : ''}${num(need, 1)} % de ahí`}</small></div>
       <div class="stat"><span>Si hubieras vendido en máx. histórico</span><strong>${r.ath && n.coin.amount > 0 ? eur(n.coin.amount * r.ath) : '—'}</strong><small>${n.coin.amount > 0 ? (r.ath ? 'bruto, antes de impuestos' : 'sin dato histórico') : 'sin posición'}</small></div>
       <div class="stat"><span>Para bajar tu media un 10 %</span><strong>${b > 0 ? eur(b) : '—'}</strong><small>${bText}</small></div>

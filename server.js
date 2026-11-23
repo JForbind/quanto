@@ -40,7 +40,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '5.8.6';
+const VERSION = '5.8.7';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -3603,7 +3603,9 @@ function rangeDrain() {
         if (ids[sym]) {
           const data = await ranges.athAtl({ [sym]: ids[sym] });
           const cg = data[sym];
-          if (cg) v = { ...cg, ath: eur && cg.ath ? cg.ath * eur : null, atl: eur && cg.atl ? cg.atl * eur : null, src: 'coingecko' };
+          // CoinGecko ya da el ATH/ATL en EUR de su fecha; no se convierte con el
+          // cambio de hoy (eso inflaba el valor y movía la fecha).
+          if (cg) v = { ...cg, src: 'coingecko' };
         }
       } catch (e) { v = null; }
       // 2º Binance si CoinGecko no responde (aproximado: desde su salida en Binance)

@@ -1,6 +1,6 @@
 {
   "name": "quanto",
-  "version": "5.8.6",
+  "version": "5.8.7",
   "private": true,
   "type": "commonjs",
   "main": "server.js",
