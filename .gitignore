@@ -4,8 +4,9 @@ npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Datos y secretos (nunca subir)
-data/
+# Datos y secretos (nunca subir). Solo la carpeta data/ de la RAÍZ:
+# public/src/data/ es código del front y debe versionarse.
+/data/
 .env
 .env.*
 !.env.example
