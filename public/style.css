@@ -416,7 +416,7 @@ html[data-theme="light"] .chips button.is-active { background: #fff; box-shadow:
 .explain .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
 
 /* ---------------------------------------------- tablas */
-.table-wrap { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
+.table-wrap { overflow-x: auto; margin: 0 -6px; padding: 0 6px; max-width: 100%; min-width: 0; }
 .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
 .table th {
   text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
