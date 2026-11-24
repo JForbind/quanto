@@ -94,6 +94,9 @@ export async function loadCalendar() {
   }
 }
 
+// Último dato de pulso (se usa al repintar la tarjeta)
+let PULSE = null;
+
 export async function loadPulse() {
   try {
     const d = await api('/api/pulse');

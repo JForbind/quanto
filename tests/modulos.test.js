@@ -86,3 +86,16 @@ test('app.js importa todo lo que usa de los módulos', () => {
   const faltan = [...(usados)].filter(n => exportados.has(n) && !importados.has(n)).sort();
   assert.deepStrictEqual(faltan, [], 'app.js usa funciones de módulos sin importarlas: ' + faltan.join(', '));
 });
+
+test('ningún módulo asigna variables en MAYÚSCULAS sin declararlas', () => {
+  const problemas = [];
+  for (const f of ficheros(RAIZ)) {
+    const src = limpiar(fs.readFileSync(f, 'utf8'));
+    const propios = importadosYDeclarados(src);
+    for (const m of src.matchAll(/^\s*([A-Z][A-Z0-9_]{2,})\s*=(?!=)/gm)) {
+      const n = m[1];
+      if (!propios.has(n)) problemas.push(`${path.relative(RAIZ, f)}: asigna «${n}» sin declararla`);
+    }
+  }
+  assert.deepStrictEqual(problemas, []);
+});

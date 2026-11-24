@@ -606,7 +606,6 @@ async function loadUsers() {
 
 
 
-let PULSE = null;
 
 
 
