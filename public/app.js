@@ -121,7 +121,7 @@ $('#tg-weekly-now')?.addEventListener('click', async () => {
 const VIEW_TITLES = {
   news: ['Noticias', 'Titulares filtrados por tus monedas'],
   dashboard: ['Resumen', 'Tu cartera de un vistazo'],
-  coins: ['Monedas', 'Posiciones, precio medio y rentabilidad'],
+  coins: ['Mi Cartera', 'Posiciones, precio medio y rentabilidad'],
   market: ['Índices', 'Liquidez, deuda y sentimiento de mercado'],
   operations: ['Operaciones', 'Todas tus compras, ventas y movimientos'],
   tax: ['Fiscal', 'Informe FIFO listo para la declaración'],
