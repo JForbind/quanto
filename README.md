@@ -318,3 +318,9 @@ Las variables de entorno mandan sobre lo guardado en la interfaz.
 En una instalación nueva, la primera vez que se abre Quanto pide **crear la cuenta de
 administrador** (usuario, email y contraseña de 12+ caracteres). Desde esa cuenta se crean
 el resto de usuarios, cada uno con su propia cartera, sus claves de Bitvavo y su Telegram.
+
+## Cómo se ha hecho
+
+Este proyecto se ha desarrollado con asistencia de IA (**vibe coding**) bajo dirección y
+revisión humana: el diseño, las decisiones y las pruebas son del autor; el código se ha
+generado e iterado con ayuda de modelos. Revísalo antes de usarlo en producción.
