@@ -12,3 +12,5 @@ data/
 tests/
 docs/
 README.md
+# Build local: dentro de la imagen se genera de nuevo
+dist/

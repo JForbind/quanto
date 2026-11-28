@@ -40,7 +40,7 @@ let QRCode = null;
 try { QRCode = require('qrcode'); } catch (e) { console.log('[2fa] sin generador de QR:', e.message); }
 const { round } = require('./lib/util');
 
-const VERSION = '5.11.0';
+const VERSION = '5.11.1';
 const PORT = Number(process.env.PORT) || 8765;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SNAP_MIN = Math.max(1, Number(process.env.SNAP_INTERVAL_MIN) || 5);
@@ -93,10 +93,11 @@ const COOKIE_SECRET = (() => {
   const file = path.join(DATA_DIR, 'session-secret.txt');
   try {
     const old = fs.readFileSync(file, 'utf8').trim();
+    try { fs.chmodSync(file, 0o600); } catch {}
     if (old.length >= 32) return old;
   } catch {}
   const secret = crypto.randomBytes(32).toString('hex');
-  try { fs.writeFileSync(file, secret); } catch {}
+  try { fs.writeFileSync(file, secret, { mode: 0o600 }); } catch {}
   return secret;
 })();
 
@@ -336,21 +337,31 @@ function compactSnapshots() {
 // ------------------------------------------------------------------ express
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', true);
+// Solo se confía en X-Forwarded-For si hay un proxy delante (TRUST_PROXY=1).
+// Con false, req.ip es la IP real de conexión y no se puede falsificar la cabecera.
+app.set('trust proxy', (() => {
+  const v = String(process.env.TRUST_PROXY || '').trim();
+  if (!v) return false;
+  if (v === '1' || v === 'true') return 1;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : v; // IP concreta del proxy (p. ej. 172.17.0.1)
+})());
 
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  if (String(req.path || '').startsWith('/api')) res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; " +
     "script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; " +
-    "base-uri 'none'; form-action 'self'");
+    "base-uri 'none'; form-action 'self'; object-src 'none'; frame-src 'none'; " +
+    "worker-src 'self'; manifest-src 'self'");
   next();
 });
 
-app.use(express.json({ limit: '25mb' }));
+
 // Lectura de la cookie de sesión (antes que cualquier guardia)
 app.use((req, res, next) => {
   const raw = req.headers.cookie || '';
@@ -364,6 +375,7 @@ app.use((req, res, next) => {
 // para que ninguna pueda quedarse sin proteger.
 const PUBLIC_API = new Set(['/api/health', '/api/status', '/api/setup', '/api/login', '/api/login/2fa', '/api/forgot', '/api/ca.crt', '/api/session']);
 const ADMIN_OK = new Set(['/api/me', '/api/password', '/api/logout', '/api/status']);
+const ADMIN_OK_2FA = ['/api/2fa/status', '/api/2fa/setup', '/api/2fa/enable', '/api/2fa/disable'];
 
 function isPublicApi(full) {
   if (PUBLIC_API.has(full)) return true;
@@ -376,7 +388,7 @@ app.use('/api', (req, res, next) => {
   requireAuth(req, res, () => {
     const user = req.user || {};
     if (user.role === 'admin' && !user.canData) {
-      const allowed = ADMIN_OK.has(full) || full.startsWith('/api/users') || full.startsWith('/api/mail');
+      const allowed = ADMIN_OK.has(full) || ADMIN_OK_2FA.includes(full) || full.startsWith('/api/users') || full.startsWith('/api/mail');
       if (!allowed) {
         return res.status(403).json({ error: 'La cuenta admin solo gestiona usuarios', code: 'admin-only' });
       }
@@ -385,6 +397,11 @@ app.use('/api', (req, res, next) => {
   });
 });
 
+// El cuerpo se parsea DESPUÉS de autenticar: un anónimo no puede hacernos
+// reservar memoria con un JSON grande. El límite amplio, solo en import/restore.
+app.use(['/api/import/history', '/api/restore', '/api/backups/restore'], express.json({ limit: '25mb' }));
+app.use('/api', express.json({ limit: '1mb' }));
+
 
 
 
@@ -392,6 +409,7 @@ const limiter = createLimiter({ windowMs: 10 * 60e3, max: 8 });
 const forgotLimiter = createLimiter({ windowMs: 3600e3, max: 3 });
 const heavyLimiter = createLimiter({ windowMs: 60e3, max: 240 });
 const userLimiter = createLimiter({ windowMs: 15 * 60e3, max: 10 });
+const setupLimiter = createLimiter({ windowMs: 10 * 60e3, max: 5 });
 function limitHeavy(req, res, next) {
   const lim = heavyLimiter.check(clientIp(req) + ':' + req.path);
   if (!lim.allowed) return res.status(429).json({ error: 'Demasiadas peticiones, espera un momento' });
@@ -400,7 +418,8 @@ function limitHeavy(req, res, next) {
 const loginAttempts = new Map();
 
 function clientIp(req) {
-  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+  // req.ip respeta 'trust proxy'; no leemos XFF a mano para que no se pueda falsear.
+  return req.ip || req.socket.remoteAddress || 'unknown';
 }
 
 function setSessionCookie(req, res, token) {
@@ -423,6 +442,11 @@ function touchSeen(user) {
 function requireAuth(req, res, next) {
   const payload = sessionPayload(req);
   if (!payload || !payload.u) return res.status(401).json({ error: 'No autorizado', code: 'unauthorized' });
+  // El ticket de 2FA se firma con el mismo secreto: sin esta comprobación serviría
+  // como sesión completa y el segundo factor sería decorativo.
+  if (payload.tfa || payload.scope === '2fa') {
+    return res.status(401).json({ error: 'Falta el segundo factor', code: 'tfa' });
+  }
   const user = userStore.findById(payload.u);
   if (!user || user.active === false) return res.status(401).json({ error: 'Cuenta no disponible', code: 'unauthorized' });
   if ((user.sessionVersion || 1) !== (payload.v || 1)) {
@@ -881,7 +905,14 @@ app.get('/api/setup', (req, res) => {
 });
 
 let setupBusy = false;
+function esRedPrivada(ip) {
+  const s = String(ip || '').replace('::ffff:', '');
+  return s === '127.0.0.1' || s === '::1' || /^10\./.test(s) || /^192\.168\./.test(s) || /^172\.(1[6-9]|2\d|3[01])\./.test(s);
+}
 app.post('/api/setup', async (req, res) => {
+  // El primer arranque es la ventana más peligrosa: solo desde la red local y con límite.
+  if (!esRedPrivada(clientIp(req))) return res.status(403).json({ error: 'El alta inicial solo se permite desde la red local' });
+  if (!setupLimiter.check(clientIp(req)).allowed) return res.status(429).json({ error: 'Demasiados intentos, espera un momento' });
   if (hasAdmin()) return res.status(400).json({ error: 'La instalación ya tiene administrador' });
   if (setupBusy) return res.status(409).json({ error: 'Ya se está creando el administrador' });
   setupBusy = true;
@@ -910,7 +941,7 @@ app.post('/api/setup', async (req, res) => {
       }
     }
   }
-  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1, scope: 'session' }, SESSION_DAYS * 86400e3));
   res.json({ ok: true, user: userStore.publicUser(userStore.findById(user.id)) });
   } finally { setupBusy = false; }
 });
@@ -956,7 +987,11 @@ app.post('/api/login/2fa', (req, res) => {
     return res.status(429).json({ error: 'Demasiados códigos incorrectos. Espera unos minutos.' });
   }
 
-  let ok = totp.verificar(user.totpSecret, code);
+  const paso = totp.verificarPaso(user.totpSecret, code);
+  let ok = paso !== null && paso > (user.totpLastStep || 0);
+  if (paso !== null && !ok) {
+    return res.status(401).json({ error: 'Ese código ya se ha usado. Espera al siguiente.', code: 'replay' });
+  }
   let usadoRespaldo = false;
   if (!ok) {
     // código de respaldo (un solo uso)
@@ -970,8 +1005,8 @@ app.post('/api/login/2fa', (req, res) => {
   userLimiter.reset('2fa:' + user.username.toLowerCase());
   limiter.reset(ip);
   const fresh = userStore.findById(user.id);
-  userStore.update(user.id, { lastLoginAt: Date.now(), lastSeenAt: Date.now(), loginCount: (fresh.loginCount || 0) + 1 });
-  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: fresh.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
+  userStore.update(user.id, { lastLoginAt: Date.now(), lastSeenAt: Date.now(), loginCount: (fresh.loginCount || 0) + 1, ...(paso !== null ? { totpLastStep: paso } : {}) });
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: fresh.sessionVersion || 1, scope: 'session' }, SESSION_DAYS * 86400e3));
   res.json({ ok: true, user: userStore.publicUser(userStore.findById(user.id)), mustChange: !!fresh.mustChange, backupUsed: usadoRespaldo });
 });
 
@@ -1179,7 +1214,8 @@ app.get('/api/auto-alerts/check', async (req, res) => {
       } catch { /* sin velas */ }
     }
     filas.sort((a, b) => a.pct - b.pct);
-    const enviar = String(req.query.send || '') === '1';
+    // Un GET no debe tener efectos (CSRF por navegación): aquí solo se previsualiza.
+    const enviar = false;
     let enviados = 0;
     if (enviar && (cfg.drop.on || cfg.rise.on)) {
       const antes = new Map(autoLast);
@@ -1250,6 +1286,11 @@ app.get('/api/2fa/status', (req, res) => {
 
 app.post('/api/2fa/setup', async (req, res) => {
   try {
+    // Con el 2FA ya activo, generar otro secreto permitiría re-vincularlo sin
+    // re-autenticar (una sesión robada podría sustituir el TOTP del dueño).
+    if (req.user.totpEnabled) {
+      return res.status(409).json({ error: 'El doble factor ya está activo. Desactívalo (con tu código) antes de configurarlo de nuevo.' });
+    }
     const secret = totp.nuevoSecreto();
     userStore.setTotpPending(req.user.id, secret);
     const uri = totp.uri(secret, req.user.username);
@@ -1263,9 +1304,14 @@ app.post('/api/2fa/enable', (req, res) => {
   const u = userStore.findById(req.user.id);
   const code = String((req.body && req.body.code) || '');
   if (!u || !u.totpPending) return res.status(400).json({ error: 'Primero genera el código QR' });
-  if (!totp.verificar(u.totpPending, code)) return res.status(400).json({ error: 'Ese código no es válido. Revisa la hora del móvil.' });
+  const paso = totp.verificarPaso(u.totpPending, code);
+  if (paso === null) return res.status(400).json({ error: 'Ese código no es válido. Revisa la hora del móvil.' });
   const codes = totp.codigosRespaldo(10);
   userStore.enableTotp(u.id, u.totpPending, codes.map(totp.hashCodigo));
+  // Cambiar el 2FA invalida las demás sesiones; la actual se reemite.
+  const vers = (u.sessionVersion || 1) + 1;
+  userStore.update(u.id, { sessionVersion: vers, totpLastStep: paso });
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: u.id, v: vers, scope: 'session' }, SESSION_DAYS * 86400e3));
   res.json({ ok: true, backupCodes: codes });
 });
 
@@ -1273,8 +1319,12 @@ app.post('/api/2fa/disable', (req, res) => {
   const u = userStore.findById(req.user.id);
   const code = String((req.body && req.body.code) || '');
   if (!u || !u.totpEnabled) return res.status(400).json({ error: 'El doble factor no está activo' });
-  if (!totp.verificar(u.totpSecret, code)) return res.status(400).json({ error: 'Código incorrecto' });
+  const paso = totp.verificarPaso(u.totpSecret, code);
+  if (paso === null || paso <= (u.totpLastStep || 0)) return res.status(400).json({ error: 'Código incorrecto o ya usado' });
   userStore.disableTotp(u.id);
+  const vers = (u.sessionVersion || 1) + 1;
+  userStore.update(u.id, { sessionVersion: vers });
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: u.id, v: vers, scope: 'session' }, SESSION_DAYS * 86400e3));
   res.json({ ok: true });
 });
 
@@ -1295,6 +1345,7 @@ app.post('/api/login', (req, res) => {
   const username = String((req.body && req.body.username) || '').trim();
   const password = String((req.body && req.body.password) || '');
   if (!username || !password) return res.status(400).json({ error: 'Usuario y contraseña obligatorios' });
+  if (password.length > 256) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
   const userKey = 'u:' + username.toLowerCase();
   const limitUser = userLimiter.check(userKey);
   if (!limitUser.allowed) {
@@ -1311,11 +1362,11 @@ app.post('/api/login', (req, res) => {
 
   // Con doble factor activo, la contraseña sola no abre sesión
   if (user.totpEnabled) {
-    const ticket = createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1, tfa: 1 }, 5 * 60e3);
+    const ticket = createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1, tfa: 1, scope: '2fa' }, 5 * 60e3);
     return res.json({ ok: true, need2fa: true, ticket });
   }
 
-  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1, scope: 'session' }, SESSION_DAYS * 86400e3));
   res.json({ ok: true, user: userStore.publicUser(user), mustChange: !!user.mustChange });
 });
 
@@ -1334,7 +1385,9 @@ app.post('/api/forgot', (req, res) => {
 app.get('/api/invite/:token', (req, res) => {
   const user = userStore.inviteByToken(req.params.token);
   if (!user) return res.status(404).json({ error: 'Enlace no válido o caducado' });
-  res.json({ ok: true, username: user.username, email: user.email || '' });
+  const email = String(user.email || '');
+  const emailMasc = email ? email.replace(/^(.{2}).*(@.*)$/, '$1***$2') : '';
+  res.json({ ok: true, username: user.username, email: emailMasc });
 });
 
 app.post('/api/invite/:token', (req, res) => {
@@ -1342,8 +1395,8 @@ app.post('/api/invite/:token', (req, res) => {
   if (out.error === 'token') return res.status(404).json({ error: 'Enlace no válido o caducado' });
   if (out.error === 'politica') return res.status(400).json({ error: 'La contraseña no cumple la política', problems: out.problems });
   const user = out.user;
-  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1 }, SESSION_DAYS * 86400e3));
-  res.json({ ok: true, user: userStore.publicUser(user) });
+  setSessionCookie(req, res, createSessionToken(COOKIE_SECRET, { u: user.id, v: user.sessionVersion || 1, scope: 'session' }, SESSION_DAYS * 86400e3));
+  res.json({ ok: true, user: userStore.publicUser(user), tfaReset: !!out.tfaReset });
 });
 
 // ---------------- privado ----------------
@@ -1693,7 +1746,7 @@ function buildAlertEmailHtml(d) {
     </div>
     <div style="padding:24px">
       <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a97ab">${d.sube ? 'Subida rápida' : 'Bajada rápida'}</div>
-      <h1 style="margin:6px 0 2px;font-size:24px;color:#0b1220">${d.simbolo} ${d.sube ? 'sube' : 'cae'} un ${f(Math.abs(d.pct), 2)} %</h1>
+      <h1 style="margin:6px 0 2px;font-size:24px;color:#0b1220">${escMail(d.simbolo)} ${d.sube ? 'sube' : 'cae'} un ${f(Math.abs(d.pct), 2)} %</h1>
       <div style="color:#5b6b82;font-size:13px">en ${d.ventana}</div>
 
       <div style="margin:18px 0 4px;font-size:30px;font-weight:800;color:${color}">${flecha} ${px(d.precio)}</div>
@@ -2138,6 +2191,8 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
+  // Los tokens son sin estado: subir la versión invalida todas las sesiones emitidas.
+  try { if (req.user) userStore.update(req.user.id, { sessionVersion: (req.user.sessionVersion || 1) + 1 }); } catch {}
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   res.json({ ok: true });
 });
@@ -2302,7 +2357,12 @@ app.get('/api/transactions.csv', (req, res) => {
       r.value ? String(r.value).replace('.', ',') : '',
       r.fee ? String(r.fee).replace('.', ',') : '',
       r.feeCurrency, r.status, r.id,
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'));
+    ].map(v => {
+      let t = String(v == null ? '' : v);
+      // Un valor importado que empiece por = + - @ se ejecutaría como fórmula en Excel.
+      if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+      return '"' + t.replace(/"/g, '""') + '"';
+    }).join(';'));
   }
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="quanto-operaciones.csv"');
@@ -2841,8 +2901,9 @@ function saveAppearance(kind, dataUrl) {
   if (!buf.length) throw new Error('La imagen está vacía');
   const max = kind === 'avatar' ? 2 * 1024 * 1024 : 8 * 1024 * 1024;
   if (buf.length > max) throw new Error('Imagen demasiado grande (máx. ' + Math.round(max / 1024 / 1024) + ' MB)');
+  const destino = path.join(tenant.ctx().files.dir, kind + '.' + ext);
   for (const p of appearancePaths(kind)) { try { fs.unlinkSync(p); } catch {} }
-  fs.writeFileSync(path.join(DATA_DIR, kind + '.' + ext), buf);
+  fs.writeFileSync(destino, buf, { mode: 0o600 });
 }
 
 app.get('/api/appearance', (req, res) => {
@@ -2982,6 +3043,8 @@ app.get('/api/holdings', (req, res) => res.json(readJson(FILES.holdings, {}) || 
 
 app.post('/api/holdings', (req, res) => {
   const symbol = String((req.body && req.body.symbol) || '').trim().toUpperCase();
+  // Símbolo estricto: acaba en el correo de avisos (HTML) y en nombres de fichero.
+  if (!/^[A-Z0-9]{1,12}$/.test(symbol)) return res.status(400).json({ error: 'Símbolo no válido' });
   const amount = Number((req.body || {}).amount);
   if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
   if (!isFinite(amount) || amount < 0) return res.status(400).json({ error: 'Cantidad no válida' });
@@ -3011,6 +3074,7 @@ app.delete('/api/holdings/:symbol', (req, res) => {
 app.get('/api/overrides', (req, res) => res.json(readJson(FILES.overrides, {}) || {}));
 app.post('/api/overrides', (req, res) => {
   const symbol = String((req.body || {}).symbol || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,12}$/.test(symbol)) return res.status(400).json({ error: 'Símbolo no válido' });
   if (!symbol) return res.status(400).json({ error: 'Falta la moneda' });
   const raw = (req.body || {}).invested;
   const overrides = readJson(FILES.overrides, {}) || {};
@@ -3035,9 +3099,21 @@ function backupFiles() {
   };
 }
 
+function sanearSettings(s) {
+  if (!s || typeof s !== 'object') return s;
+  const c = { ...s };
+  for (const k of ['apiKey', 'apiSecret', 'fredKey']) delete c[k];
+  if (c.telegram) c.telegram = { ...c.telegram, token: '' };
+  if (c.smtp) c.smtp = { ...c.smtp, pass: '' };
+  return c;
+}
+
 function backupPayload() {
   const out = { app: 'quanto', version: VERSION, exportedAt: new Date().toISOString(), files: {} };
-  for (const [key, file] of Object.entries(backupFiles())) out.files[key] = readJson(file, null);
+  for (const [key, file] of Object.entries(backupFiles())) {
+    const value = readJson(file, null);
+    out.files[key] = key === 'settings' ? sanearSettings(value) : value;
+  }
   out.files.regimeWatch = getRegimeWatchStore();
   return out;
 }
@@ -3050,7 +3126,16 @@ function applyBackupFiles(files) {
     // Si la clave no está en la copia, no se toca. Si está pero vacía, se restaura vacía:
     // una copia debe devolver el estado exacto que tenía, no solo sobrescribir lo que trae.
     if (!Object.prototype.hasOwnProperty.call(files, key)) continue;
-    const value = files[key] === null ? (vacios[key] || {}) : files[key];
+    let value = files[key] === null ? (vacios[key] || {}) : files[key];
+    if (key === 'settings' && value && typeof value === 'object') {
+      // Los secretos no viajan en las copias: al restaurar se conservan los actuales.
+      const actual = readJson(file, {}) || {};
+      for (const k of ['apiKey', 'apiSecret', 'fredKey']) {
+        if (actual[k] !== undefined) value[k] = actual[k];
+      }
+      if (actual.telegram && value.telegram) value.telegram.token = actual.telegram.token;
+      if (actual.smtp && value.smtp) value.smtp.pass = actual.smtp.pass;
+    }
     try { if (exists(file)) fs.copyFileSync(file, file + '.bak-' + stamp); } catch {}
     writeJson(file, value);
     restored.push(path.basename(file));
@@ -3284,7 +3369,7 @@ app.post('/api/wipe', (req, res) => {
     return res.status(400).json({ error: 'Escribe BORRAR para confirmar' });
   }
   const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-  for (const file of Object.values(BACKUP_FILES)) {
+  for (const file of Object.values(backupFiles())) {
     try {
       if (exists(file)) {
         fs.copyFileSync(file, file + '.bak-' + stamp);

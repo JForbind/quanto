@@ -5,22 +5,21 @@ ENV NODE_ENV=production \
     PORT=8765 \
     DATA_DIR=/app/data
 
-# Dependencias primero (mejor caché de capas)
-COPY package.json ./
+# Dependencias primero (mejor caché de capas y versiones del lockfile)
+COPY package.json package-lock.json ./
 # --include=dev: NODE_ENV=production haría que npm omitiera Vite y no habría build.
-RUN npm install --include=dev --no-audit --no-fund \
+RUN npm ci --include=dev --no-audit --no-fund \
  && npm cache clean --force \
  && apk add --no-cache su-exec
 
 COPY . .
 
-# Build del front con Vite. Si fallara (por ejemplo, sin esbuild para musl),
-# el servidor sirve public/ igual que antes: el despliegue no se rompe.
-RUN (npm run build:web || echo 'aviso: sin build de Vite, se servirá public/') \
+# Build del front con Vite. Si falla, el despliegue falla: no se sirve un dist viejo.
+RUN npm run build:web \
  && npm prune --omit=dev
 
 # El punto de entrada ajusta el propietario del volumen y ejecuta como usuario node
-RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /app/data && chown -R node:node /app
+RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /app/data && chown -R node:node /app/data
 
 EXPOSE 8765
 VOLUME ["/app/data"]

@@ -2,7 +2,7 @@ name: quanto
 
 services:
   quanto:
-    image: quanto:5.11.0
+    image: quanto:5.11.1
     build: .
     container_name: quanto
     restart: unless-stopped
@@ -21,6 +21,9 @@ services:
       - COOKIE_SECRET=${COOKIE_SECRET:-}
       # URL pública: se usa en los enlaces de los mensajes y correos
       - PUBLIC_URL=${PUBLIC_URL:-}
+      # IP del proxy (nginx) para confiar en X-Forwarded-For solo desde ahí.
+      # Acceso directo por 8766 sigue usando la IP real (no se puede falsificar).
+      - TRUST_PROXY=${TRUST_PROXY:-172.17.0.1}
     # DNS explícito: el resolv.conf del host puede apuntar a servidores caídos
     dns:
       - ${DNS_1:-9.9.9.9}

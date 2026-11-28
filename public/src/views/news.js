@@ -19,7 +19,7 @@ function renderNewsMini(list) {
   if (!box) return;
   if (!list.length) { box.innerHTML = '<p class="muted tiny">Sin noticias ahora mismo.</p>'; return; }
   box.innerHTML = list.slice(0, 4).map(n => `
-    <a class="news-item" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer"${n.titleEn ? ` title="${esc(n.titleEn)}"` : ''}>
+    <a class="news-item" href="${hrefSeguro(n.link)}" target="_blank" rel="noopener noreferrer"${n.titleEn ? ` title="${esc(n.titleEn)}"` : ''}>
       <span class="news-meta">${esc(n.source)} · ${timeAgo(n.ts)}</span>
       <span class="news-title">${esc(n.title)}</span>
     </a>`).join('');
@@ -34,7 +34,7 @@ function renderNewsList() {
   if (!list.length) { box.innerHTML = '<p class="muted">Sin noticias.</p>'; return; }
   const enTag = n => (n.lang && n.lang !== 'es' && !n.translated) ? ' · EN' : '';
   box.innerHTML = list.map(n => `
-    <a class="news-item" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer"${n.titleEn ? ` title="${esc(n.titleEn)}"` : ''}>
+    <a class="news-item" href="${hrefSeguro(n.link)}" target="_blank" rel="noopener noreferrer"${n.titleEn ? ` title="${esc(n.titleEn)}"` : ''}>
       <span class="news-meta">${esc(n.source)} · ${timeAgo(n.ts)}${enTag(n)}${n.coins.length ? ' · ' + n.coins.map(c => esc(c)).join(', ') : ''}</span>
       <span class="news-title">${esc(n.title)}</span>
       ${n.summary ? `<span class="news-sum">${esc(n.summary)}</span>` : ''}
