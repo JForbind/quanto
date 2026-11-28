@@ -11,9 +11,10 @@
 <link rel="icon" type="image/png" sizes="1024x1024" href="/favicon.png">
 <link rel="apple-touch-icon" href="/favicon.png">
 <link rel="manifest" href="/manifest.webmanifest">
+<script src="/boot-sidebar.js"></script>
 <link rel="stylesheet" href="/style.css?v=230">
 <script src="/echarts.min.js" defer></script>
-<script type="module" src="/app.js?v=5.10.4"></script>
+<script type="module" src="/app.js?v=5.11.0"></script>
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -87,6 +88,7 @@
 <!-- ------------------------------------------------ app -->
 <div id="app" class="app hidden">
   <aside class="sidebar glass">
+    <div class="sidebar-resize" id="sidebar-resize" role="separator" aria-orientation="vertical" title="Arrastra para cambiar el ancho · doble clic para plegar"></div>
     <div class="brand">
       <span class="qmark" title="Quanto"><span class="qq">Q</span>UANTO</span>
     </div>
@@ -140,6 +142,9 @@
         <span id="sync-info" class="tiny muted">—</span>
       </div>
       <div class="side-actions">
+        <button id="sidebar-toggle" class="icon-btn" title="Encoger menú" aria-label="Encoger menú" aria-expanded="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M9 5v14"/><path d="m14 10-2 2 2 2"/></svg>
+        </button>
         <button id="settings-btn" class="icon-btn" data-goto="settings" title="Ajustes" aria-label="Ajustes">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"/></svg>
         </button>

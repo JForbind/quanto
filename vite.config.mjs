@@ -15,7 +15,7 @@ function copiarResto() {
     name: 'quanto-copiar-resto',
     closeBundle() {
       fs.mkdirSync(salida, { recursive: true });
-      for (const f of ['index.html', 'style.css', 'echarts.min.js', 'favicon.png', 'icon.svg', 'manifest.webmanifest', 'sw.js']) {
+      for (const f of ['index.html', 'style.css', 'boot-sidebar.js', 'echarts.min.js', 'favicon.png', 'icon.svg', 'manifest.webmanifest', 'sw.js']) {
         const src = path.join(publicDir, f);
         if (fs.existsSync(src)) fs.copyFileSync(src, path.join(salida, f));
       }

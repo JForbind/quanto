@@ -917,6 +917,70 @@ async function buscadorMonedas(texto) {
 
 // Simulador vive en src/views/sim.js
 
+/* ------------------------------------------------ panel lateral dimensionable */
+(function panelLateral() {
+  const sidebar = document.querySelector('.sidebar');
+  const handle = document.getElementById('sidebar-resize');
+  const toggle = document.getElementById('sidebar-toggle');
+  if (!sidebar || !handle || !toggle) return;
+  const root = document.documentElement;
+  const MIN = 180, MAX = 380, DEF = 264;
+  let guardado = {};
+  try { guardado = JSON.parse(localStorage.getItem('quanto.sidebar') || '{}') || {}; } catch {}
+  let ancho = Math.min(MAX, Math.max(MIN, Number(guardado.w) || DEF));
+
+  const colapsado = () => root.getAttribute('data-sidebar') === 'collapsed';
+  const guardar = (w, col) => { try { localStorage.setItem('quanto.sidebar', JSON.stringify({ w, collapsed: col })); } catch {} };
+  const pintarBoton = () => {
+    const t = colapsado() ? 'Expandir menú' : 'Encoger menú';
+    toggle.title = t;
+    toggle.setAttribute('aria-label', t);
+    toggle.setAttribute('aria-expanded', String(!colapsado()));
+  };
+  const aplicar = (col, w) => {
+    if (w) ancho = Math.min(MAX, Math.max(MIN, w));
+    if (col) root.setAttribute('data-sidebar', 'collapsed');
+    else { root.removeAttribute('data-sidebar'); root.style.setProperty('--sidebar-w', ancho + 'px'); }
+    guardar(ancho, col);
+    pintarBoton();
+  };
+
+  // Al plegarse solo quedan iconos: el texto pasa a tooltip.
+  document.querySelectorAll('.sidebar .nav-item[data-view]').forEach((btn) => {
+    const t = btn.querySelector('span');
+    if (t) btn.title = t.textContent;
+  });
+
+  toggle.addEventListener('click', () => aplicar(!colapsado(), ancho));
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    root.classList.add('is-resizing');
+    if (colapsado()) { root.removeAttribute('data-sidebar'); root.style.setProperty('--sidebar-w', ancho + 'px'); }
+    const inicioX = e.clientX;
+    const inicioW = sidebar.getBoundingClientRect().width;
+    const mover = (ev) => {
+      const w = Math.min(MAX, Math.max(120, inicioW + (ev.clientX - inicioX)));
+      root.style.setProperty('--sidebar-w', w + 'px');
+    };
+    const soltar = () => {
+      document.removeEventListener('mousemove', mover);
+      document.removeEventListener('mouseup', soltar);
+      root.classList.remove('is-resizing');
+      const w = sidebar.getBoundingClientRect().width;
+      if (w < MIN) aplicar(true, ancho);
+      else aplicar(false, Math.round(w));
+    };
+    document.addEventListener('mousemove', mover);
+    document.addEventListener('mouseup', soltar);
+  });
+
+  // Doble clic en el borde: plegar/desplegar con el ancho por defecto.
+  handle.addEventListener('dblclick', () => aplicar(!colapsado(), DEF));
+
+  aplicar(colapsado(), ancho);
+})();
+
 async function boot() {
   showApp();
   await loadMe();
