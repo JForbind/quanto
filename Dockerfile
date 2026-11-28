@@ -19,7 +19,8 @@ RUN npm run build:web \
  && npm prune --omit=dev
 
 # El punto de entrada ajusta el propietario del volumen y ejecuta como usuario node
-RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /app/data && chown -R node:node /app/data
+RUN chmod +x /app/docker-entrypoint.sh && chmod -R a+rX /app \
+ && mkdir -p /app/data && chown -R node:node /app/data
 
 EXPOSE 8765
 VOLUME ["/app/data"]
